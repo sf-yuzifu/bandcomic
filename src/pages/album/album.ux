@@ -15,6 +15,7 @@
 		<image
 			class="cover"
 			src="https://jmcomic.yzf.moe/photo/{{ item_id }}"
+			alt="/common/loading.png"
 			onclick="toPhoto"
 		></image>
 		<text class="title1">{{ name }}</text>

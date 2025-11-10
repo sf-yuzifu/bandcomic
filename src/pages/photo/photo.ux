@@ -6,8 +6,9 @@
 				src="{{ images }}"
 				@complete="getPhoto"
 				@click="showButton"
-				style="{{ `width:${size.width * (1 + scale / 100)}px;height:${size.height * (1 + scale /
-100)}px;` }}"
+				alt="/common/loading.png"
+				style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale
+/ 100 * 2)}px;` }}"
 			></image>
 		</scroll>
 
@@ -78,7 +79,7 @@ export default {
 		page: 1,
 		time: "",
 		scale: 0,
-		size: { width: 100, height: 100 },
+		size: { width: deviceWidth, height: 480 },
 		showit: true,
 		showSlider: false,
 		images: null,
@@ -102,6 +103,8 @@ export default {
 	},
 
 	getImages() {
+		this.images = "";
+		this.scale = 0;
 		fetch.fetch({
 			url: `https://jmcomic.yzf.moe/photo/${this.id}/${this.page}`,
 			responseType: "file",
@@ -138,6 +141,10 @@ export default {
 				}
 				break;
 		}
+		this.$element("scrollId").scrollTo({
+			top: 0,
+			left: 0,
+		});
 		this.getImages();
 	},
 
@@ -148,14 +155,15 @@ export default {
 
 	showButton() {
 		this.showit = !this.showit;
-		this.$element("scrollId").scrollTo({
-			top: 0,
-			left: 0,
-		});
 	},
 
 	onSliderChange(e) {
 		this.scale = e.progress;
+		console.log("scale changed to " + this.scale);
+		this.$element("scrollId").scrollTo({
+			top: 0,
+			left: 0,
+		});
 	},
 };
 </script>
