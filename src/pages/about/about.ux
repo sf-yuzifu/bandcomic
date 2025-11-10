@@ -1,0 +1,141 @@
+<template>
+	<div class="container">
+		<img
+			src="/common/back.png"
+			@click="routeBack"
+			style="position: absolute; left: 6px; top: 6px"
+		/>
+		<text class="time">{{ time }}</text>
+		<text class="title">关于</text>
+		<div style="height: 96px"></div>
+		<div id="info">
+			<div id="inner">
+				<text class="bold" style="color: #fff; font-size: 30px">
+					{{ name }}
+				</text>
+				<text id="version" class="re">{{ ver }}</text>
+			</div>
+			<div id="logo-container">
+				<image id="logo" style="width: 76px" src="/common/logo.png" />
+			</div>
+		</div>
+		<div id="copyright">
+			<text class="re bold">
+				<span>作者</span>
+                <!-- 这里是占位符 -->
+                <span style="color: transparent">2</span>
+				<span class="bold" style="color: #fff">小鱼yuzifu</span>
+			</text>
+			<div style="width: 1px; height: 10px"></div>
+			<text class="re bold">感谢</text>
+			<text class="bold" style="color: #fff">NEORUAA</text>
+			<text class="bold" style="color: #fff">无源流沙</text>
+		</div>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import app from "@system.app";
+
+export default {
+	private: {
+		ver: app.getInfo().versionName,
+		name: app.getInfo().name,
+		time: "",
+	},
+
+	onShow() {
+		// 写入页面顶部时间
+		const date = new Date();
+		const hour = date.getHours().toString().padStart(2, "0");
+		const minute = date.getMinutes().toString().padStart(2, "0");
+		this.time = hour + ":" + minute;
+	},
+
+	routeBack() {
+		router.back();
+	},
+};
+</script>
+
+<style>
+.container {
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: center;
+}
+
+#info {
+	flex-direction: column;
+	justify-content: center;
+	border: 3px solid rgba(255, 255, 255, 0.06);
+	background-color: #262626;
+	border-radius: 20px;
+	padding: 10px 20px;
+	width: 276px;
+}
+
+#logo-container {
+	width: 100%;
+	flex-direction: column;
+	align-items: flex-end;
+}
+
+#inner {
+	align-items: flex-start;
+	justify-content: space-between;
+	flex-direction: column;
+	width: 100%;
+}
+
+#logo {
+	width: 60px;
+}
+
+#version {
+	font-size: 24px;
+}
+
+#copyright {
+	margin-top: 10px;
+	width: 276px;
+	flex-direction: column;
+	justify-content: center;
+	align-items: flex-start;
+}
+
+.sub {
+	color: #666;
+}
+
+.re {
+	color: #999;
+}
+
+.bold {
+	font-weight: bold;
+}
+
+.title {
+	position: absolute;
+	top: 35px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 32px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 1);
+}
+
+.time {
+	position: absolute;
+	top: 7px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 24px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 0.6);
+}
+</style>

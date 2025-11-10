@@ -1,0 +1,128 @@
+<template>
+	<div class="demo-page">
+		<img
+			src="/common/back.png"
+			@click="routeBack"
+			style="position: absolute; left: 6px; top: 6px"
+		/>
+		<img
+			src="/common/info.png"
+			@click="routeAbout"
+			style="position: absolute; right: 6px; top: 6px"
+		/>
+		<text class="time">{{ time }}</text>
+		<text class="title">详情</text>
+		<image
+			class="cover"
+			src="https://example.invalid/photo/{{ item_id }}"
+			onclick="toPhoto"
+		></image>
+		<text class="title1">{{ name }}</text>
+		<div class="detail">
+			<text>本子ID：{{ item_id }}</text>
+			<text>页数：{{ page_count }}</text>
+			<text>观看数：{{ views }}</text>
+		</div>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+
+export default {
+	private: {
+		name: "",
+		item_id: "",
+		page_count: 0,
+		views: "",
+		time: "",
+	},
+
+	onShow() {
+		// 写入页面顶部时间
+		const date = new Date();
+		const hour = date.getHours().toString().padStart(2, "0");
+		const minute = date.getMinutes().toString().padStart(2, "0");
+		this.time = hour + ":" + minute;
+	},
+
+	routeBack() {
+		router.back();
+	},
+
+	routeAbout() {
+		router.push({
+			uri: "/pages/about",
+		});
+	},
+
+	onInit() {},
+
+	toPhoto() {
+		router.push({
+			uri: "/pages/photo",
+			params: {
+				id: this.item_id,
+				page_count: this.page_count,
+			},
+		});
+	},
+};
+</script>
+
+<style>
+.demo-page {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	color: #ffffff;
+}
+
+.cover {
+	margin-top: 80px;
+	width: 50%;
+}
+
+text {
+	font-size: 20px;
+}
+
+.title1 {
+	font-size: 24px;
+	text-align: center;
+	margin-bottom: 4px;
+	margin-top: 10px;
+	width: 80%;
+	lines: 2;
+	font-weight: bold;
+	text-overflow: ellipsis;
+}
+
+.title {
+	position: absolute;
+	top: 35px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 32px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 1);
+}
+
+.time {
+	position: absolute;
+	top: 7px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 24px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.detail {
+	width: 80%;
+	flex-direction: column;
+	align-items: flex-start;
+}
+</style>

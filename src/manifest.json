@@ -1,0 +1,54 @@
+{
+  "package": "moe.yzf.comic",
+  "name": "腕上漫画",
+  "versionName": "1.0.0",
+  "versionCode": 1,
+  "minPlatformVersion": 1000,
+  "icon": "/common/logo.png",
+  "deviceTypeList": ["watch"],
+  "features": [
+    {
+      "name": "system.router"
+    },
+    {
+      "name": "system.file"
+    },
+    {
+      "name": "system.fetch"
+    },
+    {
+      "name": "system.app"
+    },
+    {
+      "name": "system.vibrator"
+    },
+    {
+      "name": "system.device"
+    }
+  ],
+  "config": {
+    "logLevel": "log",
+    "designWidth": "device-width"
+  },
+  "router": {
+    "entry": "pages/index",
+    "pages": {
+      "pages/index": {
+        "component": "index"
+      },
+      "pages/album": {
+        "component": "album"
+      },
+      "pages/photo": {
+        "component": "photo"
+      },
+      "pages/about": {
+        "component": "about"
+      }
+    }
+  },
+  "minAPILevel": 1,
+  "display": {
+    "backgroundColor": "#000000"
+  }
+}

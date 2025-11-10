@@ -1,0 +1,223 @@
+<template>
+	<div class="demo-page">
+		<scroll id="scrollId" class="box" scroll-x="true" scroll-y="true">
+			<image
+				class="cover"
+				src="{{ images }}"
+				@complete="getPhoto"
+				@click="showButton"
+				style="{{ `width:${size.width * (1 + scale / 100)}px;height:${size.height * (1 + scale /
+100)}px;` }}"
+			></image>
+		</scroll>
+
+		<img
+			if="{{ showit }}"
+			src="/common/upCover.png"
+			style="position: absolute; top: 0px"
+		/>
+		<img
+			if="{{ showit }}"
+			src="/common/bottomCover.png"
+			style="position: absolute; bottom: 0px"
+		/>
+
+		<img
+			if="{{ showit }}"
+			src="/common/left.png"
+			onclick="toPage('-')"
+			style="position: absolute; left: 6px; bottom: 6px"
+		/>
+		<img
+			if="{{ showit }}"
+			src="/common/right.png"
+			onclick="toPage('+')"
+			style="position: absolute; right: 6px; bottom: 6px"
+		/>
+
+		<div class="com" if="{{ showSlider }}">
+			<slider
+				class="slider"
+				min="0"
+				max="100"
+				step="1"
+				value="{{ scale }}"
+				onchange="onSliderChange"
+			></slider>
+		</div>
+
+		<img
+			if="{{ showit }}"
+			src="/common/left.png"
+			@click="routeBack"
+			style="position: absolute; left: 6px; top: 6px"
+		/>
+		<img
+			if="{{ showit }}"
+			src="/common/more.png"
+			@click="() => (showSlider = !showSlider)"
+			style="position: absolute; right: 6px; top: 6px"
+		/>
+
+		<text class="time" if="{{ showit }}">{{ time }}</text>
+		<text class="title" if="{{ showit }}">第 {{ page }} 页</text>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import device from "@system.device";
+import fetch from "@system.fetch";
+
+let deviceWidth = 336;
+
+export default {
+	private: {
+		id: "",
+		page_count: 0,
+		page: 1,
+		time: "",
+		scale: 0,
+		size: { width: 100, height: 100 },
+		showit: true,
+		showSlider: false,
+		images: null,
+	},
+
+	onShow() {
+		// 写入页面顶部时间
+		const date = new Date();
+		const hour = date.getHours().toString().padStart(2, "0");
+		const minute = date.getMinutes().toString().padStart(2, "0");
+		this.time = hour + ":" + minute;
+	},
+
+	onInit() {
+		device.getInfo({
+			success: function (ret) {
+				deviceWidth = ret.screenWidth;
+			},
+		});
+		this.getImages();
+	},
+
+	getImages() {
+		fetch.fetch({
+			url: `https://example.invalid/photo/${this.id}/${this.page}`,
+			responseType: "file",
+			success: (response) => {
+				this.images = response.data;
+			},
+			fail: function (data, code) {
+				console.log(`handling fail, errMsg = ${data}`);
+				console.log(`handling fail, errCode = ${code}`);
+			},
+		});
+	},
+
+	routeBack() {
+		router.back();
+	},
+
+	routeAbout() {
+		router.push({
+			uri: "/pages/about",
+		});
+	},
+
+	toPage(value) {
+		switch (value) {
+			case "+":
+				if (this.page < this.page_count) {
+					this.page += 1;
+				}
+				break;
+			case "-":
+				if (this.page > 1) {
+					this.page -= 1;
+				}
+				break;
+		}
+		this.getImages();
+	},
+
+	getPhoto(value) {
+		this.size.width = deviceWidth;
+		this.size.height = (deviceWidth / value.width) * value.height;
+	},
+
+	showButton() {
+		this.showit = !this.showit;
+		this.$element("scrollId").scrollTo({
+			top: 0,
+			left: 0,
+		});
+	},
+
+	onSliderChange(e) {
+		this.scale = e.progress;
+	},
+};
+</script>
+
+<style>
+.demo-page {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	color: #ffffff;
+	height: 100%;
+}
+
+.box {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+text {
+	font-size: 20px;
+}
+
+.button {
+	height: 50px;
+	font-size: 25px;
+	color: white;
+}
+
+.com {
+	position: absolute;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+}
+
+.title {
+	position: absolute;
+	top: 35px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 32px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 1);
+}
+
+.time {
+	position: absolute;
+	top: 7px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 24px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 0.6);
+}
+
+.slider {
+	width: 90%;
+}
+</style>

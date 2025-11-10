@@ -1,0 +1,186 @@
+<import
+	name="input-method"
+	src="../../components/InputMethod/InputMethod.ux"
+></import>
+<template>
+	<div class="demo-page">
+		<img
+			src="/common/back.png"
+			@click="routeBack"
+			style="position: absolute; left: 6px; top: 6px"
+		/>
+		<img
+			src="/common/info.png"
+			@click="routeAbout"
+			style="position: absolute; right: 6px; top: 6px"
+		/>
+		<text class="time">{{ time }}</text>
+		<text class="title">腕上漫画</text>
+		<div class="line" style="margin-bottom: 10px">
+			<text style="margin-bottom: 4px">输入车号</text>
+			<div class="input-line" @click="changeState">
+				<text>{{ id }}</text>
+			</div>
+		</div>
+		<div style="height: 40%" if="{{ !hide }}"></div>
+		<input-method
+			hide="{{ hide }}"
+			keyboardtype.static="{{ keyboardtype }}"
+			maxlength="5"
+			vibratemode.static="{{ vibratemode }}"
+			screentype.static="{{ screentype }}"
+			@visibility-change="visibilityChange"
+			@key-down="keyDown"
+			@delete="deleteit"
+			@complete="complete"
+		></input-method>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import fetch from "@system.fetch";
+
+const api = "https://example.invalid";
+
+export default {
+	// 页面级组件的数据模型，影响传入数据的覆盖机制：private内定义的属性不允许被覆盖
+	private: {
+		id: "1075440",
+		hide: true,
+		keyboardtype: "QWERTY",
+		vibratemode: "short",
+		screentype: "rect",
+		time: "",
+	},
+
+	onShow() {
+		// 写入页面顶部时间
+		const date = new Date();
+		const hour = date.getHours().toString().padStart(2, "0");
+		const minute = date.getMinutes().toString().padStart(2, "0");
+		this.time = hour + ":" + minute;
+	},
+
+	visibilityChange(evt) {
+		console.log("onVisibilityChange:" + JSON.stringify(evt));
+	},
+
+	keyDown(evt) {
+		// this.textValue += evt.detail.content;
+		console.log("onKeyDown:" + JSON.stringify(evt));
+	},
+
+	deleteit() {
+		this.id = this.id.slice(0, -1);
+		console.log("删除字符");
+	},
+
+	changeState() {
+		this.hide = !this.hide;
+		if (this.hide) {
+			this.getAlbum();
+		}
+	},
+
+	complete(evt) {
+		this.id += evt.detail.content;
+		console.log("onComplete:" + JSON.stringify(evt));
+	},
+
+	toAlbum(data) {
+		router.push({
+			uri: "/pages/album",
+			params: data,
+		});
+	},
+
+	getAlbum() {
+		fetch.fetch({
+			url: `${api}/album/${this.id}/info`,
+			responseType: "json",
+			success: (response) => {
+				console.log(`the data of the response: ${response.data}`);
+				this.toAlbum(response.data);
+			},
+			fail: function (data, code) {
+				console.log(`handling fail, errMsg = ${data}`);
+				console.log(`handling fail, errCode = ${code}`);
+			},
+		});
+	},
+
+	routeBack() {
+		router.back();
+	},
+
+	routeAbout() {
+		router.push({
+			uri: "/pages/about",
+		});
+	},
+};
+</script>
+
+<style>
+.demo-page {
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	color: #ffffff;
+}
+
+.title {
+	position: absolute;
+	top: 35px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 32px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 1);
+}
+
+.btn {
+	width: 240px;
+	height: 60px;
+	margin-top: 20px;
+	border-radius: 5px;
+	background-color: #09ba07;
+	font-size: 20px;
+	color: #ffffff;
+	justify-content: center;
+}
+
+.btn-txt {
+	font-size: 30px;
+	color: white;
+}
+
+.line {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+}
+
+.input-line {
+	height: 54px;
+	width: 256px;
+	background-color: #262626;
+	border: 3px solid rgba(255, 255, 255, 0.06);
+	border-radius: 100%;
+	padding-left: 12px;
+}
+
+.time {
+	position: absolute;
+	top: 7px;
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 24px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 0.6);
+}
+</style>
