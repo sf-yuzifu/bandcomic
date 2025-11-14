@@ -1,6 +1,13 @@
 <template>
 	<div class="demo-page">
-		<scroll id="scrollId" class="box" scroll-x="true" scroll-y="true">
+		<scroll
+			style="{{ `align-items: ${images ? 'flex-start':'center'}; justify-content: ${images ?
+'flex-start':'center'};` }}"
+			id="scrollId"
+			class="box"
+			scroll-x="true"
+			scroll-y="true"
+		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 			<image
 				class="cover"
@@ -143,8 +150,8 @@ export default {
 	getImages() {
 		this.images = "";
 		this.scale = 0;
-		this.size.width = deviceWidth;
-		this.size.height = deviceHeight;
+		this.size.width = deviceWidth / 2;
+		this.size.height = deviceHeight / 2;
 		fetch.fetch({
 			url: `https://example.invalid/photo/${this.id}/${this.page}`,
 			responseType: "file",

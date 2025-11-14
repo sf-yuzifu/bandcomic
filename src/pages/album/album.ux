@@ -28,9 +28,11 @@
 		<scroll id="scrollId" class="box" scroll-x="true" scroll-y="true">
 			<image
 				class="cover"
+				@complete="getPhoto"
 				src="https://example.invalid/photo/{{ item_id }}"
 				alt="/common/loading.png"
 				onclick="toPhoto"
+				style="{{ `width:${size.width}px;height:${size.height}px;` }}"
 			></image>
 			<text class="title1">{{ name }}</text>
 			<div class="detail">
@@ -45,6 +47,10 @@
 
 <script>
 import router from "@system.router";
+import device from "@system.device";
+
+let deviceWidth = 336;
+let deviceHeight = 480;
 
 export default {
 	private: {
@@ -54,6 +60,7 @@ export default {
 		views: "",
 		time: "",
 		screenShape: "circle",
+		size: { width: 200, height: 200 },
 	},
 
 	onShow() {
@@ -75,7 +82,20 @@ export default {
 		});
 	},
 
-	onInit() {},
+	onInit() {
+		device.getInfo({
+			success: function (ret) {
+				deviceWidth = ret.screenWidth;
+				deviceHeight = ret.screenHeight;
+			},
+		});
+		this.getImages();
+	},
+
+	getPhoto(value) {
+		this.size.width = deviceWidth / 2;
+		this.size.height = ((deviceWidth / value.width) * value.height) / 2;
+	},
 
 	toPhoto() {
 		router.push({
@@ -100,16 +120,12 @@ export default {
 	color: #ffffff;
 }
 
-.cover {
-	width: 50%;
-}
-
 text {
-	font-size: 20px;
+	font-size: 24px;
 }
 
 .title1 {
-	font-size: 24px;
+	font-size: 28px;
 	text-align: center;
 	margin-bottom: 4px;
 	margin-top: 10px;

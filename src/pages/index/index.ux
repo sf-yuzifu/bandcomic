@@ -49,6 +49,7 @@
 import router from "@system.router";
 import fetch from "@system.fetch";
 import device from "@system.device";
+import prompt from "@system.prompt";
 
 const api = "https://example.invalid";
 
@@ -97,6 +98,10 @@ export default {
 	changeState() {
 		this.hide = !this.hide;
 		if (this.hide) {
+			prompt.showToast({
+				message: "正在请求本子信息...",
+				duration: 5000,
+			});
 			this.getAlbum();
 		}
 	},
