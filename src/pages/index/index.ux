@@ -5,14 +5,22 @@
 <template>
 	<div class="demo-page">
 		<img
+			if="{{ screenShape != 'circle' }}"
+			class="leftButton top"
 			src="/common/back.png"
 			@click="routeBack"
-			style="position: absolute; left: 6px; top: 6px"
 		/>
 		<img
+			if="{{ screenShape != 'circle' }}"
+			class="rightButton top"
 			src="/common/info.png"
 			@click="routeAbout"
-			style="position: absolute; right: 6px; top: 6px"
+		/>
+		<img
+			if="{{ screenShape == 'circle' }}"
+			class="bottom"
+			src="/common/more_s4.png"
+			@click="routeAbout"
 		/>
 		<text class="time">{{ time }}</text>
 		<text class="title">腕上漫画</text>
@@ -21,8 +29,8 @@
 			<div class="input-line" @click="changeState">
 				<text>{{ id }}</text>
 			</div>
+			<div class="padding" style="height: 60%" if="{{ !hide }}"></div>
 		</div>
-		<div style="height: 40%" if="{{ !hide }}"></div>
 		<input-method
 			hide="{{ hide }}"
 			keyboardtype.static="{{ keyboardtype }}"
@@ -40,6 +48,7 @@
 <script>
 import router from "@system.router";
 import fetch from "@system.fetch";
+import device from "@system.device";
 
 const api = "https://example.invalid";
 
@@ -48,10 +57,11 @@ export default {
 	private: {
 		id: "1075440",
 		hide: true,
-		keyboardtype: "QWERTY",
+		keyboardtype: "T9",
 		vibratemode: "short",
 		screentype: "rect",
 		time: "",
+		screenShape: "circle",
 	},
 
 	onShow() {
@@ -60,6 +70,14 @@ export default {
 		const hour = date.getHours().toString().padStart(2, "0");
 		const minute = date.getMinutes().toString().padStart(2, "0");
 		this.time = hour + ":" + minute;
+	},
+
+	onInit() {
+		device.getInfo({
+			success: (ret) => {
+				this.screenShape = ret.screenShape;
+			},
+		});
 	},
 
 	visibilityChange(evt) {
@@ -89,6 +107,7 @@ export default {
 	},
 
 	toAlbum(data) {
+		data["screenShape"] = this.screenShape;
 		router.push({
 			uri: "/pages/album",
 			params: data,
@@ -117,44 +136,19 @@ export default {
 	routeAbout() {
 		router.push({
 			uri: "/pages/about",
+			params: { screenShape: this.screenShape },
 		});
 	},
 };
 </script>
 
 <style>
+@import "../../common/base.css";
+
 .demo-page {
 	flex-direction: column;
 	align-items: center;
-	justify-content: center;
 	color: #ffffff;
-}
-
-.title {
-	position: absolute;
-	top: 35px;
-	display: flex;
-	justify-items: center;
-	align-items: center;
-	font-size: 32px;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 1);
-}
-
-.btn {
-	width: 240px;
-	height: 60px;
-	margin-top: 20px;
-	border-radius: 5px;
-	background-color: #09ba07;
-	font-size: 20px;
-	color: #ffffff;
-	justify-content: center;
-}
-
-.btn-txt {
-	font-size: 30px;
-	color: white;
 }
 
 .line {
@@ -162,6 +156,7 @@ export default {
 	flex-direction: column;
 	justify-content: center;
 	align-items: center;
+	height: 70%;
 }
 
 .input-line {
@@ -173,14 +168,25 @@ export default {
 	padding-left: 12px;
 }
 
-.time {
-	position: absolute;
-	top: 7px;
-	display: flex;
-	justify-items: center;
-	align-items: center;
-	font-size: 24px;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 0.6);
+/* 看看是不是小米手表 */
+@media (device-type: watch) and (shape: circle) {
+	.bottom {
+		position: absolute;
+		bottom: 6px;
+	}
+}
+
+/* 看看是不是小米手表 */
+@media (min-width: 200) and (max-width: 235) {
+	.bottom {
+		left: 182px;
+	}
+}
+
+/* 看看是不是小米手表s1 pro */
+@media (min-width: 235) and (max-width: 250) {
+	.bottom {
+		left: 189px;
+	}
 }
 </style>

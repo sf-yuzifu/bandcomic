@@ -1,0 +1,93 @@
+/**
+ * Copyright 2025 yuzifu
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.title {
+  position: relative;
+  /* top: 28px; */
+  display: flex;
+  justify-items: center;
+  align-items: center;
+  font-size: 32px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 1);
+}
+
+.time {
+  position: relative;
+  top: 7px;
+  display: flex;
+  justify-items: center;
+  align-items: center;
+  font-size: 24px;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.leftButton {
+  position: absolute;
+  left: 6px;
+}
+
+.rightButton {
+  position: absolute;
+  right: 6px;
+}
+
+.bottom {
+  bottom: 6px;
+}
+
+.top {
+  top: 6px;
+}
+
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+  .leftButton {
+    left: 20px;
+  }
+
+  .rightButton {
+    right: 20px;
+  }
+
+  .top {
+    top: 20px;
+  }
+
+  .bottom {
+    bottom: 20px;
+  }
+}
+
+/* 看看是不是小米手表 */
+@media (device-type: watch) and (shape: circle) {
+  .leftButton {
+    left: 60%;
+  }
+
+  .rightButton {
+    right: 60%;
+  }
+
+  .top {
+    top: 60%;
+  }
+
+  .bottom {
+    bottom: 60%;
+  }
+}

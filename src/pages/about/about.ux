@@ -1,13 +1,25 @@
 <template>
 	<div class="container">
 		<img
+			if="{{ screenShape != 'circle' }}"
+			class="leftButton top"
 			src="/common/back.png"
 			@click="routeBack"
-			style="position: absolute; left: 6px; top: 6px"
 		/>
 		<text class="time">{{ time }}</text>
-		<text class="title">关于</text>
-		<div style="height: 96px"></div>
+		<text
+			@click="
+				() => {
+					if (screenShape == 'circle') {
+						routeBack();
+					}
+				}
+			"
+			class="title"
+		>
+			{{ screenShape == "circle" ? "< " : "" }}关于
+		</text>
+		<div style="height: 6px"></div>
 		<div id="info">
 			<div id="inner">
 				<text class="bold" style="color: #fff; font-size: 30px">
@@ -22,8 +34,8 @@
 		<div id="copyright">
 			<text class="re bold">
 				<span>作者</span>
-                <!-- 这里是占位符 -->
-                <span style="color: transparent">2</span>
+				<!-- 这里是占位符 -->
+				<span style="color: transparent">2</span>
 				<span class="bold" style="color: #fff">小鱼yuzifu</span>
 			</text>
 			<div style="width: 1px; height: 10px"></div>
@@ -43,6 +55,7 @@ export default {
 		ver: app.getInfo().versionName,
 		name: app.getInfo().name,
 		time: "",
+		screenShape: "circle",
 	},
 
 	onShow() {
@@ -60,6 +73,8 @@ export default {
 </script>
 
 <style>
+@import "../../common/base.css";
+
 .container {
 	flex-direction: column;
 	justify-content: flex-start;
@@ -115,27 +130,5 @@ export default {
 
 .bold {
 	font-weight: bold;
-}
-
-.title {
-	position: absolute;
-	top: 35px;
-	display: flex;
-	justify-items: center;
-	align-items: center;
-	font-size: 32px;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 1);
-}
-
-.time {
-	position: absolute;
-	top: 7px;
-	display: flex;
-	justify-items: center;
-	align-items: center;
-	font-size: 24px;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 0.6);
 }
 </style>
