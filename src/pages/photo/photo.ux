@@ -1,5 +1,15 @@
 <template>
 	<div class="demo-page">
+		<img
+			if="{{ showit && screenShape == 'circle' }}"
+			src="/common/mask.png"
+			class="leftButton"
+		/>
+		<img
+			if="{{ showit&& screenShape == 'circle' }}"
+			src="/common/mask.png"
+			class="rightButton"
+		/>
 		<scroll
 			style="{{ `align-items: ${images ? 'flex-start':'center'}; justify-content: ${images ?
 'flex-start':'center'};` }}"
