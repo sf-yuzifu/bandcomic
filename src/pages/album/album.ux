@@ -12,6 +12,7 @@
 			src="/common/info.png"
 			@click="routeAbout"
 		/>
+
 		<text class="time">{{ time }}</text>
 		<text
 			class="title"
@@ -25,7 +26,13 @@
 		>
 			{{ screenShape == "circle" ? "< " : "" }}详情
 		</text>
-		<scroll id="scrollId" class="box" scroll-x="true" scroll-y="true">
+		<scroll
+			id="scrollId"
+			class="box"
+			scroll-x="true"
+			scroll-y="true"
+			bounces="true"
+		>
 			<image
 				class="cover"
 				@complete="getPhoto"
@@ -42,6 +49,18 @@
 			</div>
 			<div class="padding"></div>
 		</scroll>
+		<img
+			if="{{ screenShape != 'circle' }}"
+			class="rightButton bottom"
+			src="/common/dl.png"
+			@click="download"
+		/>
+		<img
+			if="{{ screenShape == 'circle' }}"
+			class="bottom"
+			src="/common/dl_s4.png"
+			@click="download"
+		/>
 	</div>
 </template>
 
@@ -107,6 +126,19 @@ export default {
 			},
 		});
 	},
+
+	download() {
+		router.push({
+			uri: "/pages/offline",
+			params: {
+				id: this.item_id,
+				page_count: this.page_count,
+				screenShape: this.screenShape,
+				name: this.name,
+				dl: true,
+			},
+		});
+	},
 };
 </script>
 
@@ -166,7 +198,7 @@ text {
 
 	.box {
 		width: 100%;
-		height: 90%;
+		height: 80%;
 	}
 }
 </style>

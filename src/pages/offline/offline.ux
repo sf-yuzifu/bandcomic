@@ -1,0 +1,559 @@
+<template>
+	<div class="container">
+		<img
+			if="{{ screenShape != 'circle' }}"
+			class="leftButton top"
+			src="/common/back.png"
+			@click="routeBack"
+		/>
+		<text class="time">{{ time }}</text>
+		<text
+			@click="
+				() => {
+					if (screenShape == 'circle') {
+						routeBack();
+					}
+				}
+			"
+			class="title"
+		>
+			{{ screenShape == "circle" ? "< " : "" }}本地漫画
+		</text>
+		<div style="height: 64px" if="{{ !dl && screenShape == 'circle' }}"></div>
+		<div style="height: 16px" if="{{ !dl && screenShape != 'circle' }}"></div>
+		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
+			<list-item for="{{ comicsList }}" class="item" type="list-item">
+				<image
+					@click="toPhoto($item)"
+					class="cover"
+					src="internal://files/{{ $item.id }}/1"
+				></image>
+				<text @click="toPhoto($item)" class="itemText">{{ $item.name }}</text>
+				<image src="/common/del.png" @click="del($item.id)"></image>
+			</list-item>
+		</list>
+		<div class="downloading" if="{{ dl && screenShape != 'circle' }}">
+			<image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
+			<text class="dl-text">{{ processing ? "下载完成" : "正在下载" }}</text>
+		</div>
+		<div id="process" if="{{ dl && screenShape != 'circle' }}">
+			<text class="content">第{{ page }}/{{ page_count }}页</text>
+			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
+		</div>
+
+		<image
+			if="{{ dl && screenShape == 'circle' }}"
+			id="mask"
+			src="/common/{{ processing ? 'success':'dling' }}_s4.png"
+		></image>
+		<div class="downloading" if="{{ dl && screenShape == 'circle' }}">
+			<text class="dl-text">{{ processing ? "下载完成" : "正在下载" }}</text>
+			<image src="/common/{{ processing ? 'success':'dl' }}_icon.png"></image>
+		</div>
+		<div id="process" if="{{ dl && screenShape == 'circle' }}">
+			<text class="content">第{{ page }}/{{ page_count }}页</text>
+			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
+		</div>
+
+		<div class="empty" if="{{ comicsList.length == 0 && !dl }}">
+			<image src="/common/empty.png"></image>
+			<text class="empty-text">空空如也</text>
+		</div>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import file from "@system.file";
+import fetch from "@system.fetch";
+import prompt from "@system.prompt";
+
+let del;
+
+function sleep(ms) {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export default {
+	private: {
+		time: "",
+		screenShape: "circle",
+		dl: false,
+		id: 0,
+		page_count: 0,
+		name: "",
+		comicsList: [],
+		page: 0,
+		processing: false,
+	},
+
+	onShow() {
+		// 写入页面顶部时间
+		const date = new Date();
+		const hour = date.getHours().toString().padStart(2, "0");
+		const minute = date.getMinutes().toString().padStart(2, "0");
+		this.time = hour + ":" + minute;
+	},
+
+	async onInit() {
+		if (this.dl) {
+			this.startDownloadProcess();
+		} else {
+			this.loadingComic();
+		}
+	},
+
+	async loadingComic() {
+		// 1. 检查comics.json文件是否存在
+		const fileExists = await this.checkFileExists();
+
+		if (fileExists) {
+			file.readText({
+				uri: "internal://files/comics.json",
+				success: (data) => {
+					try {
+						let comicsData = [];
+						if (data.text) {
+							comicsData = JSON.parse(data.text);
+						}
+						this.comicsList = comicsData;
+						console.log(comicsData);
+					} catch (parseError) {
+						console.log(`解析comics.json失败: ${parseError}`);
+					}
+				},
+				fail: function (data, code) {
+					console.log(`读取comics.json失败, code = ${code}`);
+				},
+			});
+		}
+	},
+
+	async startDownloadProcess() {
+		try {
+			// 1. 检查comics.json文件是否存在
+			const fileExists = await this.checkFileExists();
+
+			if (fileExists) {
+				// 2. 读取并更新comics.json
+				await this.readAndUpdateComicsJson();
+			} else {
+				// 3. 创建新的comics.json文件
+				await this.createComicsJson();
+			}
+
+			// 4. 创建文件夹并下载图片
+			await this.createFolderAndDownload();
+		} catch (error) {
+			console.log(`下载过程出错: ${error}`);
+		}
+	},
+
+	checkFileExists() {
+		return new Promise((resolve, reject) => {
+			file.readText({
+				uri: "internal://files/comics.json",
+				success: function () {
+					resolve(true);
+				},
+				fail: function (data, code) {
+					if (code === 301) {
+						// 文件不存在
+						resolve(false);
+					} else {
+						reject(`检查文件失败, code = ${code}`);
+					}
+				},
+			});
+		});
+	},
+
+	readAndUpdateComicsJson() {
+		return new Promise((resolve, reject) => {
+			file.readText({
+				uri: "internal://files/comics.json",
+				success: (data) => {
+					try {
+						let comicsData = [];
+						if (data.text) {
+							comicsData = JSON.parse(data.text);
+						}
+
+						// 添加新的漫画信息
+						const newComic = {
+							name: this.name,
+							page_count: this.page_count,
+							id: this.id,
+						};
+
+						// 检查是否已存在相同id的漫画
+						const existingIndex = comicsData.findIndex(
+							(comic) => comic.id === this.id
+						);
+						if (existingIndex !== -1) {
+							comicsData[existingIndex] = newComic;
+						} else {
+							comicsData.push(newComic);
+						}
+
+						// 写回文件
+						file.writeText({
+							uri: "internal://files/comics.json",
+							text: JSON.stringify(comicsData),
+							success: function () {
+								console.log("comics.json更新成功");
+								resolve();
+							},
+							fail: function (data, code) {
+								reject(`写入comics.json失败, code = ${code}`);
+							},
+						});
+					} catch (parseError) {
+						reject(`解析comics.json失败: ${parseError}`);
+					}
+				},
+				fail: function (data, code) {
+					reject(`读取comics.json失败, code = ${code}`);
+				},
+			});
+		});
+	},
+
+	createComicsJson() {
+		return new Promise((resolve, reject) => {
+			const initialData = [
+				{
+					name: this.name,
+					page_count: this.page_count,
+					id: this.id,
+				},
+			];
+
+			file.writeText({
+				uri: "internal://files/comics.json",
+				text: JSON.stringify(initialData),
+				success: function () {
+					console.log("comics.json创建成功");
+					resolve();
+				},
+				fail: function (data, code) {
+					reject(`创建comics.json失败, code = ${code}`);
+				},
+			});
+		});
+	},
+
+	async createFolderAndDownload() {
+		try {
+			// 创建文件夹
+			const folderUri = `internal://files/${this.id}`;
+			await this.createFolder(folderUri);
+
+			// 逐页下载图片
+			for (let page = 1; page <= this.page_count; page++) {
+				this.page = page;
+				// prompt.showToast({
+				// 	message: `正在下载第 ${page} 页`,
+				// 	duration: 1000,
+				// });
+				await this.downloadImage(page, folderUri);
+				// prompt.showToast({
+				// 	message: `第 ${page} 页下载完成`,
+				// 	duration: 1000,
+				// });
+				console.log(`第 ${page} 页下载完成`);
+			}
+			this.processing = true;
+			await sleep(1000);
+			this.loadingComic();
+			this.dl = false;
+			console.log("所有图片下载完成");
+		} catch (error) {
+			console.log(`创建文件夹或下载图片失败: ${error}`);
+		}
+	},
+
+	createFolder(folderUri) {
+		return new Promise((resolve, reject) => {
+			file.mkdir({
+				uri: folderUri,
+				success: function () {
+					console.log(`文件夹创建成功: ${folderUri}`);
+					resolve();
+				},
+				fail: function (data, code) {
+					if (code === 13900001) {
+						// 文件夹已存在
+						console.log("文件夹已存在");
+						resolve();
+					} else {
+						reject(`创建文件夹失败, code = ${code}`);
+					}
+				},
+			});
+		});
+	},
+
+	downloadImage(page, folderUri) {
+		return new Promise((resolve, reject) => {
+			const imageUrl = `https://example.invalid/photo/${this.id}/${page}`;
+			const fileUri = `${folderUri}/${page}`;
+
+			fetch.fetch({
+				url: imageUrl,
+				responseType: "file",
+				success: (response) => {
+					if (response.data) {
+						// 将下载的文件移动到目标文件夹
+						file.move({
+							srcUri: response.data,
+							dstUri: fileUri,
+							success: function () {
+								console.log(`图片保存成功: ${fileUri}`);
+								resolve();
+							},
+							fail: function (data, code) {
+								reject(`移动图片失败, code = ${code}`);
+							},
+						});
+					} else {
+						reject("下载的图片数据为空");
+					}
+				},
+				fail: function (data, code) {
+					reject(`下载图片失败, code = ${code}`);
+				},
+			});
+		});
+	},
+
+	toPhoto(val) {
+		router.push({
+			uri: "/pages/photo",
+			params: {
+				id: val.id,
+				page_count: val.page_count,
+				local: true,
+				screenShape: this.screenShape,
+			},
+		});
+	},
+
+	del(id) {
+		if (id != del) {
+			del = id;
+			prompt.showToast({
+				message: "再次点击删除",
+				duration: 2000,
+			});
+		} else {
+			prompt.showToast({
+				message: "正在删除···",
+				duration: 1000,
+			});
+			file.rmdir({
+				uri: "internal://files/" + id + "/",
+				recursive: true,
+				success: (data) => {
+					file.readText({
+						uri: "internal://files/comics.json",
+						success: (data) => {
+							try {
+								let comicsData = [];
+								if (data.text) {
+									comicsData = JSON.parse(data.text);
+								}
+
+								// 检查是否已存在相同id的漫画
+								const existingIndex = comicsData.findIndex(
+									(comic) => comic.id === id
+								);
+
+								if (existingIndex !== -1) {
+									comicsData.splice(existingIndex, 1);
+								}
+
+								// 写回文件
+								file.writeText({
+									uri: "internal://files/comics.json",
+									text: JSON.stringify(comicsData),
+									success: () => {
+										console.log("comics.json更新成功");
+										prompt.showToast({
+											message: "已删除！",
+											duration: 1000,
+										});
+										console.log("重新加载···");
+										this.loadingComic();
+									},
+									fail: function (data, code) {
+										console.log(`写入comics.json失败, code = ${code}`);
+									},
+								});
+							} catch (parseError) {
+								console.log(`解析comics.json失败: ${parseError}`);
+							}
+						},
+						fail: function (data, code) {
+							console.log(`读取comics.json失败, code = ${code}`);
+						},
+					});
+				},
+				fail: function (data, code) {
+					console.log(`handling fail, code = ${code}`);
+				},
+			});
+		}
+	},
+
+	routeBack() {
+		router.back();
+	},
+};
+</script>
+
+<style>
+@import "../../common/base.css";
+
+.container {
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: center;
+}
+
+/* 看看是不是红米手表 */
+@media (shape: rect) {
+	#process {
+		position: absolute;
+		bottom: 6px;
+		width: 95%;
+		height: 92px;
+		background-color: #262626;
+		border-radius: 36px;
+		justify-content: space-around;
+	}
+
+	.downloading,
+	.empty {
+		justify-content: center;
+		align-items: center;
+		width: 100%;
+		height: 80%;
+		flex-direction: column;
+	}
+}
+
+.content {
+	font-size: 32px;
+	color: #ffffff;
+	font-weight: bold;
+}
+
+.per {
+	font-size: 32px;
+	color: rgba(255, 255, 255, 0.6);
+	font-weight: bold;
+}
+
+.dl-text {
+	margin-top: 24px;
+	font-size: 32px;
+	color: #ffffff;
+	font-weight: bold;
+	margin-bottom: 80px;
+}
+
+.empty-text {
+	margin-top: 24px;
+	font-size: 32px;
+	color: #ffffff;
+	font-weight: bold;
+}
+
+.box {
+	width: 85%;
+	height: 80%;
+}
+
+.item {
+	height: 116px;
+	width: 100%;
+	background-color: #262626;
+	border-radius: 24px;
+	padding: 10px;
+	align-items: center;
+	justify-content: space-around;
+	margin-bottom: 10px;
+}
+
+.itemText {
+	width: 186px;
+	font-size: 24px;
+	color: #ffffff;
+	lines: 3;
+	font-weight: bold;
+	margin-left: 10px;
+}
+
+.cover {
+	height: 100%;
+	width: 92px;
+	border-radius: 12px;
+}
+
+/* 看看是不是小米手表 */
+@media (min-width: 200) and (max-width: 235) and (shape: circle) {
+	#process {
+		position: absolute;
+		width: 80%;
+		height: 92px;
+		background-color: #262626;
+		border-radius: 100%;
+		justify-content: space-around;
+	}
+
+	.container {
+		justify-content: center;
+	}
+
+	.downloading {
+		justify-content: center;
+		align-items: center;
+		width: 100%;
+		flex-direction: column;
+		position: absolute;
+		bottom: 40px;
+	}
+
+	.empty {
+		justify-content: center;
+		align-items: center;
+		width: 100%;
+		height: 80%;
+		flex-direction: column;
+	}
+
+	.title {
+		position: absolute;
+		top: 35px;
+	}
+
+	.time {
+		position: absolute;
+		top: 7px;
+	}
+
+	#mask {
+		position: absolute;
+		top: 100px;
+	}
+
+	.dl-text {
+		margin-top: 24px;
+		font-size: 32px;
+		color: #ffffff;
+		font-weight: bold;
+		margin-bottom: 20px;
+	}
+}
+</style>

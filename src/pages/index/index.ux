@@ -17,10 +17,16 @@
 			@click="routeAbout"
 		/>
 		<img
+			if="{{ screenShape != 'circle' }}"
+			class="rightButton bottom"
+			src="/common/More_B.png"
+			@click="routeOffline"
+		/>
+		<img
 			if="{{ screenShape == 'circle' }}"
 			class="bottom"
 			src="/common/more_s4.png"
-			@click="routeAbout"
+			@click="routeOffline"
 		/>
 		<text class="time">{{ time }}</text>
 		<text class="title">腕上漫画</text>
@@ -50,13 +56,14 @@ import router from "@system.router";
 import fetch from "@system.fetch";
 import device from "@system.device";
 import prompt from "@system.prompt";
+import brightness from "@system.brightness";
 
 const api = "https://example.invalid";
 
 export default {
 	// 页面级组件的数据模型，影响传入数据的覆盖机制：private内定义的属性不允许被覆盖
 	private: {
-		id: "1075440",
+		id: "634817",
 		hide: true,
 		keyboardtype: "T9",
 		vibratemode: "short",
@@ -78,6 +85,9 @@ export default {
 			success: (ret) => {
 				this.screenShape = ret.screenShape;
 			},
+		});
+		brightness.setKeepScreenOn({
+			keepScreenOn: true,
 		});
 	},
 
@@ -128,8 +138,23 @@ export default {
 				this.toAlbum(response.data);
 			},
 			fail: function (data, code) {
-				console.log(`handling fail, errMsg = ${data}`);
-				console.log(`handling fail, errCode = ${code}`);
+				console.log(`handling fail, errMsg = ${JSON.parse(data).message}`);
+				if (JSON.parse(data).message.indexOf("请求的本子不存在") != -1) {
+					prompt.showToast({
+						message: "本子不存在，请检查车号是否正确",
+						duration: 3000,
+					});
+				} else if (code == 28) {
+					prompt.showToast({
+						message: "请求本子信息失败，请检查网络连接",
+						duration: 3000,
+					});
+				} else {
+					prompt.showToast({
+						message: "请求本子信息失败，错误：" + data,
+						duration: 3000,
+					});
+				}
 			},
 		});
 	},
@@ -141,6 +166,13 @@ export default {
 	routeAbout() {
 		router.push({
 			uri: "/pages/about",
+			params: { screenShape: this.screenShape },
+		});
+	},
+
+	routeOffline() {
+		router.push({
+			uri: "/pages/offline",
 			params: { screenShape: this.screenShape },
 		});
 	},
@@ -182,14 +214,14 @@ export default {
 }
 
 /* 看看是不是小米手表 */
-@media (min-width: 200) and (max-width: 235) {
+@media (min-width: 200) and (max-width: 235) and (shape: circle) {
 	.bottom {
 		left: 182px;
 	}
 }
 
 /* 看看是不是小米手表s1 pro */
-@media (min-width: 235) and (max-width: 250) {
+@media (min-width: 235) and (max-width: 250) and (shape: circle) {
 	.bottom {
 		left: 189px;
 	}

@@ -17,14 +17,23 @@
 			class="box"
 			scroll-x="true"
 			scroll-y="true"
+			bounces="true"
 		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 			<image
 				class="cover"
 				src="{{ images }}"
 				@complete="getPhoto"
+				@error="
+					() => {
+						if (images != '') {
+							loading = false;
+							images = '';
+						}
+					}
+				"
 				@click="showButton"
-				alt="/common/loading.png"
+				alt="{{ loading ? '/common/loading.png' : '/common/error.png' }}"
 				style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale
 / 100 * 2)}px;` }}"
 			></image>
@@ -137,6 +146,8 @@ export default {
 		showSlider: false,
 		images: null,
 		screenShape: "circle",
+		local: false,
+		loading: true,
 	},
 
 	onShow() {
@@ -158,17 +169,23 @@ export default {
 	},
 
 	getImages() {
+		this.loading = true;
 		this.images = "";
 		this.scale = 0;
 		this.size.width = deviceWidth / 2;
 		this.size.height = deviceHeight / 2;
+		if (this.local) {
+			this.images = `internal://files/${this.id}/${this.page}`;
+			return;
+		}
 		fetch.fetch({
 			url: `https://example.invalid/photo/${this.id}/${this.page}`,
 			responseType: "file",
 			success: (response) => {
 				this.images = response.data;
 			},
-			fail: function (data, code) {
+			fail: (data, code) => {
+				this.images = "internal://files/notfound.png";
 				console.log(`handling fail, errMsg = ${data}`);
 				console.log(`handling fail, errCode = ${code}`);
 			},
@@ -296,7 +313,7 @@ text {
 }
 
 /* 看看是不是小米手表 */
-@media (min-width: 200) and (max-width: 235) {
+@media (min-width: 200) and (max-width: 235) and (shape: circle) {
 	.leftButton {
 		top: 182px;
 	}
@@ -311,7 +328,7 @@ text {
 }
 
 /* 看看是不是小米手表s1 pro */
-@media (min-width: 235) and (max-width: 250) {
+@media (min-width: 235) and (max-width: 250) and (shape: circle) {
 	.leftButton {
 		top: 189px;
 	}
