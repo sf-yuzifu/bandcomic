@@ -3,7 +3,7 @@
   "name": "腕上漫画",
   "versionName": "1.1",
   "versionCode": 3,
-  "minPlatformVersion": 1300,
+  "minPlatformVersion": 1000,
   "icon": "/common/logo.png",
   "deviceTypeList": [
     "watch"
@@ -58,7 +58,6 @@
       }
     }
   },
-  "minAPILevel": 3,
   "display": {
     "backgroundColor": "#000000"
   }
