@@ -29,7 +29,18 @@
 			@click="routeOffline"
 		/>
 		<text class="time">{{ time }}</text>
-		<text class="title">腕上漫画</text>
+		<text
+			class="title"
+			@click="
+				() => {
+					if (screenShape == 'circle') {
+						routeAbout();
+					}
+				}
+			"
+		>
+			腕上漫画
+		</text>
 		<div class="line" style="margin-bottom: 10px">
 			<text style="margin-bottom: 4px">输入车号</text>
 			<div class="input-line" @click="changeState">
