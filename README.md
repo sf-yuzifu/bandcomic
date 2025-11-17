@@ -15,33 +15,48 @@
 
 **一旦使用本项目，即视为您已完全理解并同意以上声明内容**
 
+## 已适配设备
+
+目前已适配的小米手表/手环设备如下：
+
+- **小米手表 9 Pro**
+- **小米 Watch S3（蓝牙版/eSIM版）**
+- **小米 Watch S4（蓝牙版/eSIM版）**
+- **小米 Watch S4 Sport**
+- **小米 Watch S4 41mm**
+- **小米 Watch S4 eSIM 15周年纪念版**
+- **Redmi Watch 5（蓝牙版/ESIM版）**
+- **Redmi Watch 6**
+
+> 注：其他型号设备因为缺失fetch功能而无法适配，若是有上述没有提到的设备但是自己确认设备支持fetch的可以尝试安装，但后果自负。
+
 ## 快速上手
 
 ### 1. 开发环境搭建
 
 ```bash
 # 安装依赖
-npm install
+yarn install
 
 # 启动开发服务器
-npm run start
+yarn run start
 ```
 
 ### 2. 项目构建
 
 ```bash
 # 构建项目
-npm run build
+yarn run build
 
 # 发布版本
-npm run release
+yarn run release
 ```
 
 ### 3. 调试模式
 
 ```bash
 # 监听文件变化并自动重新构建
-npm run watch
+yarn run watch
 ```
 
 ## 了解更多
