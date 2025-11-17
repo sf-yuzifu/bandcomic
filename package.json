@@ -6,9 +6,9 @@
     "node": ">=8.10"
   },
   "scripts": {
-    "start": "aiot start --watch --enable-custom-component true",
-    "build": "aiot build --enable-custom-component true",
-    "release": "aiot release --enable-custom-component true",
+    "start": "aiot start --watch --enable-custom-component",
+    "build": "aiot build --enable-custom-component",
+    "release": "aiot release --enable-custom-component  --enable-custom-component --enable-protobuf --enable-jsc",
     "lint": "eslint --format codeframe --fix --ext .ux,.js src/"
   },
   "devDependencies": {
