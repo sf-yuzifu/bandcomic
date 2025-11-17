@@ -36,7 +36,7 @@
 			<image
 				class="cover"
 				@complete="getPhoto"
-				src="https://jmcomic.yzf.moe/photo/{{ item_id }}"
+				src="https://jmcomic.yzf.moe/album/{{ item_id }}/cover?w=400"
 				alt="/common/loading.png"
 				onclick="toPhoto"
 				style="{{ `width:${size.width}px;height:${size.height}px;` }}"
