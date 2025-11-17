@@ -36,7 +36,7 @@
 			<image
 				class="cover"
 				@complete="getPhoto"
-				src="https://example.invalid/photo/{{ item_id }}"
+				src="https://example.invalid/album/{{ item_id }}/cover?w=400"
 				alt="/common/loading.png"
 				onclick="toPhoto"
 				style="{{ `width:${size.width}px;height:${size.height}px;` }}"
