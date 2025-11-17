@@ -158,6 +158,12 @@ export default {
 		this.time = hour + ":" + minute;
 	},
 
+	onBackPress() {
+		console.info(`触发：onBackPress`);
+		// true：表示自己处理；否则默认返回上一页
+		return true
+	},
+
 	onInit() {
 		device.getInfo({
 			success: function (ret) {
