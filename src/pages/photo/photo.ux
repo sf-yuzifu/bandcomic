@@ -1,12 +1,12 @@
 <template>
 	<div class="demo-page">
 		<img
-			if="{{ showit && screenShape == 'circle' }}"
+			if="{{ showit && global.screenShape == 'circle' }}"
 			src="/common/mask.png"
 			class="leftButton"
 		/>
 		<img
-			if="{{ showit&& screenShape == 'circle' }}"
+			if="{{ showit&& global.screenShape == 'circle' }}"
 			src="/common/mask.png"
 			class="rightButton"
 		/>
@@ -53,13 +53,13 @@
 
 		<!-- 方表适配 -->
 		<img
-			if="{{ showit && screenShape != 'circle' }}"
+			if="{{ showit && global.screenShape != 'circle' }}"
 			src="/common/left.png"
 			onclick="toPage('-')"
 			class="leftButton bottom"
 		/>
 		<img
-			if="{{ showit && screenShape != 'circle' }}"
+			if="{{ showit && global.screenShape != 'circle' }}"
 			src="/common/right.png"
 			onclick="toPage('+')"
 			class="rightButton bottom"
@@ -67,13 +67,13 @@
 
 		<!-- 圆表适配 -->
 		<img
-			if="{{ showit && screenShape == 'circle' }}"
+			if="{{ showit && global.screenShape == 'circle' }}"
 			src="/common/left_s4.png"
 			onclick="toPage('-')"
 			class="leftButton"
 		/>
 		<img
-			if="{{ showit&& screenShape == 'circle' }}"
+			if="{{ showit&& global.screenShape == 'circle' }}"
 			src="/common/right_s4.png"
 			onclick="toPage('+')"
 			class="rightButton"
@@ -91,19 +91,19 @@
 		</div>
 
 		<img
-			if="{{ showit && screenShape != 'circle' }}"
+			if="{{ showit && global.screenShape != 'circle' }}"
 			src="/common/left.png"
 			@click="routeBack"
 			class="leftButton top"
 		/>
 		<img
-			if="{{ showit && screenShape != 'circle' }}"
+			if="{{ showit && global.screenShape != 'circle' }}"
 			src="/common/more.png"
 			class="rightButton top"
 			@click="() => (showSlider = !showSlider)"
 		/>
 		<img
-			if="{{ showit && screenShape == 'circle' }}"
+			if="{{ showit && global.screenShape == 'circle' }}"
 			src="/common/check.png"
 			class="bottom"
 			@click="() => (showSlider = !showSlider)"
@@ -114,25 +114,23 @@
 			class="title"
 			@click="
 				() => {
-					if (screenShape == 'circle') {
+					if (global.screenShape == 'circle') {
 						routeBack();
 					}
 				}
 			"
 			if="{{ showit }}"
 		>
-			{{ screenShape == "circle" ? "< " : "" }}第 {{ page }} 页
+			{{ global.screenShape == "circle" ? "< " : "" }}第 {{ page }} 页
 		</text>
 	</div>
 </template>
 
 <script>
 import router from "@system.router";
-import device from "@system.device";
 import fetch from "@system.fetch";
 
-let deviceWidth = 336;
-let deviceHeight = 480;
+const { screenSize, getTime, API } = global;
 
 export default {
 	private: {
@@ -141,36 +139,25 @@ export default {
 		page: 1,
 		time: "",
 		scale: 0,
-		size: { width: deviceWidth, height: deviceHeight },
+		size: { width: 0, height: 0 },
 		showit: true,
 		showSlider: false,
 		images: null,
-		screenShape: "circle",
 		local: false,
 		loading: true,
 	},
 
 	onShow() {
-		// 写入页面顶部时间
-		const date = new Date();
-		const hour = date.getHours().toString().padStart(2, "0");
-		const minute = date.getMinutes().toString().padStart(2, "0");
-		this.time = hour + ":" + minute;
+		this.time = getTime();
 	},
 
 	onBackPress() {
 		console.info(`触发：onBackPress`);
 		// true：表示自己处理；否则默认返回上一页
-		return true
+		return true;
 	},
 
 	onInit() {
-		device.getInfo({
-			success: function (ret) {
-				deviceWidth = ret.screenWidth;
-				deviceHeight = ret.screenHeight;
-			},
-		});
 		this.getImages();
 	},
 
@@ -178,14 +165,14 @@ export default {
 		this.loading = true;
 		this.images = "";
 		this.scale = 0;
-		this.size.width = deviceWidth / 2;
-		this.size.height = deviceHeight / 2;
+		this.size.width = screenSize.width / 2;
+		this.size.height = screenSize.height / 2;
 		if (this.local) {
 			this.images = `internal://files/${this.id}/${this.page}`;
 			return;
 		}
 		fetch.fetch({
-			url: `https://jmcomic.yzf.moe/photo/${this.id}/${this.page}`,
+			url: `${API}/photo/${this.id}/${this.page}`,
 			responseType: "file",
 			success: (response) => {
 				this.images = response.data;
@@ -223,8 +210,8 @@ export default {
 	},
 
 	getPhoto(value) {
-		this.size.width = deviceWidth;
-		this.size.height = (deviceWidth / value.width) * value.height;
+		this.size.width = screenSize.width;
+		this.size.height = (screenSize.width / value.width) * value.height;
 	},
 
 	showButton() {

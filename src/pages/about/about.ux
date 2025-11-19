@@ -1,7 +1,7 @@
 <template>
 	<div class="container">
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
 			src="/common/back.png"
 			@click="routeBack"
@@ -10,14 +10,14 @@
 		<text
 			@click="
 				() => {
-					if (screenShape == 'circle') {
+					if (global.screenShape == 'circle') {
 						routeBack();
 					}
 				}
 			"
 			class="title"
 		>
-			{{ screenShape == "circle" ? "< " : "" }}关于
+			{{ global.screenShape == "circle" ? "< " : "" }}关于
 		</text>
 		<div style="height: 6px"></div>
 		<div id="info">
@@ -50,20 +50,17 @@
 import router from "@system.router";
 import app from "@system.app";
 
+const { getTime } = global;
+
 export default {
 	private: {
 		ver: app.getInfo().versionName,
 		name: app.getInfo().name,
 		time: "",
-		screenShape: "circle",
 	},
 
 	onShow() {
-		// 写入页面顶部时间
-		const date = new Date();
-		const hour = date.getHours().toString().padStart(2, "0");
-		const minute = date.getMinutes().toString().padStart(2, "0");
-		this.time = hour + ":" + minute;
+		this.time = getTime();
 	},
 
 	routeBack() {

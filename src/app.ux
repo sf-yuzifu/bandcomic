@@ -1,10 +1,25 @@
 <script>
-  export default {
-    onCreate() {
-      console.log("app created");
-    },
-    onDestroy() {
-      console.log("app destroyed");
-    },
-  };
+import device from "@system.device";
+
+let screenSize = { width: 0, height: 0 };
+
+global.API = "https://jmcomic.yzf.moe";
+
+device.getInfo({
+	success: function (ret) {
+		screenSize.width = ret.screenWidth;
+		screenSize.height = ret.screenHeight;
+		global.screenShape = ret.screenShape;
+		global.screenSize = screenSize;
+	},
+});
+
+global.getTime = function () {
+	const date = new Date();
+	const hour = date.getHours().toString().padStart(2, "0");
+	const minute = date.getMinutes().toString().padStart(2, "0");
+	return hour + ":" + minute;
+};
+
+export default {};
 </script>

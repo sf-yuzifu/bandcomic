@@ -5,25 +5,25 @@
 <template>
 	<div class="demo-page">
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
 			src="/common/back.png"
 			@click="routeBack"
 		/>
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="rightButton top"
 			src="/common/info.png"
 			@click="routeAbout"
 		/>
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="rightButton bottom"
 			src="/common/More_B.png"
 			@click="routeOffline"
 		/>
 		<img
-			if="{{ screenShape == 'circle' }}"
+			if="{{ global.screenShape == 'circle' }}"
 			class="bottom"
 			src="/common/more_s4.png"
 			@click="routeOffline"
@@ -33,7 +33,7 @@
 			class="title"
 			@click="
 				() => {
-					if (screenShape == 'circle') {
+					if (global.screenShape == 'circle') {
 						routeAbout();
 					}
 				}
@@ -50,12 +50,9 @@
 		</div>
 		<input-method
 			hide="{{ hide }}"
-			keyboardtype.static="{{ keyboardtype }}"
+			keyboardtype="T9"
 			maxlength="5"
-			vibratemode.static="{{ vibratemode }}"
-			screentype.static="{{ screentype }}"
-			@visibility-change="visibilityChange"
-			@key-down="keyDown"
+			screentype="rect"
 			@delete="deleteit"
 			@complete="complete"
 		></input-method>
@@ -65,55 +62,32 @@
 <script>
 import router from "@system.router";
 import fetch from "@system.fetch";
-import device from "@system.device";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
 
-const api = "https://jmcomic.yzf.moe";
+const { API, getTime } = global;
 
 export default {
-	// 页面级组件的数据模型，影响传入数据的覆盖机制：private内定义的属性不允许被覆盖
 	private: {
 		id: "634817",
 		hide: true,
-		keyboardtype: "T9",
-		vibratemode: "short",
-		screentype: "rect",
 		time: "",
-		screenShape: "circle",
 	},
 
 	onShow() {
 		// 写入页面顶部时间
-		const date = new Date();
-		const hour = date.getHours().toString().padStart(2, "0");
-		const minute = date.getMinutes().toString().padStart(2, "0");
-		this.time = hour + ":" + minute;
+		this.time = getTime();
 	},
 
 	onInit() {
-		device.getInfo({
-			success: (ret) => {
-				this.screenShape = ret.screenShape;
-			},
-		});
 		brightness.setKeepScreenOn({
 			keepScreenOn: true,
 		});
 	},
 
-	visibilityChange(evt) {
-		console.log("onVisibilityChange:" + JSON.stringify(evt));
-	},
-
-	keyDown(evt) {
-		// this.textValue += evt.detail.content;
-		console.log("onKeyDown:" + JSON.stringify(evt));
-	},
-
 	deleteit() {
 		this.id = this.id.slice(0, -1);
-		console.log("删除字符");
+		// console.log("删除字符");
 	},
 
 	changeState() {
@@ -129,23 +103,22 @@ export default {
 
 	complete(evt) {
 		this.id += evt.detail.content;
-		console.log("onComplete:" + JSON.stringify(evt));
+		// console.log("onComplete:" + JSON.stringify(evt));
 	},
 
 	toAlbum(data) {
-		data["screenShape"] = this.screenShape;
 		router.push({
 			uri: "/pages/album",
-			params: data,
+			params: { data: data },
 		});
 	},
 
 	getAlbum() {
 		fetch.fetch({
-			url: `${api}/album/${this.id}/info`,
+			url: `${API}/album/${this.id}/info`,
 			responseType: "json",
 			success: (response) => {
-				console.log(`the data of the response: ${response.data}`);
+				// console.log(`the data of the response: ${response.data}`);
 				this.toAlbum(response.data);
 			},
 			fail: function (data, code) {
@@ -177,14 +150,12 @@ export default {
 	routeAbout() {
 		router.push({
 			uri: "/pages/about",
-			params: { screenShape: this.screenShape },
 		});
 	},
 
 	routeOffline() {
 		router.push({
 			uri: "/pages/offline",
-			params: { screenShape: this.screenShape },
 		});
 	},
 };
@@ -216,18 +187,12 @@ export default {
 	padding-left: 12px;
 }
 
-/* 看看是不是小米手表 */
-@media (device-type: watch) and (shape: circle) {
-	.bottom {
-		position: absolute;
-		bottom: 6px;
-	}
-}
-
-/* 看看是不是小米手表 */
+/* 看看是不是小米手表s3/s4 */
 @media (min-width: 200) and (max-width: 235) and (shape: circle) {
 	.bottom {
 		left: 182px;
+		position: absolute;
+		bottom: 6px;
 	}
 }
 
@@ -235,6 +200,8 @@ export default {
 @media (min-width: 235) and (max-width: 250) and (shape: circle) {
 	.bottom {
 		left: 189px;
+		position: absolute;
+		bottom: 6px;
 	}
 }
 </style>

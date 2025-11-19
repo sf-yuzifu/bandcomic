@@ -1,13 +1,13 @@
 <template>
 	<div class="demo-page">
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
 			src="/common/back.png"
 			@click="routeBack"
 		/>
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="rightButton top"
 			src="/common/info.png"
 			@click="routeAbout"
@@ -18,13 +18,13 @@
 			class="title"
 			@click="
 				() => {
-					if (screenShape == 'circle') {
+					if (global.screenShape == 'circle') {
 						routeBack();
 					}
 				}
 			"
 		>
-			{{ screenShape == "circle" ? "< " : "" }}详情
+			{{ global.screenShape == "circle" ? "< " : "" }}详情
 		</text>
 		<scroll
 			id="scrollId"
@@ -36,27 +36,27 @@
 			<image
 				class="cover"
 				@complete="getPhoto"
-				src="https://jmcomic.yzf.moe/album/{{ item_id }}/cover?w=400"
+				src="{{ global.API }}/album/{{ data.item_id }}/cover?w=400"
 				alt="/common/loading.png"
 				onclick="toPhoto"
 				style="{{ `width:${size.width}px;height:${size.height}px;` }}"
 			></image>
-			<text class="title1">{{ name }}</text>
+			<text class="title1">{{ data.name }}</text>
 			<div class="detail">
-				<text>本子ID：{{ item_id }}</text>
-				<text>页数：{{ page_count }}</text>
-				<text>观看数：{{ views }}</text>
+				<text>本子ID：{{ data.item_id }}</text>
+				<text>页数：{{ data.page_count }}</text>
+				<text>观看数：{{ data.views }}</text>
 			</div>
 			<div class="padding"></div>
 		</scroll>
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="rightButton bottom"
 			src="/common/dl.png"
 			@click="download"
 		/>
 		<img
-			if="{{ screenShape == 'circle' }}"
+			if="{{ global.screenShape == 'circle' }}"
 			class="bottom"
 			src="/common/dl_s4.png"
 			@click="download"
@@ -66,28 +66,55 @@
 
 <script>
 import router from "@system.router";
-import device from "@system.device";
 
-let deviceWidth = 336;
-let deviceHeight = 480;
+const { screenSize, getTime } = global;
 
 export default {
 	private: {
-		name: "",
-		item_id: "",
-		page_count: 0,
-		views: "",
+		data: {
+			name: "",
+			item_id: "",
+			views: "",
+			page_count: 0,
+		},
 		time: "",
-		screenShape: "circle",
 		size: { width: 200, height: 200 },
 	},
 
 	onShow() {
-		// 写入页面顶部时间
-		const date = new Date();
-		const hour = date.getHours().toString().padStart(2, "0");
-		const minute = date.getMinutes().toString().padStart(2, "0");
-		this.time = hour + ":" + minute;
+		this.time = getTime();
+	},
+
+	onInit() {
+		this.data = JSON.parse(this.data);
+		this.getImages();
+	},
+
+	getPhoto(value) {
+		this.size.width = screenSize.width / 2;
+		this.size.height = ((screenSize.width / value.width) * value.height) / 2;
+	},
+
+	toPhoto() {
+		router.push({
+			uri: "/pages/photo",
+			params: {
+				id: this.data.item_id,
+				page_count: this.data.page_count,
+			},
+		});
+	},
+
+	download() {
+		router.push({
+			uri: "/pages/offline",
+			params: {
+				id: this.data.item_id,
+				page_count: this.data.page_count,
+				name: this.data.name,
+				dl: true,
+			},
+		});
 	},
 
 	routeBack() {
@@ -97,46 +124,6 @@ export default {
 	routeAbout() {
 		router.push({
 			uri: "/pages/about",
-			params: { screenShape: this.screenShape },
-		});
-	},
-
-	onInit() {
-		device.getInfo({
-			success: function (ret) {
-				deviceWidth = ret.screenWidth;
-				deviceHeight = ret.screenHeight;
-			},
-		});
-		this.getImages();
-	},
-
-	getPhoto(value) {
-		this.size.width = deviceWidth / 2;
-		this.size.height = ((deviceWidth / value.width) * value.height) / 2;
-	},
-
-	toPhoto() {
-		router.push({
-			uri: "/pages/photo",
-			params: {
-				id: this.item_id,
-				page_count: this.page_count,
-				screenShape: this.screenShape,
-			},
-		});
-	},
-
-	download() {
-		router.push({
-			uri: "/pages/offline",
-			params: {
-				id: this.item_id,
-				page_count: this.page_count,
-				screenShape: this.screenShape,
-				name: this.name,
-				dl: true,
-			},
 		});
 	},
 };

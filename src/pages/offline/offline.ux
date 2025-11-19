@@ -1,7 +1,7 @@
 <template>
 	<div class="container">
 		<img
-			if="{{ screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
 			src="/common/back.png"
 			@click="routeBack"
@@ -10,17 +10,23 @@
 		<text
 			@click="
 				() => {
-					if (screenShape == 'circle') {
+					if (global.screenShape == 'circle') {
 						routeBack();
 					}
 				}
 			"
 			class="title"
 		>
-			{{ screenShape == "circle" ? "< " : "" }}本地漫画
+			{{ global.screenShape == "circle" ? "< " : "" }}本地漫画
 		</text>
-		<div style="height: 78px" if="{{ !dl && screenShape == 'circle' }}"></div>
-		<div style="height: 16px" if="{{ !dl && screenShape != 'circle' }}"></div>
+		<div
+			style="height: 78px"
+			if="{{ !dl && global.screenShape == 'circle' }}"
+		></div>
+		<div
+			style="height: 16px"
+			if="{{ !dl && global.screenShape != 'circle' }}"
+		></div>
 		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
 			<list-item for="{{ comicsList }}" class="item" type="list-item">
 				<image
@@ -32,25 +38,25 @@
 				<image src="/common/del.png" @click="del($item.id)"></image>
 			</list-item>
 		</list>
-		<div class="downloading" if="{{ dl && screenShape != 'circle' }}">
+		<div class="downloading" if="{{ dl && global.screenShape != 'circle' }}">
 			<image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
 			<text class="dl-text">{{ processing ? "下载完成" : "正在下载" }}</text>
 		</div>
-		<div id="process" if="{{ dl && screenShape != 'circle' }}">
+		<div id="process" if="{{ dl && global.screenShape != 'circle' }}">
 			<text class="content">第{{ page }}/{{ page_count }}页</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
 
 		<image
-			if="{{ dl && screenShape == 'circle' }}"
+			if="{{ dl && global.screenShape == 'circle' }}"
 			id="mask"
 			src="/common/{{ processing ? 'success':'dling' }}_s4.png"
 		></image>
-		<div class="downloading" if="{{ dl && screenShape == 'circle' }}">
+		<div class="downloading" if="{{ dl && global.screenShape == 'circle' }}">
 			<text class="dl-text">{{ processing ? "下载完成" : "正在下载" }}</text>
 			<image src="/common/{{ processing ? 'success':'dl' }}_icon.png"></image>
 		</div>
-		<div id="process" if="{{ dl && screenShape == 'circle' }}">
+		<div id="process" if="{{ dl && global.screenShape == 'circle' }}">
 			<text class="content">第{{ page }}/{{ page_count }}页</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
@@ -68,6 +74,8 @@ import file from "@system.file";
 import fetch from "@system.fetch";
 import prompt from "@system.prompt";
 
+const { getTime, API } = global;
+
 let del;
 
 function sleep(ms) {
@@ -77,7 +85,6 @@ function sleep(ms) {
 export default {
 	private: {
 		time: "",
-		screenShape: "circle",
 		dl: false,
 		id: 0,
 		page_count: 0,
@@ -88,11 +95,7 @@ export default {
 	},
 
 	onShow() {
-		// 写入页面顶部时间
-		const date = new Date();
-		const hour = date.getHours().toString().padStart(2, "0");
-		const minute = date.getMinutes().toString().padStart(2, "0");
-		this.time = hour + ":" + minute;
+		this.time = getTime();
 	},
 
 	async onInit() {
@@ -117,7 +120,6 @@ export default {
 							comicsData = JSON.parse(data.text);
 						}
 						this.comicsList = comicsData;
-						console.log(comicsData);
 					} catch (parseError) {
 						console.log(`解析comics.json失败: ${parseError}`);
 					}
@@ -255,15 +257,7 @@ export default {
 			// 逐页下载图片
 			for (let page = 1; page <= this.page_count; page++) {
 				this.page = page;
-				// prompt.showToast({
-				// 	message: `正在下载第 ${page} 页`,
-				// 	duration: 1000,
-				// });
 				await this.downloadImage(page, folderUri);
-				// prompt.showToast({
-				// 	message: `第 ${page} 页下载完成`,
-				// 	duration: 1000,
-				// });
 				console.log(`第 ${page} 页下载完成`);
 			}
 			this.processing = true;
@@ -299,7 +293,7 @@ export default {
 
 	downloadImage(page, folderUri) {
 		return new Promise((resolve, reject) => {
-			const imageUrl = `https://jmcomic.yzf.moe/photo/${this.id}/${page}`;
+			const imageUrl = `${API}/photo/${this.id}/${page}`;
 			const fileUri = `${folderUri}/${page}`;
 
 			fetch.fetch({
@@ -332,7 +326,7 @@ export default {
 
 	downloadCover(folderUri) {
 		return new Promise((resolve, reject) => {
-			const imageUrl = `https://jmcomic.yzf.moe/album/${this.id}/cover`;
+			const imageUrl = `${API}/album/${this.id}/cover`;
 			const fileUri = `${folderUri}/cover`;
 
 			fetch.fetch({
@@ -370,7 +364,6 @@ export default {
 				id: val.id,
 				page_count: val.page_count,
 				local: true,
-				screenShape: this.screenShape,
 			},
 		});
 	},
@@ -534,7 +527,6 @@ export default {
 .cover {
 	height: 96px;
 	width: 92px;
-	border-radius: 12px;
 }
 
 /* 看看是不是小米手表 */
