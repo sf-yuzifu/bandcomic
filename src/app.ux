@@ -1,9 +1,10 @@
 <script>
 import device from "@system.device";
+import config from "./config.json";
 
 let screenSize = { width: 0, height: 0 };
 
-global.API = "https://jmcomic.yzf.moe";
+global.API = config.API;
 
 device.getInfo({
 	success: function (ret) {
