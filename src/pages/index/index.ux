@@ -41,16 +41,24 @@
 		>
 			腕上漫画
 		</text>
+
 		<div class="line" style="margin-bottom: 10px">
-			<text style="margin-bottom: 4px">输入车号</text>
+			<text style="margin-bottom: 4px">
+				{{ currentSourceName == "JMComic" ? "输入车号/关键词" : "输入关键词" }}
+			</text>
 			<div class="input-line" @click="changeState">
-				<text>{{ id }}</text>
+				<text>{{ context }}</text>
 			</div>
 			<div class="padding" style="height: 60%" if="{{ !hide }}"></div>
 		</div>
+
+		<div if="{{ hide }}" class="source-selector">
+			<text class="source-text">当前源: {{ currentSourceName }}</text>
+			<text class="iconfont" @click="toggleSource">&#xe628;</text>
+		</div>
 		<input-method
 			hide="{{ hide }}"
-			keyboardtype="T9"
+			keyboardtype="qwerty"
 			maxlength="5"
 			screentype="rect"
 			@delete="deleteit"
@@ -65,13 +73,14 @@ import fetch from "@system.fetch";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
 
-const { API, getTime } = global;
+const { getTime } = global;
 
 export default {
 	private: {
-		id: "634817",
+		context: "",
 		hide: true,
 		time: "",
+		currentSourceName: "JMComic",
 	},
 
 	onShow() {
@@ -86,23 +95,50 @@ export default {
 	},
 
 	deleteit() {
-		this.id = this.id.slice(0, -1);
+		this.context = this.context.slice(0, -1);
 		// console.log("删除字符");
 	},
 
 	changeState() {
 		this.hide = !this.hide;
 		if (this.hide) {
+			if (this.context == "") {
+				prompt.showToast({
+					message: "请输入车号或关键词",
+					duration: 3000,
+				});
+				return;
+			}
 			prompt.showToast({
 				message: "正在请求本子信息...",
 				duration: 5000,
 			});
-			this.getAlbum();
+			if (this.currentSourceName == "JMComic") {
+				if (/^\d{1,7}$/.test(this.context)) {
+					this.getAlbum();
+				} else {
+					router.push({
+						uri: "/pages/search",
+						params: {
+							keyword: this.context.trim(),
+						},
+					});
+				}
+			} else {
+				// E-Hentai 只支持关键词搜索，跳转到搜索页面
+				router.push({
+					uri: "/pages/search",
+					params: {
+						keyword: this.context.trim(),
+					},
+				});
+				return;
+			}
 		}
 	},
 
 	complete(evt) {
-		this.id += evt.detail.content;
+		this.context += evt.detail.content;
 		// console.log("onComplete:" + JSON.stringify(evt));
 	},
 
@@ -115,7 +151,9 @@ export default {
 
 	getAlbum() {
 		fetch.fetch({
-			url: `${API}/album/${this.id}/info`,
+			url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/album/${
+				this.context
+			}/info`,
 			responseType: "json",
 			success: (response) => {
 				// console.log(`the data of the response: ${response.data}`);
@@ -141,6 +179,20 @@ export default {
 				}
 			},
 		});
+	},
+
+	toggleSource() {
+		const sources = Object.keys(global.API_SETTING);
+		const currentIndex = sources.indexOf(global.API_SETTING.using);
+		const nextIndex = (currentIndex + 1) % sources.length;
+		const nextSourceKey = sources[nextIndex];
+
+		global.API_SETTING.using = nextSourceKey;
+		if (global.API_SETTING.using === "using") {
+			this.toggleSource();
+			return;
+		}
+		this.currentSourceName = global.API_SETTING.using;
 	},
 
 	routeBack() {
@@ -185,6 +237,29 @@ export default {
 	border: 3px solid rgba(255, 255, 255, 0.06);
 	border-radius: 100%;
 	padding-left: 12px;
+}
+
+.source-selector {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	position: absolute;
+	top: 88px;
+}
+.source-text {
+	font-size: 24px;
+	color: rgba(255, 255, 255, 0.8);
+	margin-right: 10px;
+}
+.source-button {
+	height: 36px;
+	padding: 0 15px;
+	background-color: #262626;
+	border: 2px solid rgba(255, 255, 255, 0.1);
+	border-radius: 18px;
+	justify-content: center;
+	align-items: center;
 }
 
 /* 看看是不是小米手表s3/s4 */

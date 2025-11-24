@@ -39,16 +39,18 @@
 			<image
 				class="cover"
 				@complete="getPhoto"
-				src="{{ global.API }}/album/{{ data.item_id }}/cover?w=400"
+				src="{{ data.cover || '/common/loading.png' }}"
 				alt="/common/loading.png"
 				onclick="toPhoto"
 				style="{{ `width:${size.width}px;height:${size.height}px;` }}"
 			></image>
 			<text class="title1">{{ data.name }}</text>
 			<div class="detail">
-				<text>本子ID：{{ data.item_id }}</text>
+				<text if="{{ data.gid }}">本子GID：{{ data.gid }}</text>
+				<text else>本子ID：{{ data.item_id }}</text>
 				<text>页数：{{ data.page_count }}</text>
-				<text>观看数：{{ data.views }}</text>
+				<text if="{{ data.views }}">观看数：{{ data.views }}</text>
+				<text if="{{ data.rate }}">评分：{{ data.rate }}</text>
 			</div>
 			<div class="padding"></div>
 		</scroll>
@@ -79,6 +81,7 @@ export default {
 			item_id: "",
 			views: "",
 			page_count: 0,
+			cover: "",
 		},
 		time: "",
 		size: { width: 200, height: 200 },
@@ -90,7 +93,15 @@ export default {
 
 	onInit() {
 		this.data = JSON.parse(this.data);
-		this.getImages();
+		this.processData();
+	},
+
+	processData() {
+		if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
+			this.data.cover = `${
+				global.API_SETTING[global.API_SETTING.using].apiUrl
+			}/album/${this.data.item_id}/cover?w=400`;
+		}
 	},
 
 	getPhoto(value) {
@@ -115,6 +126,7 @@ export default {
 				id: this.data.item_id,
 				page_count: this.data.page_count,
 				name: this.data.name,
+				cover: this.data.cover,
 				dl: true,
 			},
 		});

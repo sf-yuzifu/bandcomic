@@ -133,7 +133,9 @@
 import router from "@system.router";
 import fetch from "@system.fetch";
 
-const { screenSize, getTime, API } = global;
+const { screenSize, getTime } = global;
+
+let ehImageCache = [];
 
 export default {
 	private: {
@@ -161,7 +163,90 @@ export default {
 	},
 
 	onInit() {
-		this.getImages();
+		this.processData();
+	},
+
+	processData() {
+		if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
+			this.getImages();
+		} else {
+			if (this.local) {
+				this.getImageForPage();
+			} else {
+				this.fetchAllEhImageUrls();
+			}
+		}
+	},
+
+	fetchAllEhImageUrls(page = 0) {
+		this.loading = true;
+		this.images = "";
+		this.scale = 0;
+		this.size.width = screenSize.width / 2;
+		this.size.height = screenSize.height / 2;
+
+		const [gid, token] = this.id.split("_");
+
+		fetch.fetch({
+			url: `${
+				global.API_SETTING[global.API_SETTING.using].apiUrl
+			}/gallery/${gid}/${token}/images?page=${page}`,
+			success: (response) => {
+				const body = response.data;
+				ehImageCache = [
+					...ehImageCache,
+					...body.images.map(
+						(img) =>
+							global.API_SETTING[global.API_SETTING.using].apiUrl +
+							img.image_jpg
+					),
+				];
+				if ((page + 1) * 20 <= this.page_count) {
+					this.fetchAllEhImageUrls(page + 1);
+				} else {
+					this.getImageForPage();
+				}
+			},
+			fail: (data, code) => {
+				this.images = "internal://files/error.png";
+				console.log(`handling fail, errMsg = ${data}`);
+				console.log(`handling fail, errCode = ${code}`);
+			},
+		});
+	},
+
+	getImageForPage() {
+		this.loading = true;
+		this.images = "";
+		this.scale = 0;
+		this.size.width = screenSize.width / 2;
+		this.size.height = screenSize.height / 2;
+
+		if (this.local) {
+			this.images = `internal://files/${this.id}/${this.page}`;
+			return;
+		}
+
+		let imageUrl = "";
+
+		if (ehImageCache.length > 0 && this.page <= ehImageCache.length) {
+			imageUrl = ehImageCache[this.page - 1];
+		} else {
+			return;
+		}
+
+		fetch.fetch({
+			url: imageUrl,
+			responseType: "file",
+			success: (response) => {
+				this.images = response.data;
+			},
+			fail: () => {
+				this.images = "internal://files/error.png";
+				console.log(`handling fail, errMsg = ${data}`);
+				console.log(`handling fail, errCode = ${code}`);
+			},
+		});
 	},
 
 	getImages() {
@@ -175,7 +260,9 @@ export default {
 			return;
 		}
 		fetch.fetch({
-			url: `${API}/photo/${this.id}/${this.page}`,
+			url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/photo/${
+				this.id
+			}/${this.page}`,
 			responseType: "file",
 			success: (response) => {
 				this.images = response.data;
@@ -209,7 +296,11 @@ export default {
 			top: 0,
 			left: 0,
 		});
-		this.getImages();
+		if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
+			this.getImages();
+		} else {
+			this.getImageForPage();
+		}
 	},
 
 	getPhoto(value) {
@@ -223,7 +314,6 @@ export default {
 
 	onSliderChange(e) {
 		this.scale = e.progress;
-		console.log("scale changed to " + this.scale);
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,

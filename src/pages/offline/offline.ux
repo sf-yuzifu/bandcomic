@@ -77,9 +77,10 @@ import file from "@system.file";
 import fetch from "@system.fetch";
 import prompt from "@system.prompt";
 
-const { getTime, API } = global;
+const { getTime } = global;
 
 let del;
+let ehImageCache = [];
 
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -94,6 +95,7 @@ export default {
 		name: "",
 		comicsList: [],
 		page: 0,
+		cover: "",
 		processing: false,
 	},
 
@@ -255,14 +257,53 @@ export default {
 			await this.createFolder(folderUri);
 
 			await this.downloadCover(folderUri);
-			console.log(`封面下载完成`);
+			// console.log(`封面下载完成`);
 
 			// 逐页下载图片
-			for (let page = 1; page <= this.page_count; page++) {
-				this.page = page;
-				await this.downloadImage(page, folderUri);
-				console.log(`第 ${page} 页下载完成`);
+			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
+				for (let page = 1; page <= this.page_count; page++) {
+					this.page = page;
+					await this.downloadImage(page, folderUri);
+					// console.log(`第 ${page} 页下载完成`);
+				}
+			} else {
+				await this.ehDownloadImage();
+				for (let page = 1; page <= this.page_count; page++) {
+					this.page = page;
+					await this.downloadImage(page, folderUri);
+					// console.log(`第 ${page} 页下载完成`);
+				}
+				for (let i = 0; i < ehImageCache.length; i++) {
+					this.page = i + 1;
+					fetch.fetch({
+						url: ehImageCache[i],
+						responseType: "file",
+						success: (response) => {
+							let fileUri = `${folderUri}/${i + 1}`;
+							if (response.data) {
+								// 将下载的文件移动到目标文件夹
+								file.move({
+									srcUri: response.data,
+									dstUri: fileUri,
+									success: function () {
+										console.log(`图片保存成功: ${fileUri}`);
+										resolve();
+									},
+									fail: function (data, code) {
+										reject(`移动图片失败, code = ${code}`);
+									},
+								});
+							} else {
+								reject("下载的图片数据为空");
+							}
+						},
+						fail: function (data, code) {
+							reject(`下载图片失败, code = ${code}`);
+						},
+					});
+				}
 			}
+
 			this.processing = true;
 			await sleep(1000);
 			this.loadingComic();
@@ -295,8 +336,16 @@ export default {
 	},
 
 	downloadImage(page, folderUri) {
+		let imageUrl;
 		return new Promise((resolve, reject) => {
-			const imageUrl = `${API}/photo/${this.id}/${page}`;
+			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
+				imageUrl = `${
+					global.API_SETTING[global.API_SETTING.using].apiUrl
+				}/photo/${this.id}/${page}`;
+			} else {
+				imageUrl = ehImageCache[page - 1];
+			}
+
 			const fileUri = `${folderUri}/${page}`;
 
 			fetch.fetch({
@@ -327,9 +376,50 @@ export default {
 		});
 	},
 
+	ehDownloadImage(page = 0) {
+		return new Promise((resolve, reject) => {
+			const [gid, token] = this.id.split("_");
+
+			fetch.fetch({
+				url: `${
+					global.API_SETTING[global.API_SETTING.using].apiUrl
+				}/gallery/${gid}/${token}/images?page=${page}`,
+				success: async (response) => {
+					const body = response.data;
+					ehImageCache = [
+						...ehImageCache,
+						...body.images.map(
+							(img) =>
+								global.API_SETTING[global.API_SETTING.using].apiUrl +
+								img.image_jpg
+						),
+					];
+					if ((page + 1) * 20 <= this.page_count) {
+						await this.ehDownloadImage(page + 1);
+					}
+					resolve();
+				},
+				fail: (data, code) => {
+					this.images = "internal://files/error.png";
+					console.log(`handling fail, errMsg = ${data}`);
+					console.log(`handling fail, errCode = ${code}`);
+					reject(`获取图片失败, code = ${code}`);
+				},
+			});
+		});
+	},
+
 	downloadCover(folderUri) {
 		return new Promise((resolve, reject) => {
-			const imageUrl = `${API}/album/${this.id}/cover`;
+			let imageUrl;
+			if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
+				imageUrl = this.cover;
+			} else {
+				imageUrl = `${
+					global.API_SETTING[global.API_SETTING.using].apiUrl
+				}/album/${this.id}/cover`;
+			}
+
 			const fileUri = `${folderUri}/cover`;
 
 			fetch.fetch({
