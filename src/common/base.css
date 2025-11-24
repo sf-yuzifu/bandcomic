@@ -91,3 +91,14 @@
     bottom: 60%;
   }
 }
+
+@font-face {
+  font-family: "iconfont";
+  src: url("iconfont.ttf") format("truetype");
+}
+
+.iconfont {
+  font-family: "iconfont" !important;
+  font-size: 32px;
+  font-style: normal;
+}

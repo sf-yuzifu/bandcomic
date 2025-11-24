@@ -24,7 +24,10 @@
 				}
 			"
 		>
-			{{ global.screenShape == "circle" ? "< " : "" }}详情
+			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
+				&#xe6bc;
+			</span>
+			<span>详情</span>
 		</text>
 		<scroll
 			id="scrollId"

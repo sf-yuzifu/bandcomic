@@ -121,7 +121,10 @@
 			"
 			if="{{ showit }}"
 		>
-			{{ global.screenShape == "circle" ? "< " : "" }}第 {{ page }} 页
+			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
+				&#xe6bc;
+			</span>
+			<span>第 {{ page }} 页</span>
 		</text>
 	</div>
 </template>

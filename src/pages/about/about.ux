@@ -17,7 +17,10 @@
 			"
 			class="title"
 		>
-			{{ global.screenShape == "circle" ? "< " : "" }}关于
+			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
+				&#xe6bc;
+			</span>
+			<span>关于</span>
 		</text>
 		<div style="height: 6px"></div>
 		<div id="info">
