@@ -47,6 +47,7 @@
 			<text class="bold" style="color: #fff">NEORUAA</text>
 			<text class="bold" style="color: #fff">无源流沙</text>
 		</div>
+		<div class="padding"></div>
 	</div>
 </template>
 
@@ -131,5 +132,12 @@ export default {
 
 .bold {
 	font-weight: bold;
+}
+
+/* 看看是不是小米手表 */
+@media (device-type: watch) and (shape: circle) {
+	.padding {
+		height: 50px;
+	}
 }
 </style>
