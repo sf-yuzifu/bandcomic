@@ -1,39 +1,39 @@
 {
   "package": "moe.yzf.comic",
   "name": "腕上漫画",
-  "versionName": "1.2",
-  "versionCode": 5,
+  "versionName": "1.3",
+  "versionCode": 10,
   "minPlatformVersion": 1000,
   "icon": "/common/logo.png",
   "deviceTypeList": [
     "watch"
   ],
   "features": [
-	{
-		"name": "system.router"
-	},
-	{
-		"name": "system.file"
-	},
-	{
-		"name": "system.fetch"
-	},
-	{
-		"name": "system.app"
-	},
-	{
-		"name": "system.vibrator"
-	},
-	{
-		"name": "system.device"
-	},
-	{
-		"name": "system.prompt"
-	},
-	{
-		"name": "system.brightness"
-	}
-],
+    {
+      "name": "system.router"
+    },
+    {
+      "name": "system.file"
+    },
+    {
+      "name": "system.fetch"
+    },
+    {
+      "name": "system.app"
+    },
+    {
+      "name": "system.vibrator"
+    },
+    {
+      "name": "system.device"
+    },
+    {
+      "name": "system.prompt"
+    },
+    {
+      "name": "system.brightness"
+    }
+  ],
   "config": {
     "logLevel": "log",
     "designWidth": "device-width"
@@ -55,6 +55,9 @@
       },
       "pages/offline": {
         "component": "offline"
+      },
+      "pages/search": {
+        "component": "search"
       }
     }
   },
