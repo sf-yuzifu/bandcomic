@@ -1,10 +1,27 @@
 <script>
 import device from "@system.device";
-import config from "./config.json";
+import fetch from "@system.fetch";
 
 let screenSize = { width: 0, height: 0 };
 
-global.API = config.API;
+global.API_SETTING = {
+	JMComic: {
+		name: "JMComic",
+		apiUrl: "https://example.invalid",
+		searchPath: "/search/<text>/<page>",
+		detailPath: "/album/<id>/info",
+		coverPath: "/album/<id>/cover",
+		type: "jmcomic",
+	},
+	"E-Hentai": {
+		name: "E-Hentai",
+		apiUrl: "https://example.invalid",
+		searchPath: "/search?q=<text>&next=<page>",
+		detailPath: "/gallery/<gid>/<token>",
+		type: "ehentai",
+	},
+	using: "JMComic",
+};
 
 device.getInfo({
 	success: function (ret) {
@@ -20,6 +37,30 @@ global.getTime = function () {
 	const hour = date.getHours().toString().padStart(2, "0");
 	const minute = date.getMinutes().toString().padStart(2, "0");
 	return hour + ":" + minute;
+};
+
+// 统一的API调用函数
+global.apiCall = function (apiKey, options) {
+	if (apiKey.search) {
+		const url =
+			global.API_SETTING[global.API_SETTING.using].apiUrl +
+			global.API_SETTING[global.API_SETTING.using].searchPath
+				.replace("<text>", encodeURIComponent(apiKey.text))
+				.replace("<page>", apiKey.page || "");
+
+		// 如果是E-Hentai源，需要添加特殊请求头
+		if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
+			const headers = options.header || {};
+			// 这里可以添加E-Hentai的Cookie配置
+			// headers['X-EH-Cookie'] = 'your_cookie_here';
+			options.header = headers;
+		}
+
+		return fetch.fetch({
+			url: url,
+			...options,
+		});
+	}
 };
 
 export default {};
