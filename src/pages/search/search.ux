@@ -283,16 +283,39 @@ export default {
 	selectResult(result) {
 		if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
 			if (result && result.item_id) {
-				const comicData = {
-					name: result.title,
-					item_id: result.item_id,
-					page_count: result.pages,
-					cover: result.thumb,
-					gid: result.gid,
-				};
-				router.push({
-					uri: "/pages/album",
-					params: { data: JSON.stringify(comicData) },
+				fetch.fetch({
+					url: `${
+						global.API_SETTING[global.API_SETTING.using].apiUrl
+					}/gallery/${result.gid}/${result.token}`,
+					responseType: "json",
+					success: (response) => {
+						const comicData = {
+							name: result.title,
+							item_id: result.item_id,
+							page_count: result.pages,
+							cover: result.thumb,
+							gid: result.gid,
+							rate: response.data.gallery.rating,
+							tags: response.data.gallery.tags
+						};
+						router.push({
+							uri: "/pages/album",
+							params: { data: JSON.stringify(comicData) },
+						});
+					},
+					fail: function (data, code) {
+						if (code == 28) {
+							prompt.showToast({
+								message: "请求本子信息失败，请检查网络连接",
+								duration: 3000,
+							});
+						} else {
+							prompt.showToast({
+								message: "请求本子信息失败，错误：" + data,
+								duration: 3000,
+							});
+						}
+					},
 				});
 			}
 		} else {

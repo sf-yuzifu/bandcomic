@@ -46,11 +46,45 @@
 			></image>
 			<text class="title1">{{ data.name }}</text>
 			<div class="detail">
-				<text if="{{ data.gid }}">本子GID：{{ data.gid }}</text>
-				<text else>本子ID：{{ data.item_id }}</text>
-				<text>页数：{{ data.page_count }}</text>
-				<text if="{{ data.views }}">观看数：{{ data.views }}</text>
-				<text if="{{ data.rate }}">评分：{{ data.rate }}</text>
+				<div class="column" if="{{ data.gid }}">
+					<text class="bold grey">GID</text>
+					<text class="bold">{{ data.gid }}</text>
+				</div>
+				<div class="column" else>
+					<text class="bold grey">ID</text>
+					<text class="bold">{{ data.item_id }}</text>
+				</div>
+				<div class="column" if="{{ data.page_count }}">
+					<text class="bold grey">页数</text>
+					<text class="bold">{{ data.page_count }}</text>
+				</div>
+				<div class="column" if="{{ data.views }}">
+					<text class="bold grey">浏览</text>
+					<text class="bold">{{ data.views }}</text>
+				</div>
+				<div class="column" if="{{ data.rate }}">
+					<text class="bold grey">评分</text>
+					<text class="bold">{{ data.rate }}</text>
+				</div>
+				<div
+					class="column tags"
+					if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type === 'jmcomic' }}"
+				>
+					<text class="bold grey">标签</text>
+					<text for="{{ tag in data.tags }}" class="bold">
+						{{ tag }}
+					</text>
+				</div>
+				<div
+					class="column tags"
+					if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type === 'ehentai' }}"
+					for="{{ tagType in Object.keys(data.tags) }}"
+				>
+					<text class="bold grey">{{ tagType }}</text>
+					<text for="{{ tag in data.tags[tagType] }}" class="bold">
+						{{ tag }}
+					</text>
+				</div>
 			</div>
 			<div class="padding"></div>
 		</scroll>
@@ -82,6 +116,8 @@ export default {
 			views: "",
 			page_count: 0,
 			cover: "",
+			rate: "",
+			tags: "",
 		},
 		time: "",
 		size: { width: 200, height: 200 },
@@ -158,13 +194,21 @@ text {
 	font-size: 24px;
 }
 
+.bold {
+	font-weight: bold;
+}
+
+.grey {
+	color: #aaaaaa;
+}
+
 .title1 {
 	font-size: 28px;
 	text-align: center;
-	margin-bottom: 4px;
+	margin-bottom: 10px;
 	margin-top: 10px;
 	width: 80%;
-	lines: 2;
+	lines: 3;
 	font-weight: bold;
 	text-overflow: ellipsis;
 }
@@ -178,6 +222,20 @@ text {
 .box {
 	flex-direction: column;
 	align-items: center;
+}
+
+.column {
+	background-color: #262626;
+	border-radius: 36px;
+	width: 100%;
+	padding: 10px 20px;
+	justify-content: space-between;
+	margin-bottom: 10px;
+	border: 3px rgba(255, 255, 255, 0.24);
+}
+
+.tags {
+	flex-wrap: wrap;
 }
 
 @media screen and (shape: circle) {
