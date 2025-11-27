@@ -26,10 +26,8 @@
 			style="height: 78px"
 			if="{{ !dl && global.screenShape == 'circle' }}"
 		></div>
-		<div
-			style="height: 16px"
-			if="{{ !dl && global.screenShape != 'circle' }}"
-		></div>
+		<text if="{{ !dl }}" class="storage">可用空间 {{ storage }}</text>
+		<div style="height: 10px" if="{{ !dl }}"></div>
 		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
 			<list-item for="{{ comicsList }}" class="item" type="list-item">
 				<image
@@ -37,7 +35,10 @@
 					class="cover"
 					src="internal://files/{{ $item.id }}/cover"
 				></image>
-				<text @click="toPhoto($item)" class="itemText">{{ $item.name }}</text>
+				<div @click="toPhoto($item)" class="text-content">
+					<text class="itemText">{{ $item.name }}</text>
+					<text class="meta">大小 {{ $item.size }}</text>
+				</div>
 				<image src="/common/del.png" @click="del($item.id)"></image>
 			</list-item>
 		</list>
@@ -76,6 +77,7 @@ import router from "@system.router";
 import file from "@system.file";
 import fetch from "@system.fetch";
 import prompt from "@system.prompt";
+import device from "@system.device";
 
 const { getTime } = global;
 
@@ -84,6 +86,18 @@ let ehImageCache = [];
 
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function formatFileSize(size) {
+	if (size < 1024) {
+		return size + "B";
+	} else if (size < 1024 * 1024) {
+		return (size / 1024).toFixed(2) + "KB";
+	} else if (size < 1024 * 1024 * 1024) {
+		return (size / (1024 * 1024)).toFixed(2) + "MB";
+	} else {
+		return (size / (1024 * 1024 * 1024)).toFixed(2) + "GB";
+	}
 }
 
 export default {
@@ -97,6 +111,7 @@ export default {
 		page: 0,
 		cover: "",
 		processing: false,
+		storage: "",
 	},
 
 	onShow() {
@@ -125,12 +140,41 @@ export default {
 							comicsData = JSON.parse(data.text);
 						}
 						this.comicsList = comicsData;
+						this.getStorage();
 					} catch (parseError) {
 						console.log(`解析comics.json失败: ${parseError}`);
 					}
 				},
 				fail: function (data, code) {
 					console.log(`读取comics.json失败, code = ${code}`);
+				},
+			});
+		}
+	},
+
+	getStorage() {
+		device.getAvailableStorage({
+			success: (data) => {
+				this.storage = formatFileSize(data.availableStorage);
+			},
+			fail: (data, code) => {
+				console.log(`handling fail, code = ${code}`);
+			},
+		});
+		for (let a = 0; a < this.comicsList.length; a++) {
+			file.get({
+				uri: `internal://files/${this.comicsList[a].id}`,
+				recursive: true,
+				success: (data) => {
+					let length = 0;
+					for (let i of data.subFiles) {
+						length += i.length;
+					}
+					this.comicsList[a].size = formatFileSize(length);
+					console.log("大小：", this.comicsList[a].size);
+				},
+				fail: function (data, code) {
+					console.log(`handling fail, code = ${code}`);
 				},
 			});
 		}
@@ -542,6 +586,28 @@ export default {
 	align-items: center;
 }
 
+.storage {
+	text-align: center;
+	font-size: 24px;
+	color: #ffffff;
+	font-weight: bold;
+}
+
+.text-content {
+	width: 186px;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	margin-left: 10px;
+}
+
+.meta {
+	font-size: 18px;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 0.7);
+}
+
 /* 看看是不是红米手表 */
 @media (shape: rect) {
 	#process {
@@ -593,11 +659,11 @@ export default {
 
 .box {
 	width: 85%;
-	height: 80%;
+	height: 75%;
 }
 
 .item {
-	height: 116px;
+	height: 120px;
 	width: 100%;
 	background-color: #262626;
 	border-radius: 24px;
@@ -608,12 +674,12 @@ export default {
 }
 
 .itemText {
-	width: 186px;
+	width: 100%;
+	height: 100%;
 	font-size: 24px;
 	color: #ffffff;
 	lines: 3;
 	font-weight: bold;
-	margin-left: 10px;
 }
 
 .cover {
@@ -678,6 +744,7 @@ export default {
 
 	.box {
 		width: 75%;
+		height: 73%;
 	}
 }
 </style>
