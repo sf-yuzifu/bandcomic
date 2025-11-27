@@ -48,11 +48,11 @@
 			<div class="detail">
 				<div class="column" if="{{ data.gid }}">
 					<text class="bold grey">GID</text>
-					<text class="bold">{{ data.gid }}</text>
+					<text class="bold">{{ data.gid.toString() }}</text>
 				</div>
 				<div class="column" else>
 					<text class="bold grey">ID</text>
-					<text class="bold">{{ data.item_id }}</text>
+					<text class="bold">{{ data.item_id.toString() }}</text>
 				</div>
 				<div class="column" if="{{ data.page_count }}">
 					<text class="bold grey">页数</text>
