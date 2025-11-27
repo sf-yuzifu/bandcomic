@@ -287,18 +287,17 @@ export default {
 									dstUri: fileUri,
 									success: function () {
 										console.log(`图片保存成功: ${fileUri}`);
-										resolve();
 									},
 									fail: function (data, code) {
-										reject(`移动图片失败, code = ${code}`);
+										console.log(`移动图片失败, code = ${code}`);
 									},
 								});
 							} else {
-								reject("下载的图片数据为空");
+								console.log("下载的图片数据为空");
 							}
 						},
 						fail: function (data, code) {
-							reject(`下载图片失败, code = ${code}`);
+							console.log(`下载图片失败, code = ${code}`);
 						},
 					});
 				}
@@ -476,7 +475,7 @@ export default {
 			file.rmdir({
 				uri: "internal://files/" + id + "/",
 				recursive: true,
-				success: (data) => {
+				success: () => {
 					file.readText({
 						uri: "internal://files/comics.json",
 						success: (data) => {
