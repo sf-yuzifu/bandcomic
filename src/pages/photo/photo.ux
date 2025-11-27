@@ -243,8 +243,6 @@ export default {
 			},
 			fail: () => {
 				this.images = "internal://files/error.png";
-				console.log(`handling fail, errMsg = ${data}`);
-				console.log(`handling fail, errCode = ${code}`);
 			},
 		});
 	},
