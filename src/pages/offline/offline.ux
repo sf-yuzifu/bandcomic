@@ -26,7 +26,7 @@
 			style="height: 78px"
 			if="{{ !dl && global.screenShape == 'circle' }}"
 		></div>
-		<text if="{{ !dl }}" class="storage">可用空间 {{ storage }}</text>
+		<text if="{{ !dl && storage }}" class="storage">可用空间 {{ storage }}</text>
 		<div style="height: 10px" if="{{ !dl }}"></div>
 		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
 			<list-item for="{{ comicsList }}" class="item" type="list-item">
