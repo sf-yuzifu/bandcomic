@@ -20,7 +20,13 @@ global.API_SETTING = {
 		detailPath: "/gallery/<gid>/<token>",
 		type: "ehentai",
 	},
-	using: "JMComic",
+	"QQComic": {
+		name: "腾讯动漫",
+		apiUrl: "https://qqcomic.yzf.moe",
+		detailPath: "/comic/<id>",
+		type: "qqcomic",
+	},
+	using: "QQComic",
 };
 
 device.getInfo({

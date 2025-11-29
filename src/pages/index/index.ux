@@ -44,7 +44,8 @@
 
 		<div class="line" style="margin-bottom: 10px">
 			<text style="margin-bottom: 4px">
-				{{ currentSourceName == "JMComic" ? "输入车号/关键词" : "输入关键词" }}
+				输入{{ currentSourceName == "JMComic" ? "车号/" : ""
+				}}{{ currentSourceName == "腾讯动漫" ? "漫画ID/" : "" }}关键词
 			</text>
 			<div class="input-line" @click="changeState">
 				<text>{{ context }}</text>
@@ -80,7 +81,7 @@ export default {
 		context: "",
 		hide: true,
 		time: "",
-		currentSourceName: "JMComic",
+		currentSourceName: "腾讯动漫",
 	},
 
 	onShow() {
@@ -124,6 +125,17 @@ export default {
 						},
 					});
 				}
+			} else if (this.currentSourceName == "腾讯动漫") {
+				if (/^\d{1,20}$/.test(this.context)) {
+					this.getAlbum();
+				} else {
+					router.push({
+						uri: "/pages/search",
+						params: {
+							keyword: this.context.trim(),
+						},
+					});
+				}
 			} else {
 				// E-Hentai 只支持关键词搜索，跳转到搜索页面
 				router.push({
@@ -151,13 +163,24 @@ export default {
 
 	getAlbum() {
 		fetch.fetch({
-			url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/album/${
-				this.context
-			}/info`,
+			url:
+				global.API_SETTING[global.API_SETTING.using].apiUrl +
+				global.API_SETTING[global.API_SETTING.using].detailPath.replace(
+					"<id>",
+					this.context
+				),
 			responseType: "json",
 			success: (response) => {
-				// console.log(`the data of the response: ${response.data}`);
-				this.toAlbum(response.data);
+				let data = {
+					item_id: this.context,
+					name: response.data.title,
+					page_count: response.data.page_count,
+					views: response.data.popularity,
+					rate: response.data.rating.score,
+					cover: response.data.cover_url,
+					total_chapters: response.data.total_chapters,
+				};
+				this.toAlbum(data);
 			},
 			fail: function (data, code) {
 				console.log(`handling fail, errMsg = ${JSON.parse(data).message}`);
@@ -192,7 +215,7 @@ export default {
 			this.toggleSource();
 			return;
 		}
-		this.currentSourceName = global.API_SETTING.using;
+		this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
 	},
 
 	routeBack() {
