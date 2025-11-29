@@ -496,6 +496,9 @@ text {
 		position: absolute;
 		bottom: 6px;
 	}
+	.shade {
+		width: 75%;
+	}
 }
 
 /* 看看是不是小米手表 */
