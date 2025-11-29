@@ -80,14 +80,28 @@
 		/>
 
 		<div class="com" if="{{ showSlider }}">
-			<slider
-				class="slider"
-				min="0"
-				max="100"
-				step="1"
-				value="{{ scale }}"
-				onchange="onSliderChange"
-			></slider>
+			<div class="shade">
+				<div
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					class="chapter"
+				>
+					<img src="/common/left.png" onclick="toChapter('-')" class="" />
+					<text class="subtitle">{{ title }}</text>
+					<img src="/common/right.png" onclick="toChapter('+')" class="" />
+				</div>
+				<slider
+					class="slider"
+					min="0"
+					max="100"
+					step="1"
+					value="{{ scale }}"
+					onchange="onSliderChange"
+				></slider>
+				<div
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					style="height: 20px"
+				></div>
+			</div>
 		</div>
 
 		<img
@@ -135,7 +149,7 @@ import fetch from "@system.fetch";
 
 const { screenSize, getTime } = global;
 
-let ehImageCache = [];
+let ImageCache = [];
 
 export default {
 	private: {
@@ -150,6 +164,9 @@ export default {
 		images: null,
 		local: false,
 		loading: true,
+		title: "",
+		chapter: 1,
+		total_chapters: 0,
 	},
 
 	onShow() {
@@ -157,8 +174,6 @@ export default {
 	},
 
 	onBackPress() {
-		console.info(`触发：onBackPress`);
-		// true：表示自己处理；否则默认返回上一页
 		return true;
 	},
 
@@ -169,6 +184,14 @@ export default {
 	processData() {
 		if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
 			this.getImages();
+		} else if (
+			global.API_SETTING[global.API_SETTING.using].type === "qqcomic"
+		) {
+			if (this.local) {
+				this.getImageForPage();
+			} else {
+				this.fetchAllQQImageUrls();
+			}
 		} else {
 			if (this.local) {
 				this.getImageForPage();
@@ -176,6 +199,37 @@ export default {
 				this.fetchAllEhImageUrls();
 			}
 		}
+	},
+
+	fetchAllQQImageUrls() {
+		this.loading = true;
+		this.images = "";
+		this.scale = 0;
+		this.size.width = screenSize.width / 2;
+		this.size.height = screenSize.height / 2;
+
+		fetch.fetch({
+			url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/comic/${
+				this.id
+			}/chapter/${this.chapter}`,
+			success: (response) => {
+				const body = response.data;
+				ImageCache = [
+					...body.images_data.data.picture.map(
+						(img) =>
+							global.API_SETTING[global.API_SETTING.using].apiUrl + img.url
+					),
+				];
+				this.title = body.chapter_info.title;
+				this.page_count = ImageCache.length;
+				this.getImageForPage();
+			},
+			fail: (data, code) => {
+				this.images = "internal://files/error.png";
+				console.log(`handling fail, errMsg = ${data}`);
+				console.log(`handling fail, errCode = ${code}`);
+			},
+		});
 	},
 
 	fetchAllEhImageUrls(page = 0) {
@@ -193,8 +247,8 @@ export default {
 			}/gallery/${gid}/${token}/images?page=${page}`,
 			success: (response) => {
 				const body = response.data;
-				ehImageCache = [
-					...ehImageCache,
+				ImageCache = [
+					...ImageCache,
 					...body.images.map(
 						(img) =>
 							global.API_SETTING[global.API_SETTING.using].apiUrl +
@@ -229,11 +283,13 @@ export default {
 
 		let imageUrl = "";
 
-		if (ehImageCache.length > 0 && this.page <= ehImageCache.length) {
-			imageUrl = ehImageCache[this.page - 1];
+		if (ImageCache.length > 0 && this.page <= ImageCache.length) {
+			imageUrl = ImageCache[this.page - 1];
 		} else {
 			return;
 		}
+
+		imageUrl += "#" + this.chapter;
 
 		fetch.fetch({
 			url: imageUrl,
@@ -275,6 +331,27 @@ export default {
 
 	routeBack() {
 		router.back();
+	},
+
+	toChapter(value) {
+		switch (value) {
+			case "+":
+				if (this.chapter < this.total_chapters) {
+					this.chapter += 1;
+				}
+				break;
+			case "-":
+				if (this.chapter > 1) {
+					this.chapter -= 1;
+				}
+				break;
+		}
+		this.$element("scrollId").scrollTo({
+			top: 0,
+			left: 0,
+		});
+		this.page = 1;
+		this.processData();
 	},
 
 	toPage(value) {
@@ -369,7 +446,36 @@ text {
 }
 
 .slider {
+	width: 100%;
+}
+
+.shade {
+	background-color: rgba(38, 38, 38, 0.6);
+	border-radius: 36px;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
 	width: 90%;
+	padding: 20px 10px;
+	border: 3px rgba(255, 255, 255, 0.24);
+}
+
+.chapter {
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	margin-bottom: 20px;
+}
+
+.subtitle {
+	display: flex;
+	justify-items: center;
+	align-items: center;
+	font-size: 24px;
+	width: 75%;
+	text-align: center;
+	font-weight: bold;
+	color: rgba(255, 255, 255, 1);
 }
 
 /* 看看是不是小米手表 */
@@ -389,10 +495,6 @@ text {
 	.bottom {
 		position: absolute;
 		bottom: 6px;
-	}
-
-	.slider {
-		width: 70%;
 	}
 }
 

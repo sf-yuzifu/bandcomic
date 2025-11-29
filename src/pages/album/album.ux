@@ -58,6 +58,10 @@
 					<text class="bold grey">页数</text>
 					<text class="bold">{{ data.page_count }}</text>
 				</div>
+				<div class="column" if="{{ data.total_chapters }}">
+					<text class="bold grey">章节数</text>
+					<text class="bold">{{ data.total_chapters }}</text>
+				</div>
 				<div class="column" if="{{ data.views }}">
 					<text class="bold grey">浏览</text>
 					<text class="bold">{{ data.views }}</text>
@@ -89,13 +93,15 @@
 			<div class="padding"></div>
 		</scroll>
 		<img
-			if="{{ global.screenShape != 'circle' }}"
+			if="{{ global.screenShape != 'circle' &&
+global.API_SETTING[global.API_SETTING.using].type !== 'qqcomic' }}"
 			class="rightButton bottom"
 			src="/common/dl.png"
 			@click="download"
 		/>
 		<img
-			if="{{ global.screenShape == 'circle' }}"
+			if="{{ global.screenShape == 'circle' &&
+global.API_SETTING[global.API_SETTING.using].type !== 'qqcomic' }}"
 			class="bottom"
 			src="/common/dl_s4.png"
 			@click="download"
@@ -118,6 +124,7 @@ export default {
 			cover: "",
 			rate: "",
 			tags: "",
+			total_chapters: 0,
 		},
 		time: "",
 		size: { width: 200, height: 200 },
@@ -150,6 +157,7 @@ export default {
 			uri: "/pages/photo",
 			params: {
 				id: this.data.item_id,
+				total_chapters: this.data.total_chapters,
 				page_count: this.data.page_count,
 			},
 		});
