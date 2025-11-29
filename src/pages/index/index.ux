@@ -44,8 +44,9 @@
 
 		<div class="line" style="margin-bottom: 10px">
 			<text style="margin-bottom: 4px">
-				输入{{ currentSourceName == "JMComic" ? "车号/" : ""
-				}}{{ currentSourceName == "腾讯动漫" ? "漫画ID/" : "" }}关键词
+				输入{{ currentSourceName == "JMComic" ? "车号/关键词" : ""
+				}}{{ currentSourceName == "腾讯动漫" ? "漫画ID" : ""
+				}}{{ currentSourceName == "E-Hentai" ? "关键词" : "" }}
 			</text>
 			<div class="input-line" @click="changeState">
 				<text>{{ context }}</text>
@@ -129,12 +130,12 @@ export default {
 				if (/^\d{1,20}$/.test(this.context)) {
 					this.getAlbum();
 				} else {
-					router.push({
-						uri: "/pages/search",
-						params: {
-							keyword: this.context.trim(),
-						},
-					});
+					// router.push({
+					// 	uri: "/pages/search",
+					// 	params: {
+					// 		keyword: this.context.trim(),
+					// 	},
+					// });
 				}
 			} else {
 				// E-Hentai 只支持关键词搜索，跳转到搜索页面
@@ -183,7 +184,7 @@ export default {
 				this.toAlbum(data);
 			},
 			fail: function (data, code) {
-				console.log(`handling fail, errMsg = ${JSON.parse(data).message}`);
+				console.log(`handling fail, errMsg = ${data}`);
 				if (JSON.parse(data).message.indexOf("请求的本子不存在") != -1) {
 					prompt.showToast({
 						message: "本子不存在，请检查车号是否正确",

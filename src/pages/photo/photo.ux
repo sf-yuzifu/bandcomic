@@ -89,18 +89,41 @@
 					<text class="subtitle">{{ title }}</text>
 					<img src="/common/right.png" onclick="toChapter('+')" class="" />
 				</div>
+				<text
+					class="subtitle"
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+				>
+					章节切换
+				</text>
+				<div
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					style="height: 10px"
+				></div>
+				<slider
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					class="slider"
+					min="1"
+					max="100"
+					step="1"
+					value="{{ chapter / total_chapters * 100 }}"
+					ontouchend="toChapter"
+					onchange="onSliderChange('c')"
+				></slider>
+				<div
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					style="height: 20px"
+				></div>
+				<text class="subtitle">图片大小调整</text>
+				<div style="height: 10px"></div>
 				<slider
 					class="slider"
 					min="0"
 					max="100"
 					step="1"
 					value="{{ scale }}"
-					onchange="onSliderChange"
+					onchange="onSliderChange('s')"
 				></slider>
-				<div
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
-					style="height: 20px"
-				></div>
+				<div style="height: 10px"></div>
 			</div>
 		</div>
 
@@ -334,6 +357,7 @@ export default {
 	},
 
 	toChapter(value) {
+		this.chapter = Math.floor(this.chapter);
 		switch (value) {
 			case "+":
 				if (this.chapter < this.total_chapters) {
@@ -387,12 +411,17 @@ export default {
 		this.showit = !this.showit;
 	},
 
-	onSliderChange(e) {
-		this.scale = e.progress;
-		this.$element("scrollId").scrollTo({
-			top: 0,
-			left: 0,
-		});
+	onSliderChange(type, e) {
+		if (type === "c") {
+			this.chapter = (e.progress / 100) * this.total_chapters;
+			this.title = `章节 ${Math.floor(this.chapter)}`;
+		} else {
+			this.scale = e.progress;
+			this.$element("scrollId").scrollTo({
+				top: 0,
+				left: 0,
+			});
+		}
 	},
 };
 </script>
