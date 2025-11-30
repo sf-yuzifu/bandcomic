@@ -23,6 +23,7 @@ global.API_SETTING = {
 	"QQComic": {
 		name: "腾讯动漫",
 		apiUrl: "https://qqcomic.yzf.moe",
+		searchPath: "/search/<text>/<page>",
 		detailPath: "/comic/<id>",
 		type: "qqcomic",
 	},

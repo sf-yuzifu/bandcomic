@@ -45,7 +45,7 @@
 		<div class="line" style="margin-bottom: 10px">
 			<text style="margin-bottom: 4px">
 				输入{{ currentSourceName == "JMComic" ? "车号/关键词" : ""
-				}}{{ currentSourceName == "腾讯动漫" ? "漫画ID" : ""
+				}}{{ currentSourceName == "腾讯动漫" ? "漫画ID/关键词" : ""
 				}}{{ currentSourceName == "E-Hentai" ? "关键词" : "" }}
 			</text>
 			<div class="input-line" @click="changeState">
@@ -79,7 +79,7 @@ const { getTime } = global;
 
 export default {
 	private: {
-		context: "",
+		context: "妖怪名单",
 		hide: true,
 		time: "",
 		currentSourceName: "腾讯动漫",
@@ -130,12 +130,12 @@ export default {
 				if (/^\d{1,20}$/.test(this.context)) {
 					this.getAlbum();
 				} else {
-					// router.push({
-					// 	uri: "/pages/search",
-					// 	params: {
-					// 		keyword: this.context.trim(),
-					// 	},
-					// });
+					router.push({
+						uri: "/pages/search",
+						params: {
+							keyword: this.context.trim(),
+						},
+					});
 				}
 			} else {
 				// E-Hentai 只支持关键词搜索，跳转到搜索页面
@@ -172,16 +172,20 @@ export default {
 				),
 			responseType: "json",
 			success: (response) => {
-				let data = {
-					item_id: this.context,
-					name: response.data.title,
-					page_count: response.data.page_count,
-					views: response.data.popularity,
-					rate: response.data.rating.score,
-					cover: response.data.cover_url,
-					total_chapters: response.data.total_chapters,
-				};
-				this.toAlbum(data);
+				if (global.API_SETTING.using === "QQComic") {
+					let data = {
+						item_id: this.context,
+						name: response.data.title,
+						page_count: response.data.page_count,
+						views: response.data.popularity,
+						rate: response.data.rating.score,
+						cover: response.data.cover_url,
+						total_chapters: response.data.total_chapters,
+					};
+					this.toAlbum(data);
+				} else {
+					this.toAlbum(response.data);
+				}
 			},
 			fail: function (data, code) {
 				console.log(`handling fail, errMsg = ${data}`);
