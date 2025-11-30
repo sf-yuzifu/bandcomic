@@ -1,8 +1,8 @@
 {
   "package": "moe.yzf.comic",
   "name": "腕上漫画",
-  "versionName": "1.3",
-  "versionCode": 15,
+  "versionName": "1.5",
+  "versionCode": 30,
   "minPlatformVersion": 1000,
   "icon": "/common/logo.png",
   "deviceTypeList": [
@@ -32,6 +32,9 @@
     },
     {
       "name": "system.brightness"
+    },
+    {
+      "name": "system.interconnect"
     }
   ],
   "config": {
