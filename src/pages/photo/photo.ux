@@ -102,7 +102,7 @@
 				<slider
 					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
 					class="slider"
-					min="1"
+					min="0"
 					max="100"
 					step="1"
 					value="{{ chapter / total_chapters * 100 }}"
@@ -234,7 +234,10 @@ export default {
 		fetch.fetch({
 			url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/comic/${
 				this.id
-			}/chapter/${this.chapter}`,
+			}/chapter/${Math.floor(this.chapter)}`,
+			header: {
+				"QQComic-Cookie": global.cookie || "",
+			},
 			success: (response) => {
 				const body = response.data;
 				ImageCache = [
@@ -357,7 +360,6 @@ export default {
 	},
 
 	toChapter(value) {
-		this.chapter = Math.floor(this.chapter);
 		switch (value) {
 			case "+":
 				if (this.chapter < this.total_chapters) {
@@ -413,7 +415,7 @@ export default {
 
 	onSliderChange(type, e) {
 		if (type === "c") {
-			this.chapter = (e.progress / 100) * this.total_chapters;
+			this.chapter = (e.progress / 100) * this.total_chapters || 1;
 			this.title = `章节 ${Math.floor(this.chapter)}`;
 		} else {
 			this.scale = e.progress;

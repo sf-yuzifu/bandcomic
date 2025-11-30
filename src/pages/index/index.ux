@@ -74,12 +74,14 @@ import router from "@system.router";
 import fetch from "@system.fetch";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
+import interconnect from "@system.interconnect";
+import file from "@system.file";
 
 const { getTime } = global;
 
 export default {
 	private: {
-		context: "妖怪名单",
+		context: "",
 		hide: true,
 		time: "",
 		currentSourceName: "腾讯动漫",
@@ -91,6 +93,35 @@ export default {
 	},
 
 	onInit() {
+		file.readText({
+			uri: "internal://files/cookie",
+			success: (data) => {
+				global.cookie = data.text;
+			},
+			fail: (data) => {
+				console.log(data);
+			},
+		});
+		const connect = interconnect.instance();
+		connect.onmessage = (data) => {
+			const Cookie = data.data;
+			if (Cookie) {
+				prompt.showToast({ message: "接收到Cookie！" });
+				file.writeText({
+					uri: "internal://files/cookie",
+					text: Cookie,
+					success: () => {
+						global.cookie = Cookie;
+						prompt.showToast({ message: "保存Cookie成功！" });
+					},
+					fail: () => {
+						prompt.showToast({ message: "保存Cookie失败！" });
+					},
+				});
+			} else {
+				prompt.showToast({ message: "同步数据格式错误" });
+			}
+		};
 		brightness.setKeepScreenOn({
 			keepScreenOn: true,
 		});

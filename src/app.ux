@@ -20,7 +20,7 @@ global.API_SETTING = {
 		detailPath: "/gallery/<gid>/<token>",
 		type: "ehentai",
 	},
-	"QQComic": {
+	QQComic: {
 		name: "腾讯动漫",
 		apiUrl: "https://example.invalid",
 		searchPath: "/search/<text>/<page>",
