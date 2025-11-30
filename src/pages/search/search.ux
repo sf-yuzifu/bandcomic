@@ -150,6 +150,10 @@ export default {
 			success: (response) => {
 				if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
 					this.ehHandleSearchSuccess(response);
+				} else if (
+					global.API_SETTING[global.API_SETTING.using].type === "qqcomic"
+				) {
+					this.QQComicHandleSearchSuccess(response);
 				} else {
 					this.JMComicHandleSearchSuccess(response);
 				}
@@ -245,6 +249,33 @@ export default {
 		}
 	},
 
+	QQComicHandleSearchSuccess(response) {
+		const data = response.data;
+
+		if (data.results) {
+			const results = data.results.map((result) => {
+				return {
+					gid: result.comic_id,
+					title: result.title,
+					thumb: result.cover_url,
+				};
+			});
+
+			this.apiResults = this.apiResults.concat(results);
+
+			this.apiHasNext = data.has_more;
+			this.apiNextCursor = data.page + 1;
+
+			// 如果是第一次加载，或因为翻页触发了加载，则更新显示
+			if (
+				this.searchResults.length === 0 ||
+				this.apiResults.length >= (this.displayPage - 1) * PAGE_SIZE
+			) {
+				this.updateSearchResults();
+			}
+		}
+	},
+
 	// 前端翻页模块：只负责从仓库切片数据并显示
 	changeDisplayPage(targetPage) {
 		if (targetPage < 1) return;
@@ -296,7 +327,7 @@ export default {
 							cover: result.thumb,
 							gid: result.gid,
 							rate: response.data.gallery.rating,
-							tags: response.data.gallery.tags
+							tags: response.data.gallery.tags,
 						};
 						router.push({
 							uri: "/pages/album",
@@ -320,15 +351,34 @@ export default {
 			}
 		} else {
 			fetch.fetch({
-				url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/album/${
-					result.gid
-				}/info`,
+				url:
+					global.API_SETTING[global.API_SETTING.using].apiUrl +
+					global.API_SETTING[global.API_SETTING.using].detailPath.replace(
+						"<id>",
+						result.gid
+					),
 				responseType: "json",
 				success: (response) => {
-					router.push({
-						uri: "/pages/album",
-						params: { data: response.data },
-					});
+					if (global.API_SETTING.using === "QQComic") {
+						let data = {
+							item_id: result.gid,
+							name: response.data.title,
+							page_count: response.data.page_count,
+							views: response.data.popularity,
+							rate: response.data.rating.score,
+							cover: response.data.cover_url,
+							total_chapters: response.data.total_chapters,
+						};
+						router.push({
+							uri: "/pages/album",
+							params: { data: data },
+						});
+					} else {
+						router.push({
+							uri: "/pages/album",
+							params: { data: response.data },
+						});
+					}
 				},
 				fail: function (data, code) {
 					if (code == 28) {
