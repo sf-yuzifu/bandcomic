@@ -26,7 +26,9 @@
 			style="height: 78px"
 			if="{{ !dl && global.screenShape == 'circle' }}"
 		></div>
-		<text if="{{ !dl && storage }}" class="storage">可用空间 {{ storage }}</text>
+		<text if="{{ !dl && storage }}" class="storage">
+			可用空间 {{ storage }}
+		</text>
 		<div style="height: 10px" if="{{ !dl }}"></div>
 		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
 			<list-item for="{{ comicsList }}" class="item" type="list-item">
@@ -382,9 +384,11 @@ export default {
 		let imageUrl;
 		return new Promise((resolve, reject) => {
 			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
-				imageUrl = `${
-					global.API_SETTING[global.API_SETTING.using].apiUrl
-				}/photo/${this.id}/${page}`;
+				imageUrl =
+					global.API_SETTING[global.API_SETTING.using].apiUrl +
+					global.API_SETTING[global.API_SETTING.using].photoPath
+						.replace("<id>", this.id)
+						.replace("<page>", page);
 			} else {
 				imageUrl = ehImageCache[page - 1];
 			}
@@ -424,9 +428,12 @@ export default {
 			const [gid, token] = this.id.split("_");
 
 			fetch.fetch({
-				url: `${
-					global.API_SETTING[global.API_SETTING.using].apiUrl
-				}/gallery/${gid}/${token}/images?page=${page}`,
+				url:
+					global.API_SETTING[global.API_SETTING.using].apiUrl +
+					global.API_SETTING[global.API_SETTING.using].photoPath
+						.replace("<gid>", gid)
+						.replace("<token>", token)
+						.replace("<page>", page),
 				success: async (response) => {
 					const body = response.data;
 					ehImageCache = [

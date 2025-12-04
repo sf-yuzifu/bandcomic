@@ -43,11 +43,19 @@
 		</text>
 
 		<div class="line" style="margin-bottom: 10px">
-			<text style="margin-bottom: 4px">
-				输入{{ currentSourceName == "JMComic" ? "车号/关键词" : ""
-				}}{{ currentSourceName == "腾讯动漫" ? "漫画ID/关键词" : ""
-				}}{{ currentSourceName == "E-Hentai" ? "关键词" : "" }}
+			<text
+				if="{{ currentSourceName == 'JMComic' }}"
+				style="margin-bottom: 4px"
+			>
+				输入车号/关键词
 			</text>
+			<text
+				if="{{ currentSourceName == 'E-Hentai' }}"
+				style="margin-bottom: 4px"
+			>
+				输入关键词
+			</text>
+			<text else style="margin-bottom: 4px">输入漫画ID/关键词</text>
 			<div class="input-line" @click="changeState">
 				<text>{{ context }}</text>
 			</div>
@@ -56,7 +64,14 @@
 
 		<div if="{{ hide }}" class="source-selector">
 			<text class="source-text">当前源: {{ currentSourceName }}</text>
-			<text class="iconfont" @click="toggleSource">&#xe628;</text>
+			<text
+				if="{{ Object.keys(API_SETTING).length > 2 }}"
+				class="iconfont"
+				@click="toggleSource"
+			>
+				&#xe628;
+			</text>
+			<text class="iconfont" @click="routeEdit">&#xe607;</text>
 		</div>
 		<input-method
 			hide="{{ hide }}"
@@ -85,11 +100,27 @@ export default {
 		hide: true,
 		time: "",
 		currentSourceName: "腾讯动漫",
+		API_SETTING: global.API_SETTING,
 	},
 
 	onShow() {
 		// 写入页面顶部时间
 		this.time = getTime();
+		file.readText({
+			uri: "internal://files/sources.json",
+			success: (data) => {
+				let datas = JSON.parse(data.text);
+				datas.forEach((newSourceConfig) => {
+					const newKey = Object.keys(newSourceConfig)[0];
+					global.API_SETTING[newKey] = newSourceConfig[newKey];
+					console.log(`配置 ${newKey} 已加载`);
+				});
+			},
+			fail: function () {},
+			complete: () => {
+				this.API_SETTING = global.API_SETTING;
+			},
+		});
 	},
 
 	onInit() {
@@ -137,13 +168,13 @@ export default {
 		if (this.hide) {
 			if (this.context == "") {
 				prompt.showToast({
-					message: "请输入车号或关键词",
+					message: "请输入漫画ID或关键词",
 					duration: 3000,
 				});
 				return;
 			}
 			prompt.showToast({
-				message: "正在请求本子信息...",
+				message: "正在请求漫画信息...",
 				duration: 5000,
 			});
 			if (this.currentSourceName == "JMComic") {
@@ -168,7 +199,7 @@ export default {
 						},
 					});
 				}
-			} else {
+			} else if (this.currentSourceName == "E-Hentai") {
 				// E-Hentai 只支持关键词搜索，跳转到搜索页面
 				router.push({
 					uri: "/pages/search",
@@ -177,6 +208,17 @@ export default {
 					},
 				});
 				return;
+			} else {
+				if (/^\d{1,20}$/.test(this.context)) {
+					this.getAlbum();
+				} else {
+					router.push({
+						uri: "/pages/search",
+						params: {
+							keyword: this.context.trim(),
+						},
+					});
+				}
 			}
 		}
 	},
@@ -261,6 +303,12 @@ export default {
 	routeAbout() {
 		router.push({
 			uri: "/pages/about",
+		});
+	},
+
+	routeEdit() {
+		router.push({
+			uri: "/pages/edit",
 		});
 	},
 

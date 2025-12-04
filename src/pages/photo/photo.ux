@@ -232,9 +232,11 @@ export default {
 		this.size.height = screenSize.height / 2;
 
 		fetch.fetch({
-			url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/comic/${
-				this.id
-			}/chapter/${Math.floor(this.chapter)}`,
+			url:
+				global.API_SETTING[global.API_SETTING.using].apiUrl +
+				global.API_SETTING[global.API_SETTING.using].photoPath
+					.replace("<id>", this.id)
+					.replace("<chapter>", Math.floor(this.chapter)),
 			header: {
 				"QQComic-Cookie": global.cookie || "",
 			},
@@ -268,9 +270,12 @@ export default {
 		const [gid, token] = this.id.split("_");
 
 		fetch.fetch({
-			url: `${
-				global.API_SETTING[global.API_SETTING.using].apiUrl
-			}/gallery/${gid}/${token}/images?page=${page}`,
+			url:
+				global.API_SETTING[global.API_SETTING.using].apiUrl +
+				global.API_SETTING[global.API_SETTING.using].photoPath
+					.replace("<gid>", gid)
+					.replace("<token>", token)
+					.replace("<page>", page),
 			success: (response) => {
 				const body = response.data;
 				ImageCache = [
@@ -340,9 +345,11 @@ export default {
 			return;
 		}
 		fetch.fetch({
-			url: `${global.API_SETTING[global.API_SETTING.using].apiUrl}/photo/${
-				this.id
-			}/${this.page}`,
+			url:
+				global.API_SETTING[global.API_SETTING.using].apiUrl +
+				global.API_SETTING[global.API_SETTING.using].photoPath
+					.replace("<id>", this.id)
+					.replace("<page>", this.page),
 			responseType: "file",
 			success: (response) => {
 				this.images = response.data;

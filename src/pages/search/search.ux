@@ -315,9 +315,11 @@ export default {
 		if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
 			if (result && result.item_id) {
 				fetch.fetch({
-					url: `${
-						global.API_SETTING[global.API_SETTING.using].apiUrl
-					}/gallery/${result.gid}/${result.token}`,
+					url:
+						global.API_SETTING[global.API_SETTING.using].apiUrl +
+						global.API_SETTING[global.API_SETTING.using].detailPath
+							.replace("<gid>", result.gid)
+							.replace("<token>", result.token),
 					responseType: "json",
 					success: (response) => {
 						const comicData = {

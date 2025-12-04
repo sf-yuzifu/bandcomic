@@ -1,0 +1,299 @@
+<import
+	name="input-method"
+	src="../../components/InputMethod/InputMethod.ux"
+></import>
+<template>
+	<div class="demo-page">
+		<img
+			if="{{ global.screenShape != 'circle' }}"
+			class="leftButton top"
+			src="/common/back.png"
+			@click="routeBack"
+		/>
+		<img
+			if="{{ global.screenShape != 'circle' }}"
+			class="rightButton top"
+			src="/common/info.png"
+			@click="routeAbout"
+		/>
+
+		<text class="time">{{ time }}</text>
+		<text
+			@click="
+				() => {
+					if (global.screenShape == 'circle') {
+						routeBack();
+					}
+				}
+			"
+			class="title"
+		>
+			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
+				&#xe6bc;
+			</span>
+			<span>编辑漫画源</span>
+		</text>
+
+		<list if="{{ hide }}" class="search-results" bounces="true">
+			<list-item
+				for="{{ source in Object.keys(API_SETTING).filter((key) => key != 'using') }}"
+				type="source"
+				class="result-item"
+			>
+				<text>
+					{{ global.API_SETTING[source].name }}
+				</text>
+				<image
+					if="{{ source != 'QQComic' }}"
+					style="width: 60px"
+					src="/common/del.png"
+					@click="del(source)"
+				></image>
+			</list-item>
+		</list>
+
+		<img
+			if="{{ global.screenShape != 'circle' }}"
+			class="rightButton bottom"
+			src="/common/More_B.png"
+			@click="changeState"
+		/>
+		<img
+			if="{{ global.screenShape == 'circle' }}"
+			class="bottom"
+			src="/common/more_s4.png"
+			@click="changeState"
+		/>
+
+		<div if="{{ !hide }}" class="line" style="margin-bottom: 10px">
+			<text style="margin-bottom: 4px">输入漫画源</text>
+			<div class="input-line" @click="changeState">
+				<text>{{ context }}</text>
+			</div>
+			<div class="padding" style="height: 60%"></div>
+		</div>
+
+		<input-method
+			hide="{{ hide }}"
+			keyboardtype="qwerty"
+			maxlength="5"
+			screentype="rect"
+			@delete="deleteit"
+			@complete="complete"
+		></input-method>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import file from "@system.file";
+import fetch from "@system.fetch";
+import prompt from "@system.prompt";
+
+const { getTime } = global;
+
+function replaceIfDuplicate(configArray, newConfigObject) {
+	const newKey = Object.keys(newConfigObject)[0];
+
+	for (let i = 0; i < configArray.length; i++) {
+		const existingConfig = configArray[i];
+		const existingKey = Object.keys(existingConfig)[0];
+
+		if (existingKey === newKey) {
+			configArray[i] = newConfigObject;
+			return configArray;
+		}
+	}
+
+	configArray.push(newConfigObject);
+	return configArray;
+}
+
+function updateMultipleSources(sourceArray) {
+	sourceArray.forEach((newSourceConfig) => {
+		const newKey = Object.keys(newSourceConfig)[0];
+		global.API_SETTING[newKey] = newSourceConfig[newKey];
+		console.log(`配置 ${newKey} 已添加/更新`);
+	});
+}
+
+export default {
+	private: {
+		context: "",
+		hide: true,
+		time: "",
+		API_SETTING: global.API_SETTING,
+	},
+
+	onShow() {
+		// 写入页面顶部时间
+		this.time = getTime();
+	},
+
+	onInit() {},
+
+	deleteit() {
+		this.context = this.context.slice(0, -1);
+		// console.log("删除字符");
+	},
+
+	changeState() {
+		this.hide = !this.hide;
+		if (this.hide) {
+			file.access({
+				uri: "internal://files/sources.json",
+				success: () => {
+					file.readText({
+						uri: "internal://files/sources.json",
+						success: (data) => {
+							let datas = JSON.parse(data.text);
+							this.writeSource(datas);
+						},
+						fail: function () {},
+					});
+				},
+				fail: () => {
+					this.writeSource();
+				},
+			});
+		}
+	},
+
+	writeSource(text) {
+		fetch.fetch({
+			url: "https://" + this.context + "/config",
+			responseType: "text",
+			success: (response) => {
+				let data = JSON.parse(response.data);
+				console.log(data);
+				if (text) {
+					data = replaceIfDuplicate(text, data);
+				} else {
+					data = [].concat(data);
+				}
+				file.writeText({
+					uri: "internal://files/sources.json",
+					text: JSON.stringify(data),
+					success: () => {
+						prompt.showToast({ message: "已添加" });
+						updateMultipleSources(data);
+						this.API_SETTING = global.API_SETTING;
+					},
+					fail: function () {},
+				});
+			},
+			fail: function () {
+				prompt.showToast({ message: "未找到漫画源Config" });
+			},
+		});
+	},
+
+	del(source) {
+		file.readText({
+			uri: "internal://files/sources.json",
+			success: (data) => {
+				let datas = JSON.parse(data.text);
+				datas = datas.filter((item) => Object.keys(item)[0] !== source);
+				file.writeText({
+					uri: "internal://files/sources.json",
+					text: JSON.stringify(datas),
+					success: () => {
+						prompt.showToast({ message: "已删除" });
+						delete global.API_SETTING[source];
+						this.API_SETTING = global.API_SETTING;
+					},
+					fail: () => {},
+				});
+			},
+			fail: function () {},
+		});
+	},
+
+	complete(evt) {
+		this.context += evt.detail.content;
+		// console.log("onComplete:" + JSON.stringify(evt));
+	},
+
+	routeBack() {
+		router.back();
+	},
+
+	routeAbout() {
+		router.push({
+			uri: "/pages/about",
+		});
+	},
+};
+</script>
+
+<style>
+@import "../../common/base.css";
+
+.demo-page {
+	flex-direction: column;
+	align-items: center;
+	color: #ffffff;
+}
+
+.line {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	height: 70%;
+}
+
+.input-line {
+	height: 54px;
+	width: 256px;
+	background-color: #262626;
+	border: 3px solid rgba(255, 255, 255, 0.06);
+	border-radius: 100%;
+	padding-left: 12px;
+}
+
+.search-results {
+	flex: 1;
+	width: 90%;
+	margin-top: 10px;
+	align-self: center;
+}
+
+.result-item {
+	margin-bottom: 15px;
+	height: 72px;
+	background-color: rgba(38, 38, 38, 0.8);
+	padding: 12px;
+	border-radius: 12px;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+}
+
+/* 看看是不是小米手表s3/s4 */
+@media (min-width: 200) and (max-width: 235) and (shape: circle) {
+	.bottom {
+		left: 182px;
+		position: absolute;
+		bottom: 6px;
+	}
+
+	.search-results {
+		width: 80%;
+	}
+}
+
+/* 看看是不是小米手表s1 pro */
+@media (min-width: 235) and (max-width: 250) and (shape: circle) {
+	.bottom {
+		left: 189px;
+		position: absolute;
+		bottom: 6px;
+	}
+
+	.search-results {
+		width: 80%;
+	}
+}
+</style>

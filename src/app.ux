@@ -5,26 +5,12 @@ import fetch from "@system.fetch";
 let screenSize = { width: 0, height: 0 };
 
 global.API_SETTING = {
-	JMComic: {
-		name: "JMComic",
-		apiUrl: "https://example.invalid",
-		searchPath: "/search/<text>/<page>",
-		detailPath: "/album/<id>/info",
-		coverPath: "/album/<id>/cover",
-		type: "jmcomic",
-	},
-	"E-Hentai": {
-		name: "E-Hentai",
-		apiUrl: "https://example.invalid",
-		searchPath: "/search?q=<text>&next=<page>",
-		detailPath: "/gallery/<gid>/<token>",
-		type: "ehentai",
-	},
 	QQComic: {
 		name: "腾讯动漫",
 		apiUrl: "https://example.invalid",
 		searchPath: "/search/<text>/<page>",
 		detailPath: "/comic/<id>",
+		photoPath: "/comic/<id>/chapter/<chapter>",
 		type: "qqcomic",
 	},
 	using: "QQComic",

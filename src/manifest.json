@@ -61,6 +61,9 @@
       },
       "pages/search": {
         "component": "search"
+      },
+      "pages/edit": {
+        "component": "edit"
       }
     }
   },
