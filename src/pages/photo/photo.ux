@@ -215,11 +215,19 @@ export default {
 			} else {
 				this.fetchAllQQImageUrls();
 			}
-		} else {
+		} else if (
+			global.API_SETTING[global.API_SETTING.using].type === "ehentai"
+		) {
 			if (this.local) {
 				this.getImageForPage();
 			} else {
 				this.fetchAllEhImageUrls();
+			}
+		} else {
+			if (this.local) {
+				this.getImageForPage();
+			} else {
+				this.fetchAllImageUrls();
 			}
 		}
 	},
@@ -249,6 +257,34 @@ export default {
 					),
 				];
 				this.title = body.chapter_info.title;
+				this.page_count = ImageCache.length;
+				this.getImageForPage();
+			},
+			fail: (data, code) => {
+				this.images = "internal://files/error.png";
+				console.log(`handling fail, errMsg = ${data}`);
+				console.log(`handling fail, errCode = ${code}`);
+			},
+		});
+	},
+
+	fetchAllImageUrls() {
+		this.loading = true;
+		this.images = "";
+		this.scale = 0;
+		this.size.width = screenSize.width / 2;
+		this.size.height = screenSize.height / 2;
+
+		fetch.fetch({
+			url:
+				global.API_SETTING[global.API_SETTING.using].apiUrl +
+				global.API_SETTING[global.API_SETTING.using].photoPath
+					.replace("<id>", this.id)
+					.replace("<page>", this.page),
+			success: (response) => {
+				const body = response.data;
+				ImageCache = [...body.images.map((img) => img.url)];
+				this.title = body.title;
 				this.page_count = ImageCache.length;
 				this.getImageForPage();
 			},
