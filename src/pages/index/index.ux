@@ -50,7 +50,7 @@
 				输入车号/关键词
 			</text>
 			<text
-				if="{{ currentSourceName == 'E-Hentai' }}"
+				elif="{{ currentSourceName == 'E-Hentai' }}"
 				style="margin-bottom: 4px"
 			>
 				输入关键词
