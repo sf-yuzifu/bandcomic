@@ -85,6 +85,7 @@ const { getTime } = global;
 
 let del;
 let ehImageCache = [];
+let ImageCache = [];
 
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
@@ -312,7 +313,9 @@ export default {
 					await this.downloadImage(page, folderUri);
 					// console.log(`第 ${page} 页下载完成`);
 				}
-			} else {
+			} else if (
+				global.API_SETTING[global.API_SETTING.using].type === "ehentai"
+			) {
 				await this.ehDownloadImage();
 				for (let page = 1; page <= this.page_count; page++) {
 					this.page = page;
@@ -323,6 +326,41 @@ export default {
 					this.page = i + 1;
 					fetch.fetch({
 						url: ehImageCache[i],
+						responseType: "file",
+						success: (response) => {
+							let fileUri = `${folderUri}/${i + 1}`;
+							if (response.data) {
+								// 将下载的文件移动到目标文件夹
+								file.move({
+									srcUri: response.data,
+									dstUri: fileUri,
+									success: function () {
+										console.log(`图片保存成功: ${fileUri}`);
+									},
+									fail: function (data, code) {
+										console.log(`移动图片失败, code = ${code}`);
+									},
+								});
+							} else {
+								console.log("下载的图片数据为空");
+							}
+						},
+						fail: function (data, code) {
+							console.log(`下载图片失败, code = ${code}`);
+						},
+					});
+				}
+			} else {
+				await this.DownloadImage();
+				for (let page = 1; page <= this.page_count; page++) {
+					this.page = page;
+					await this.downloadImage(page, folderUri);
+					// console.log(`第 ${page} 页下载完成`);
+				}
+				for (let i = 0; i < ImageCache.length; i++) {
+					this.page = i + 1;
+					fetch.fetch({
+						url: ImageCache[i],
 						responseType: "file",
 						success: (response) => {
 							let fileUri = `${folderUri}/${i + 1}`;
@@ -389,8 +427,12 @@ export default {
 					global.API_SETTING[global.API_SETTING.using].photoPath
 						.replace("<id>", this.id)
 						.replace("<page>", page);
-			} else {
+			} else if (
+				global.API_SETTING[global.API_SETTING.using].type === "ehentai"
+			) {
 				imageUrl = ehImageCache[page - 1];
+			} else {
+				imageUrl = ImageCache[page - 1];
 			}
 
 			const fileUri = `${folderUri}/${page}`;
@@ -459,15 +501,38 @@ export default {
 		});
 	},
 
+	DownloadImage() {
+		return new Promise((resolve, reject) => {
+			fetch.fetch({
+				url:
+					global.API_SETTING[global.API_SETTING.using].apiUrl +
+					global.API_SETTING[global.API_SETTING.using].photoPath
+						.replace("<id>", this.id)
+						.replace("<page>", this.page),
+				success: async (response) => {
+					const body = response.data;
+					ImageCache = [...body.images.map((img) => img.url)];
+					resolve();
+				},
+				fail: (data, code) => {
+					this.images = "internal://files/error.png";
+					console.log(`handling fail, errMsg = ${data}`);
+					console.log(`handling fail, errCode = ${code}`);
+					reject(`获取图片失败, code = ${code}`);
+				},
+			});
+		});
+	},
+
 	downloadCover(folderUri) {
 		return new Promise((resolve, reject) => {
 			let imageUrl;
-			if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
-				imageUrl = this.cover;
-			} else {
+			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
 				imageUrl = `${
 					global.API_SETTING[global.API_SETTING.using].apiUrl
 				}/album/${this.id}/cover`;
+			} else {
+				imageUrl = this.cover;
 			}
 
 			const fileUri = `${folderUri}/cover`;

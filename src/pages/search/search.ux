@@ -154,8 +154,12 @@ export default {
 					global.API_SETTING[global.API_SETTING.using].type === "qqcomic"
 				) {
 					this.QQComicHandleSearchSuccess(response);
-				} else {
+				} else if (
+					global.API_SETTING[global.API_SETTING.using].type === "jmcomic"
+				) {
 					this.JMComicHandleSearchSuccess(response);
+				} else {
+					this.ComicHandleSearchSuccess(response);
 				}
 			},
 			fail: (data, code) => {
@@ -250,6 +254,33 @@ export default {
 	},
 
 	QQComicHandleSearchSuccess(response) {
+		const data = response.data;
+
+		if (data.results) {
+			const results = data.results.map((result) => {
+				return {
+					gid: result.comic_id,
+					title: result.title,
+					thumb: result.cover_url,
+				};
+			});
+
+			this.apiResults = this.apiResults.concat(results);
+
+			this.apiHasNext = data.has_more;
+			this.apiNextCursor = data.page + 1;
+
+			// 如果是第一次加载，或因为翻页触发了加载，则更新显示
+			if (
+				this.searchResults.length === 0 ||
+				this.apiResults.length >= (this.displayPage - 1) * PAGE_SIZE
+			) {
+				this.updateSearchResults();
+			}
+		}
+	},
+
+	ComicHandleSearchSuccess(response) {
 		const data = response.data;
 
 		if (data.results) {
