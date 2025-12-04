@@ -40,13 +40,12 @@
 				type="source"
 				class="result-item"
 			>
-				<text>
+				<text style="font-weight: bold">
 					{{ global.API_SETTING[source].name }}
 				</text>
 				<image
 					if="{{ source != 'QQComic' }}"
-					style="width: 60px"
-					src="/common/del.png"
+					src="/common/listDel.png"
 					@click="del(source)"
 				></image>
 			</list-item>
@@ -55,13 +54,13 @@
 		<img
 			if="{{ global.screenShape != 'circle' }}"
 			class="rightButton bottom"
-			src="/common/More_B.png"
+			src="/common/add.png"
 			@click="changeState"
 		/>
 		<img
 			if="{{ global.screenShape == 'circle' }}"
 			class="bottom"
-			src="/common/more_s4.png"
+			src="/common/add_s4.png"
 			@click="changeState"
 		/>
 
@@ -85,7 +84,7 @@
 </template>
 
 <script>
-import router from "@system.router";
+import router from "@system.router"
 import file from "@system.file";
 import fetch from "@system.fetch";
 import prompt from "@system.prompt";
@@ -254,17 +253,17 @@ export default {
 
 .search-results {
 	flex: 1;
-	width: 90%;
+	width: 324px;
 	margin-top: 10px;
 	align-self: center;
 }
 
 .result-item {
-	margin-bottom: 15px;
-	height: 72px;
+	margin-bottom: 10px;
+	height: 84px;
 	background-color: rgba(38, 38, 38, 0.8);
-	padding: 12px;
-	border-radius: 12px;
+	padding: 20px;
+	border-radius: 36px;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
@@ -294,6 +293,14 @@ export default {
 
 	.search-results {
 		width: 80%;
+	}
+}
+
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+	.search-results {
+		width: 392px;
+		margin-top: 30px;
 	}
 }
 </style>
