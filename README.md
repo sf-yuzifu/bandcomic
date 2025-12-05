@@ -92,7 +92,7 @@
       "comic_id": 114514, // 漫画ID
       "title": "comicName", // 漫画名称
       "cover_url": "https://youapicover.domain" // 漫画封面（宽要控制200以内，不然手环会炸掉）
-    },s
+    },
   ]
 }
 ```
