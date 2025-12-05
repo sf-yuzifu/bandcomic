@@ -30,6 +30,73 @@
 
 > 注：其他型号设备因为缺失fetch功能而无法适配，若是有上述没有提到的设备但是自己确认设备支持fetch的可以尝试安装，但后果自负。
 
+## 当前可用自定义漫画源
+- **jmcomic.yzf.moe**
+- **eh-api.orpu.moe**
+
+## 关于配置自定义漫画源要求
+1. 漫画源必须要支持SSL协议
+2. 漫画源必须要在 `/config` 路由输出以下的配置文件
+
+```json5
+{
+  "sourceName":{ // 漫画源名称
+    "name":"sourceName", // 漫画源名称（这行为主界面显示的名称）
+    "apiUrl":"https://youapi.domain", // 漫画源地址
+    "detailPath":"/comic/<id>", // 漫画源详情API，<id>为漫画ID
+    "photoPath":"/photo/<id>", // 漫画源获取漫画图片API，<id>为漫画ID
+    "searchPath":"/search/<text>/<page>", // 漫画源搜索API，<text>为搜索关键词，<page>为搜索的第几页
+    "type":"sourceType" // 漫画源名称
+  }
+}
+```
+
+3. 漫画源对应路由需要满足以下输出规则
+   
+- **detailPath**
+
+```json5
+{
+  "item_id": 114514, // 漫画ID
+  "name": "comicName", // 漫画名称
+  "page_count": 24, // 漫画页数
+	"views": 1919810, // 漫画浏览量（可选）
+	"rate": 9.0, // 漫画评分（可选）
+	"cover": "https://youapicover.domain", // 漫画封面
+  "tags": "", // 漫画标签（可选）
+}
+```
+
+- **photoPath**
+
+```json5
+{
+  "title": "comicName", // 漫画名称
+  // 漫画所有图片
+  "images": [
+    {"url": "https://youapiphoto1.domain"},
+    {"url": "https://youapiphoto2.domain"}
+  ]
+}
+```
+
+- **searchPath**
+
+```json5
+{
+  "page": 1, // 当前页数
+  "has_more": true, // 后面是否还有更多页数
+  // 搜索结果
+  "results": [
+    {
+      "comic_id": 114514, // 漫画ID
+      "title": "comicName", // 漫画名称
+      "cover_url": "https://youapicover.domain" // 漫画封面（宽要控制200以内，不然手环会炸掉）
+    },s
+  ]
+}
+```
+
 ## 快速上手
 
 ### 1. 开发环境搭建
