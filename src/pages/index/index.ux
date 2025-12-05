@@ -85,6 +85,15 @@
 		<div class="donate" if="{{ display }}" @click="() => (display = false)">
 			<image src="/common/donate.png" />
 			<text style="color: #fff; font-weight: bold">支持小鱼谢谢喵~</text>
+			<text
+				style="
+					color: rgba(255, 255, 255, 0.6);
+					font-size: 20px;
+					font-weight: bold;
+				"
+			>
+				（点击任意区域进入主界面）
+			</text>
 		</div>
 	</div>
 </template>
