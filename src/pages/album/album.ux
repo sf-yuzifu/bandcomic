@@ -72,7 +72,7 @@
 				</div>
 				<div
 					class="column tags"
-					if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type === 'jmcomic' }}"
+					if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type !== 'ehentai' }}"
 				>
 					<text class="bold grey">标签</text>
 					<text for="{{ tag in data.tags }}" class="bold">
