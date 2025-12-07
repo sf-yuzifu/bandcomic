@@ -19,18 +19,16 @@
 
 		<text class="time">{{ time }}</text>
 		<text
-			@click="
-				() => {
-					if (global.screenShape == 'circle') {
-						routeBack();
-					}
-				}
-			"
+			if="{{ hide && global.screenShape == 'circle' }}"
+			@click="routeBack"
 			class="title"
 		>
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe6bc;
 			</span>
+			<span>编辑漫画源</span>
+		</text>
+		<text class="title" if="{{ global.screenShape != 'circle' }}">
 			<span>编辑漫画源</span>
 		</text>
 
@@ -70,13 +68,18 @@
 				<text>{{ context }}</text>
 			</div>
 			<div class="padding" style="height: 60%"></div>
+			<div
+				class="padding"
+				style="height: 2%"
+				if="{{ !hide && global.screenShape == 'circle' }}"
+			></div>
 		</div>
 
 		<input-method
 			hide="{{ hide }}"
 			keyboardtype="qwerty"
 			maxlength="5"
-			screentype="rect"
+			screentype="{{ global.screenShape }}"
 			@delete="deleteit"
 			@complete="complete"
 		></input-method>
@@ -84,7 +87,7 @@
 </template>
 
 <script>
-import router from "@system.router"
+import router from "@system.router";
 import file from "@system.file";
 import fetch from "@system.fetch";
 import prompt from "@system.prompt";
@@ -127,6 +130,10 @@ export default {
 	onShow() {
 		// 写入页面顶部时间
 		this.time = getTime();
+	},
+
+	onBackPress() {
+		return !hide;
 	},
 
 	onInit() {},

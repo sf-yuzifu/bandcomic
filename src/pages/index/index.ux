@@ -31,14 +31,12 @@
 		<text class="time">{{ time }}</text>
 		<text
 			class="title"
-			@click="
-				() => {
-					if (global.screenShape == 'circle') {
-						routeAbout();
-					}
-				}
-			"
+			if="{{ hide && global.screenShape == 'circle' }}"
+			@click="routeAbout"
 		>
+			腕上漫画
+		</text>
+		<text class="title" if="{{ global.screenShape != 'circle' }}">
 			腕上漫画
 		</text>
 
@@ -60,6 +58,11 @@
 				<text>{{ context }}</text>
 			</div>
 			<div class="padding" style="height: 60%" if="{{ !hide }}"></div>
+			<div
+				class="padding"
+				style="height: 2%"
+				if="{{ !hide && global.screenShape == 'circle' }}"
+			></div>
 		</div>
 
 		<div if="{{ hide }}" class="source-selector">
@@ -77,7 +80,7 @@
 			hide="{{ hide }}"
 			keyboardtype="qwerty"
 			maxlength="5"
-			screentype="rect"
+			screentype="{{ global.screenShape }}"
 			@delete="deleteit"
 			@complete="complete"
 		></input-method>
@@ -116,6 +119,10 @@ export default {
 		currentSourceName: "腾讯动漫",
 		API_SETTING: global.API_SETTING,
 		display: true,
+	},
+
+	onBackPress() {
+		return !hide;
 	},
 
 	onShow() {
