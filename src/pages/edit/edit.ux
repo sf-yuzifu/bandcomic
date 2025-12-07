@@ -155,7 +155,11 @@ export default {
 							let datas = JSON.parse(data.text);
 							this.writeSource(datas);
 						},
-						fail: function () {},
+						fail: function (code) {
+							prompt.showToast({
+								message: "无法读取当前已有漫画源，错误代码" + code,
+							});
+						},
 					});
 				},
 				fail: () => {
@@ -185,11 +189,23 @@ export default {
 						updateMultipleSources(data);
 						this.API_SETTING = global.API_SETTING;
 					},
-					fail: function () {},
+					fail: function (code) {
+						if (code == 300) {
+							prompt.showToast({ message: "无法写入漫画源，存储已满" });
+						} else {
+							prompt.showToast({ message: "无法写入漫画源，错误代码" + code });
+						}
+					},
 				});
 			},
-			fail: function () {
-				prompt.showToast({ message: "未找到漫画源Config" });
+			fail: function (code) {
+				if (code == "Couldn't resolve host name") {
+					prompt.showToast({ message: "请输入可用域名" });
+				} else if (code == "Timeout was reached") {
+					prompt.showToast({ message: "未找到漫画源Config，请检查网络！" });
+				} else {
+					prompt.showToast({ message: "无法请求漫画源，错误为" + code });
+				}
 			},
 		});
 	},
@@ -208,10 +224,18 @@ export default {
 						delete global.API_SETTING[source];
 						this.API_SETTING = global.API_SETTING;
 					},
-					fail: () => {},
+					fail: (code) => {
+						prompt.showToast({
+							message: "无法删除当前已有漫画源，错误代码" + code,
+						});
+					},
 				});
 			},
-			fail: function () {},
+			fail: function (code) {
+				prompt.showToast({
+					message: "无法读取当前已有漫画源，错误代码" + code,
+				});
+			},
 		});
 	},
 
