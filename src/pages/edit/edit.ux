@@ -133,7 +133,7 @@ export default {
 	},
 
 	onBackPress() {
-		return !hide;
+		return !this.hide;
 	},
 
 	onInit() {},
