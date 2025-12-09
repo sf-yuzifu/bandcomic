@@ -23,37 +23,81 @@
 			<span>关于</span>
 		</text>
 		<div style="height: 6px"></div>
-		<div id="info">
-			<div id="inner">
-				<text class="bold" style="color: #fff; font-size: 30px">
-					{{ name }}
+		<scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+			<div id="info">
+				<div id="inner">
+					<text class="bold" style="color: #fff; font-size: 30px">
+						{{ name }}
+					</text>
+					<text id="version" class="re">{{ ver }}({{ code }})</text>
+				</div>
+				<div id="logo-container">
+					<image id="logo" style="width: 76px" src="/common/logo.png" />
+				</div>
+			</div>
+			<div id="copyright">
+				<text class="re bold">
+					<span>作者</span>
+					<!-- 这里是占位符 -->
+					<span style="color: transparent">2</span>
+					<span class="bold" style="color: #fff">小鱼yuzifu</span>
 				</text>
-				<text id="version" class="re">{{ ver }}({{ code }})</text>
+				<div style="width: 1px; height: 10px"></div>
+				<text class="re bold">感谢</text>
+				<text class="bold" style="color: #fff">OrPudding</text>
+				<text class="bold" style="color: #fff">NEORUAA</text>
+				<text class="bold" style="color: #fff">无源流沙</text>
 			</div>
-			<div id="logo-container">
-				<image id="logo" style="width: 76px" src="/common/logo.png" />
+			<div class="settings">
+				<text class="re bold">设置</text>
+				<div class="setting-item">
+					<text style="font-weight: bold; color: #fff">搜索每页个数</text>
+					<picker
+						class="picker"
+						type="text"
+						range="{{ pickerList1 }}"
+						selected="{{ pickerList1.indexOf(global.APP_SETTING.searchPageSize) }}"
+						onchange="onPicker1Change"
+					></picker>
+				</div>
+				<div class="setting-item">
+					<text style="font-weight: bold; color: #fff">图片质量</text>
+					<picker
+						class="picker"
+						type="text"
+						range="{{ pickerList2 }}"
+						selected="{{ pickerList2.indexOf(global.APP_SETTING.imageQuality) }}"
+						onchange="onPicker2Change"
+					></picker>
+				</div>
+				<div class="setting-item">
+					<text style="font-weight: bold; color: #fff">图片尺寸</text>
+					<picker
+						class="picker"
+						type="text"
+						range="{{ pickerList3 }}"
+						selected="{{ pickerList3.indexOf(global.APP_SETTING.imageSize) }}"
+						onchange="onPicker3Change"
+					></picker>
+				</div>
+				<div class="setting-item">
+					<text style="font-weight: bold; color: #fff">搜索显示封面</text>
+					<switch
+						checked="{{ global.APP_SETTING.showCoverInSearch }}"
+						class="switch"
+						@change="onSwitchChange"
+					></switch>
+				</div>
 			</div>
-		</div>
-		<div id="copyright">
-			<text class="re bold">
-				<span>作者</span>
-				<!-- 这里是占位符 -->
-				<span style="color: transparent">2</span>
-				<span class="bold" style="color: #fff">小鱼yuzifu</span>
-			</text>
-			<div style="width: 1px; height: 10px"></div>
-			<text class="re bold">感谢</text>
-			<text class="bold" style="color: #fff">OrPudding</text>
-			<text class="bold" style="color: #fff">NEORUAA</text>
-			<text class="bold" style="color: #fff">无源流沙</text>
-		</div>
-		<div class="padding"></div>
+			<div class="padding"></div>
+		</scroll>
 	</div>
 </template>
 
 <script>
 import router from "@system.router";
 import app from "@system.app";
+import file from "@system.file";
 
 const { getTime } = global;
 
@@ -63,6 +107,31 @@ export default {
 		name: app.getInfo().name,
 		code: app.getInfo().versionCode,
 		time: "",
+		pickerList1: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+		pickerList2: ["30", "35", "40", "45", "50", "55", "60", "65", "70"],
+		pickerList3: [
+			"300",
+			"320",
+			"340",
+			"360",
+			"380",
+			"400",
+			"420",
+			"440",
+			"460",
+			"480",
+			"500",
+			"520",
+			"540",
+			"560",
+			"580",
+			"600",
+			"620",
+			"640",
+			"660",
+			"680",
+			"700",
+		],
 	},
 
 	onShow() {
@@ -71,6 +140,35 @@ export default {
 
 	routeBack() {
 		router.back();
+	},
+
+	onPicker1Change(value) {
+		global.APP_SETTING.searchPageSize = value.newValue;
+		this.saveSetting();
+	},
+
+	onPicker2Change(value) {
+		global.APP_SETTING.imageQuality = value.newValue;
+		this.saveSetting();
+	},
+
+	onPicker3Change(value) {
+		global.APP_SETTING.imageSize = value.newValue;
+		this.saveSetting();
+	},
+
+	onSwitchChange(value) {
+		global.APP_SETTING.showCoverInSearch = value.checked;
+		this.saveSetting();
+	},
+
+	saveSetting() {
+		file.writeText({
+			uri: "internal://files/settings.json",
+			text: JSON.stringify(global.APP_SETTING),
+			success: () => {},
+			fail: function () {},
+		});
 	},
 };
 </script>
@@ -123,16 +221,61 @@ export default {
 	align-items: flex-start;
 }
 
-.sub {
-	color: #666;
-}
-
 .re {
 	color: #999;
 }
 
 .bold {
 	font-weight: bold;
+}
+
+.box {
+	position: relative;
+	width: 100%;
+	height: 80%;
+	flex-direction: column;
+	align-items: center;
+}
+
+.settings {
+	width: 100%;
+	flex-direction: column;
+	width: 276px;
+	margin-top: 10px;
+}
+
+.title2 {
+	position: absolute;
+	top: 35px;
+}
+
+.time2 {
+	position: absolute;
+	top: 7px;
+}
+
+.setting-item {
+	margin-top: 10px;
+	height: 42px;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.padding {
+	height: 10px;
+}
+
+.picker {
+	width: 80px;
+	selected-font-size: 32px;
+	selected-color: #fff;
+}
+
+.switch {
+	height: 36px;
+	width: 80px;
 }
 
 /* 看看是不是小米手表 */

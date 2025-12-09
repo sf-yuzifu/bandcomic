@@ -56,5 +56,12 @@ global.apiCall = function (apiKey, options) {
 	}
 };
 
+global.APP_SETTING =  {
+	searchPageSize: "10",
+	imageQuality: "50",
+	imageSize: "600",
+	showCoverInSearch: true,
+}
+
 export default {};
 </script>

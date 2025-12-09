@@ -103,6 +103,38 @@ function formatFileSize(size) {
 	}
 }
 
+function addImageParams(
+	url,
+	width = 600,
+	quality = 50,
+	params = ["width", "quality"]
+) {
+	try {
+		// 解析URL
+		const urlObj = new URL(url);
+
+		// 直接在主URL中添加参数
+		urlObj.searchParams.set(params[0], width.toString());
+		urlObj.searchParams.set(params[1], quality.toString());
+
+		return urlObj.toString();
+	} catch (error) {
+		// URL解析失败，手动处理
+		const separator = url.includes("?") ? "&" : "?";
+		let result = url;
+
+		// 确保不重复添加参数
+		if (!url.includes(params[0] + "=")) {
+			result += `${separator}${params[0]}=${width}`;
+		}
+		if (!url.includes(params[1] + "=")) {
+			result += "&" + params[1] + "=" + quality;
+		}
+
+		return result;
+	}
+}
+
 export default {
 	private: {
 		time: "",
@@ -431,8 +463,19 @@ export default {
 				global.API_SETTING[global.API_SETTING.using].type === "ehentai"
 			) {
 				imageUrl = ehImageCache[page - 1];
+				imageUrl = addImageParams(
+					imageUrl,
+					parseInt(global.APP_SETTING.imageSize) || 600,
+					parseInt(global.APP_SETTING.imageQuality) || 50,
+					["w", "q"]
+				);
 			} else {
 				imageUrl = ImageCache[page - 1];
+				imageUrl = addImageParams(
+					imageUrl,
+					parseInt(global.APP_SETTING.imageSize) || 600,
+					parseInt(global.APP_SETTING.imageQuality) || 50
+				);
 			}
 
 			const fileUri = `${folderUri}/${page}`;

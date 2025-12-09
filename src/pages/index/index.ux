@@ -135,13 +135,21 @@ export default {
 				datas.forEach((newSourceConfig) => {
 					const newKey = Object.keys(newSourceConfig)[0];
 					global.API_SETTING[newKey] = newSourceConfig[newKey];
-					console.log(`配置 ${newKey} 已加载`);
+					// console.log(`配置 ${newKey} 已加载`);
 				});
 			},
 			fail: function () {},
 			complete: () => {
 				this.API_SETTING = global.API_SETTING;
 			},
+		});
+		file.readText({
+			uri: "internal://files/settings.json",
+			success: (data) => {
+				let datas = JSON.parse(data.text);
+				global.APP_SETTING = datas;
+			},
+			fail: function () {},
 		});
 	},
 

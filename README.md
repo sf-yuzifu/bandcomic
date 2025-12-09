@@ -74,8 +74,8 @@
   "title": "comicName", // 漫画名称
   // 漫画所有图片
   "images": [
-    {"url": "https://youapiphoto1.domain"},
-    {"url": "https://youapiphoto2.domain"}
+    {"url": "https://youapiphoto1.domain?width=600&quality=50"},
+    {"url": "https://youapiphoto2.domain?width=600&quality=50"}
   ]
 }
 ```
@@ -96,6 +96,10 @@
   ]
 }
 ```
+
+- **附加内容**
+  
+> 在1.6(50)版本中新增了调整图片尺寸大小和质量的功能，目前做法是在`photoPath`-`images`的每个`url`中添加`width`和`quality`两个参数，所以你提供的URL地址最好是有这个功能的。
 
 ## 快速上手
 

@@ -115,7 +115,7 @@ function updateMultipleSources(sourceArray) {
 	sourceArray.forEach((newSourceConfig) => {
 		const newKey = Object.keys(newSourceConfig)[0];
 		global.API_SETTING[newKey] = newSourceConfig[newKey];
-		console.log(`配置 ${newKey} 已添加/更新`);
+		// console.log(`配置 ${newKey} 已添加/更新`);
 	});
 }
 
@@ -175,7 +175,6 @@ export default {
 			responseType: "text",
 			success: (response) => {
 				let data = JSON.parse(response.data);
-				console.log(data);
 				if (text) {
 					data = replaceIfDuplicate(text, data);
 				} else {
