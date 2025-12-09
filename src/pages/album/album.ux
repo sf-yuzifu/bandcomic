@@ -132,12 +132,13 @@ export default {
 
 	onShow() {
 		this.time = getTime();
-	},
-
-	onInit() {
-		this.data = JSON.parse(this.data);
+		if (typeof this.data === "string") {
+			this.data = JSON.parse(this.data);
+		}
 		this.processData();
 	},
+
+	onInit() {},
 
 	processData() {
 		if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
