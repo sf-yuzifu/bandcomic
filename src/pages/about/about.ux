@@ -28,7 +28,7 @@
 				<text class="bold" style="color: #fff; font-size: 30px">
 					{{ name }}
 				</text>
-				<text id="version" class="re">{{ ver }}</text>
+				<text id="version" class="re">{{ ver }}({{ code }})</text>
 			</div>
 			<div id="logo-container">
 				<image id="logo" style="width: 76px" src="/common/logo.png" />
@@ -61,6 +61,7 @@ export default {
 	private: {
 		ver: app.getInfo().versionName,
 		name: app.getInfo().name,
+		code: app.getInfo().versionCode,
 		time: "",
 	},
 
