@@ -27,7 +27,7 @@
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe6bc;
 			</span>
-			<span>详情</span>
+			<span>{{ $t("detail.detail") }}</span>
 		</text>
 		<scroll
 			id="scrollId"
@@ -55,26 +55,26 @@
 					<text class="bold">{{ data.item_id.toString() }}</text>
 				</div>
 				<div class="column" if="{{ data.page_count }}">
-					<text class="bold grey">页数</text>
+					<text class="bold grey">{{ $t("detail.page_count") }}</text>
 					<text class="bold">{{ data.page_count }}</text>
 				</div>
 				<div class="column" if="{{ data.total_chapters }}">
-					<text class="bold grey">章节数</text>
+					<text class="bold grey">{{ $t("detail.total_chapters") }}</text>
 					<text class="bold">{{ data.total_chapters }}</text>
 				</div>
 				<div class="column" if="{{ data.views }}">
-					<text class="bold grey">浏览</text>
+					<text class="bold grey">{{ $t("detail.views") }}</text>
 					<text class="bold">{{ data.views }}</text>
 				</div>
 				<div class="column" if="{{ data.rate }}">
-					<text class="bold grey">评分</text>
+					<text class="bold grey">{{ $t("detail.rate") }}</text>
 					<text class="bold">{{ data.rate }}</text>
 				</div>
 				<div
 					class="column tags"
 					if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type !== 'ehentai' }}"
 				>
-					<text class="bold grey">标签</text>
+					<text class="bold grey">{{ $t("detail.tags") }}</text>
 					<text for="{{ tag in data.tags }}" class="bold">
 						{{ tag }}
 					</text>

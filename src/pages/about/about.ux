@@ -20,14 +20,14 @@
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe6bc;
 			</span>
-			<span>关于</span>
+			<span>{{ $t("about") }}</span>
 		</text>
 		<div style="height: 6px"></div>
 		<scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
 			<div id="info">
 				<div id="inner">
 					<text class="bold" style="color: #fff; font-size: 30px">
-						{{ name }}
+						{{ $t("appName") }}
 					</text>
 					<text id="version" class="re">{{ ver }}({{ code }})</text>
 				</div>
@@ -37,21 +37,23 @@
 			</div>
 			<div id="copyright">
 				<text class="re bold">
-					<span>作者</span>
+					<span>{{ $t("author") }}</span>
 					<!-- 这里是占位符 -->
 					<span style="color: transparent">2</span>
 					<span class="bold" style="color: #fff">小鱼yuzifu</span>
 				</text>
 				<div style="width: 1px; height: 10px"></div>
-				<text class="re bold">感谢</text>
+				<text class="re bold">{{ $t("tks") }}</text>
 				<text class="bold" style="color: #fff">OrPudding</text>
 				<text class="bold" style="color: #fff">NEORUAA</text>
 				<text class="bold" style="color: #fff">无源流沙</text>
 			</div>
 			<div class="settings">
-				<text class="re bold">设置</text>
+				<text class="re bold">{{ $t("setting") }}</text>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">搜索每页个数</text>
+					<text style="font-weight: bold; color: #fff">
+						{{ $t("settings.searchPageSize") }}
+					</text>
 					<picker
 						class="picker"
 						type="text"
@@ -61,7 +63,9 @@
 					></picker>
 				</div>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">图片质量</text>
+					<text style="font-weight: bold; color: #fff">
+						{{ $t("settings.imageQuality") }}
+					</text>
 					<picker
 						class="picker"
 						type="text"
@@ -71,19 +75,23 @@
 					></picker>
 				</div>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">图片尺寸</text>
+					<text style="font-weight: bold; color: #fff">
+						{{ $t("settings.imageSize") }}
+					</text>
 					<picker
 						class="picker"
 						type="text"
 						range="{{ pickerList3 }}"
-						selected="{{ pickerList3.indexOf(global.APP_SETTING.imageSize) }}"
+						selected="{{ pickerList3.indexOf(global.APP_SETTING) }}"
 						onchange="onPicker3Change"
 					></picker>
 				</div>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">搜索显示封面</text>
+					<text style="font-weight: bold; color: #fff">
+						{{ $t("settings.showCoverInSearch") }}
+					</text>
 					<switch
-						checked="{{ global.APP_SETTING.showCoverInSearch }}"
+						checked="{{ global.APP_SETTING }}"
 						class="switch"
 						@change="onSwitchChange"
 					></switch>

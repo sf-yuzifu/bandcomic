@@ -14,7 +14,7 @@
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe6bc;
 			</span>
-			<span>搜索: {{ keyword }}</span>
+			<span>{{ $t("search.search") }}{{ keyword }}</span>
 		</text>
 
 		<img
@@ -31,7 +31,7 @@
 		/>
 
 		<div class="loading-container" if="{{ loading }}">
-			<text class="loading-text">搜索中...</text>
+			<text class="loading-text">{{ $t("search.searching") }}</text>
 		</div>
 
 		<list
@@ -56,7 +56,7 @@ global.APP_SETTING.showCoverInSearch === true }}"
 				<div class="result-text-content">
 					<text class="result-title">{{ $item.title }}</text>
 					<text if="{{ $item.pages }}" class="result-meta">
-						{{ $item.pages }}页
+						{{ $t("search.totalPage", { page: $item.pages }) }}
 					</text>
 				</div>
 			</list-item>
@@ -70,16 +70,18 @@ global.APP_SETTING.showCoverInSearch === true }}"
 						<text
 							class="{{ displayPage > 1 ? 'text-normal' : 'text-disabled' }}"
 						>
-							上一页
+							{{ $t("search.up") }}
 						</text>
 					</div>
-					<text class="page-indicator">第 {{ displayPage }} 页</text>
+					<text class="page-indicator">
+						{{ $t("search.page", { page: displayPage }) }}
+					</text>
 					<div
 						class="{{ canGoNext() ? 'pagination-button' : 'pagination-button-disabled' }}"
 						@click="changeDisplayPage(displayPage + 1)"
 					>
 						<text class="{{ canGoNext() ? 'text-normal' : 'text-disabled' }}">
-							{{ loadingMore ? "..." : "下一页" }}
+							{{ loadingMore ? "..." : $t("search.down") }}
 						</text>
 					</div>
 				</div>
@@ -90,11 +92,10 @@ global.APP_SETTING.showCoverInSearch === true }}"
 			class="no-results"
 			if="{{ !loading && searchResults.length === 0 && searched }}"
 		>
-			<text class="no-results-text">未找到相关漫画</text>
+			<text class="no-results-text">{{ $t("search.noFound") }}</text>
 		</div>
-
 		<div class="error-state" if="{{ error }}">
-			<text class="error-text">搜索失败: {{ errorMsg }}</text>
+			<text class="error-text">{{ $t("search.fail") }}{{ errorMsg }}</text>
 		</div>
 	</div>
 </template>
@@ -166,7 +167,10 @@ export default {
 			},
 			fail: (data, code) => {
 				this.error = true;
-				this.errorMsg = code == 28 ? "网络连接失败" : "请求失败";
+				this.errorMsg =
+					code == 28
+						? this.$t("search.networkError")
+						: this.$t("search.requestError");
 			},
 			complete: () => {
 				this.loading = false;
@@ -209,7 +213,7 @@ export default {
 		} else {
 			if (!data.success) {
 				this.error = true;
-				this.errorMsg = data.error || "API 返回失败";
+				this.errorMsg = data.error || this.$t("search.APIError");
 			}
 		}
 	},
@@ -250,7 +254,7 @@ export default {
 		} else {
 			if (!data.success) {
 				this.error = true;
-				this.errorMsg = data.error || "API 返回失败";
+				this.errorMsg = data.error || this.$t("search.APIError");
 			}
 		}
 	},
@@ -372,12 +376,12 @@ export default {
 					fail: function (data, code) {
 						if (code == 28) {
 							prompt.showToast({
-								message: "请求本子信息失败，请检查网络连接",
+								message: this.$t("error.noComicFound"),
 								duration: 3000,
 							});
 						} else {
 							prompt.showToast({
-								message: "请求本子信息失败，错误：" + data,
+								message: this.$t("error.unknownError") + data,
 								duration: 3000,
 							});
 						}
@@ -418,12 +422,12 @@ export default {
 				fail: function (data, code) {
 					if (code == 28) {
 						prompt.showToast({
-							message: "请求本子信息失败，请检查网络连接",
+							message: this.$t("error.noComicFound"),
 							duration: 3000,
 						});
 					} else {
 						prompt.showToast({
-							message: "请求本子信息失败，错误：" + data,
+							message: this.$t("error.unknownError") + data,
 							duration: 3000,
 						});
 					}

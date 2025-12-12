@@ -93,7 +93,7 @@
 					class="subtitle"
 					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
 				>
-					章节切换
+					{{ $t("photo.chapterChange") }}
 				</text>
 				<div
 					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
@@ -113,7 +113,7 @@
 					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
 					style="height: 20px"
 				></div>
-				<text class="subtitle">图片大小调整</text>
+				<text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
 				<div style="height: 10px"></div>
 				<slider
 					class="slider"
@@ -161,7 +161,7 @@
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe6bc;
 			</span>
-			<span>第 {{ page }} 页</span>
+			<span>{{ $t("photo.page", { page: page }) }}</span>
 		</text>
 	</div>
 </template>
@@ -395,7 +395,7 @@ export default {
 				imageUrl = addImageParams(
 					imageUrl,
 					parseInt(global.APP_SETTING.imageSize) || 600,
-					parseInt(global.APP_SETTING.imageQuality) || 50,
+					parseInt(global.APP_SETTING.imageQuality) || 50
 				);
 			}
 		} else {
@@ -505,7 +505,7 @@ export default {
 	onSliderChange(type, e) {
 		if (type === "c") {
 			this.chapter = (e.progress / 100) * this.total_chapters || 1;
-			this.title = `章节 ${Math.floor(this.chapter)}`;
+			this.title = `${this.$t("photo.chapter")} ${Math.floor(this.chapter)}`;
 		} else {
 			this.scale = e.progress;
 			this.$element("scrollId").scrollTo({

@@ -34,10 +34,10 @@
 			if="{{ hide && global.screenShape == 'circle' }}"
 			@click="routeAbout"
 		>
-			腕上漫画
+			{{ $t("appName") }}
 		</text>
 		<text class="title" if="{{ global.screenShape != 'circle' }}">
-			腕上漫画
+			{{ $t("appName") }}
 		</text>
 
 		<div class="line" style="margin-bottom: 10px">
@@ -45,15 +45,15 @@
 				if="{{ currentSourceName == 'JMComic' }}"
 				style="margin-bottom: 4px"
 			>
-				输入车号/关键词
+				{{ $t("JMPlaceholder") }}
 			</text>
 			<text
 				elif="{{ currentSourceName == 'E-Hentai' }}"
 				style="margin-bottom: 4px"
 			>
-				输入关键词
+				{{ $t("EHPlaceholder") }}
 			</text>
-			<text else style="margin-bottom: 4px">输入漫画ID/关键词</text>
+			<text else style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
 			<div class="input-line" @click="changeState">
 				<text>{{ context }}</text>
 			</div>
@@ -66,7 +66,9 @@
 		</div>
 
 		<div if="{{ hide }}" class="source-selector">
-			<text class="source-text">当前源: {{ currentSourceName }}</text>
+			<text class="source-text">
+				{{ $t("currentSourceName") }}{{ currentSourceName }}
+			</text>
 			<text
 				if="{{ Object.keys(API_SETTING).length > 2 }}"
 				class="iconfont"
@@ -87,7 +89,7 @@
 
 		<div class="donate" if="{{ display }}" @click="() => (display = false)">
 			<image src="/common/donate.png" />
-			<text style="color: #fff; font-weight: bold">支持小鱼谢谢喵~</text>
+			<text style="color: #fff; font-weight: bold">{{ $t("donate") }}</text>
 			<text
 				style="
 					color: rgba(255, 255, 255, 0.6);
@@ -95,7 +97,7 @@
 					font-weight: bold;
 				"
 			>
-				（点击任意区域进入主界面）
+				{{ $t("donateHint") }}
 			</text>
 		</div>
 	</div>
@@ -167,20 +169,20 @@ export default {
 		connect.onmessage = (data) => {
 			const Cookie = data.data;
 			if (Cookie) {
-				prompt.showToast({ message: "接收到Cookie！" });
+				prompt.showToast({ message: this.$t("cookie.receive") });
 				file.writeText({
 					uri: "internal://files/cookie",
 					text: Cookie,
 					success: () => {
 						global.cookie = Cookie;
-						prompt.showToast({ message: "保存Cookie成功！" });
+						prompt.showToast({ message: this.$t("cookie.success") });
 					},
 					fail: () => {
-						prompt.showToast({ message: "保存Cookie失败！" });
+						prompt.showToast({ message: this.$t("cookie.fail") });
 					},
 				});
 			} else {
-				prompt.showToast({ message: "同步数据格式错误" });
+				prompt.showToast({ message: this.$t("cookie.wrong") });
 			}
 		};
 		brightness.setKeepScreenOn({
@@ -198,13 +200,13 @@ export default {
 		if (this.hide) {
 			if (this.context == "") {
 				prompt.showToast({
-					message: "请输入漫画ID或关键词",
+					message: this.$t("tip"),
 					duration: 3000,
 				});
 				return;
 			}
 			prompt.showToast({
-				message: "正在请求漫画信息...",
+				message: this.$t("loading"),
 				duration: 5000,
 			});
 			if (this.currentSourceName == "JMComic") {
@@ -294,17 +296,17 @@ export default {
 				console.log(`handling fail, errMsg = ${data}`);
 				if (JSON.parse(data).message.indexOf("请求的本子不存在") != -1) {
 					prompt.showToast({
-						message: "本子不存在，请检查车号是否正确",
+						message: this.$t("error.noComicFound"),
 						duration: 3000,
 					});
 				} else if (code == 28) {
 					prompt.showToast({
-						message: "请求本子信息失败，请检查网络连接",
+						message: this.$t("error.networkError"),
 						duration: 3000,
 					});
 				} else {
 					prompt.showToast({
-						message: "请求本子信息失败，错误：" + data,
+						message: this.$t("error.networkError") + data,
 						duration: 3000,
 					});
 				}

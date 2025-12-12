@@ -1,1 +1,84 @@
-{"a":{"b":"default hello"}}
+{
+    "appName": "BandComic",
+    "JMPlaceholder": "Code/Keyword",
+    "EHPlaceholder": "Keyword",
+    "elsePlaceholder": "ID/Keyword",
+    "tip": "Enter ID or keyword",
+    "loading": "Loading...",
+    "currentSourceName": "Source: ",
+    "donate": "Support Yuzifu",
+    "donateHint": "(Tap to continue)",
+    "about": "About",
+    "author": "Author",
+    "tks": "Thanks",
+    "setting": "Settings",
+    "settings": {
+        "searchPageSize": "Items per page",
+        "imageQuality": "Quality",
+        "imageSize": "Size",
+        "showCoverInSearch": "Show cover"
+    },
+    "error": {
+        "noComicFound": "No comics found",
+        "networkError": "Network error",
+        "unknownError": "Error: "
+    },
+    "cookie": {
+        "receive": "Cookie received",
+        "success": "Cookie saved",
+        "fail": "Save failed",
+        "wrong": "Data format error"
+    },
+    "search": {
+        "search": "Search",
+        "searching": "Searching...",
+        "noFound": "No results",
+        "fail": "Failed: ",
+        "APIError": "API error",
+        "networkError": "Network failed",
+        "requestError": "Request failed",
+        "up": "Prev",
+        "down": "Next",
+        "totalPage": "{page}p",
+        "page": "P{page}"
+    },
+    "detail": {
+        "detail": "Details",
+        "page_count": "Pages",
+        "total_chapters": "Chapters",
+        "views": "Views",
+        "rate": "Rating",
+        "tags": "Tags"
+    },
+    "photo": {
+        "page": "P{page}",
+        "chapterChange": "Switch",
+        "photoSizeChange": "Resize",
+        "chapter": "Ch"
+    },
+    "offline": {
+        "offline": "Local",
+        "storage": "Storage",
+        "size": "Size",
+        "downloading": "Downloading",
+        "complete": "Done",
+        "page": "{page}/{total}",
+        "empty": "Empty",
+        "del": "Tap twice to delete",
+        "secondDel": "Deleting...",
+        "delComplete": "Deleted"
+    },
+    "edit": {
+        "title": "Edit Sources",
+        "input": "Enter source",
+        "complete": "Added",
+        "storageError": "Storage full",
+        "unknownWriteError": "Write error, Code:",
+        "domainError": "Invalid domain",
+        "timeoutError": "Source not found",
+        "unknownRequestError": "Request error, Code:",
+        "del": "Deleted",
+        "unknownDelError": "Delete error, Code:",
+        "unknownReadError": "Read error, Code:"
+    }
+}

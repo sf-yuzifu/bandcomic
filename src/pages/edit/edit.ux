@@ -26,10 +26,10 @@
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe6bc;
 			</span>
-			<span>编辑漫画源</span>
+			<span>{{ $t("edit.title") }}</span>
 		</text>
 		<text class="title" if="{{ global.screenShape != 'circle' }}">
-			<span>编辑漫画源</span>
+			<span>{{ $t("edit.title") }}</span>
 		</text>
 
 		<list if="{{ hide }}" class="search-results" bounces="true">
@@ -63,7 +63,7 @@
 		/>
 
 		<div if="{{ !hide }}" class="line" style="margin-bottom: 10px">
-			<text style="margin-bottom: 4px">输入漫画源</text>
+			<text style="margin-bottom: 4px">{{ $t("edit.input") }}</text>
 			<div class="input-line" @click="changeState">
 				<text>{{ context }}</text>
 			</div>
@@ -157,7 +157,7 @@ export default {
 						},
 						fail: function (code) {
 							prompt.showToast({
-								message: "无法读取当前已有漫画源，错误代码" + code,
+								message: this.$t("edit.unknownReadError") + code,
 							});
 						},
 					});
@@ -184,26 +184,26 @@ export default {
 					uri: "internal://files/sources.json",
 					text: JSON.stringify(data),
 					success: () => {
-						prompt.showToast({ message: "已添加" });
+						prompt.showToast({ message: this.$t("edit.complete") });
 						updateMultipleSources(data);
 						this.API_SETTING = global.API_SETTING;
 					},
 					fail: function (code) {
 						if (code == 300) {
-							prompt.showToast({ message: "无法写入漫画源，存储已满" });
+							prompt.showToast({ message: this.$t("edit.storageError") });
 						} else {
-							prompt.showToast({ message: "无法写入漫画源，错误代码" + code });
+							prompt.showToast({ message: this.$t("edit.unknownWriteError") + code });
 						}
 					},
 				});
 			},
 			fail: function (code) {
 				if (code == "Couldn't resolve host name") {
-					prompt.showToast({ message: "请输入可用域名" });
+					prompt.showToast({ message: this.$t("edit.domainError") });
 				} else if (code == "Timeout was reached") {
-					prompt.showToast({ message: "未找到漫画源Config，请检查网络！" });
+					prompt.showToast({ message: this.$t("edit.timeoutError") });
 				} else {
-					prompt.showToast({ message: "无法请求漫画源，错误为" + code });
+					prompt.showToast({ message: this.$t("edit.unknownRequestError") + code });
 				}
 			},
 		});
@@ -219,20 +219,20 @@ export default {
 					uri: "internal://files/sources.json",
 					text: JSON.stringify(datas),
 					success: () => {
-						prompt.showToast({ message: "已删除" });
+						prompt.showToast({ message: this.$t("edit.del") });
 						delete global.API_SETTING[source];
 						this.API_SETTING = global.API_SETTING;
 					},
 					fail: (code) => {
 						prompt.showToast({
-							message: "无法删除当前已有漫画源，错误代码" + code,
+							message: this.$t("edit.unknownDelError") + code,
 						});
 					},
 				});
 			},
 			fail: function (code) {
 				prompt.showToast({
-					message: "无法读取当前已有漫画源，错误代码" + code,
+					message: this.$t("edit.unknownReadError") + code,
 				});
 			},
 		});

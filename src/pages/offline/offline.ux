@@ -20,14 +20,14 @@
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe6bc;
 			</span>
-			<span>本地漫画</span>
+			<span>{{ $t("offline.offline") }}</span>
 		</text>
 		<div
 			style="height: 78px"
 			if="{{ !dl && global.screenShape == 'circle' }}"
 		></div>
 		<text if="{{ !dl && storage }}" class="storage">
-			可用空间 {{ storage }}
+			{{ $t("offline.storage") }} {{ storage }}
 		</text>
 		<div style="height: 10px" if="{{ !dl }}"></div>
 		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
@@ -39,17 +39,21 @@
 				></image>
 				<div @click="toPhoto($item)" class="text-content">
 					<text class="itemText">{{ $item.name }}</text>
-					<text class="meta">大小 {{ $item.size }}</text>
+					<text class="meta">{{ $t("offline.size") }} {{ $item.size }}</text>
 				</div>
 				<image src="/common/del.png" @click="del($item.id)"></image>
 			</list-item>
 		</list>
 		<div class="downloading" if="{{ dl && global.screenShape != 'circle' }}">
 			<image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
-			<text class="dl-text">{{ processing ? "下载完成" : "正在下载" }}</text>
+			<text class="dl-text">
+				{{ processing ? $t("offline.complete") : $t("offline.downloading") }}
+			</text>
 		</div>
 		<div id="process" if="{{ dl && global.screenShape != 'circle' }}">
-			<text class="content">第{{ page }}/{{ page_count }}页</text>
+			<text class="content">
+				{{ $t("offline.page", { page: page, total_page: page_count }) }}
+			</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
 
@@ -59,17 +63,21 @@
 			src="/common/{{ processing ? 'success':'dling' }}_s4.png"
 		></image>
 		<div class="downloading" if="{{ dl && global.screenShape == 'circle' }}">
-			<text class="dl-text">{{ processing ? "下载完成" : "正在下载" }}</text>
+			<text class="dl-text">
+				{{ processing ? $t("offline.complete") : $t("offline.downloading") }}
+			</text>
 			<image src="/common/{{ processing ? 'success':'dl' }}_icon.png"></image>
 		</div>
 		<div id="process" if="{{ dl && global.screenShape == 'circle' }}">
-			<text class="content">第{{ page }}/{{ page_count }}页</text>
+			<text class="content">
+				{{ $t("offline.page", { page: page, total_page: page_count }) }}
+			</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
 
 		<div class="empty" if="{{ comicsList.length == 0 && !dl }}">
 			<image src="/common/empty.png"></image>
-			<text class="empty-text">空空如也</text>
+			<text class="empty-text">{{ $t("offline.empty") }}</text>
 		</div>
 	</div>
 </template>
@@ -623,12 +631,12 @@ export default {
 		if (id != del) {
 			del = id;
 			prompt.showToast({
-				message: "再次点击删除",
+				message: this.$t("offline.del"),
 				duration: 2000,
 			});
 		} else {
 			prompt.showToast({
-				message: "正在删除···",
+				message: this.$t("offline.secondDel"),
 				duration: 1000,
 			});
 			file.rmdir({
@@ -660,7 +668,7 @@ export default {
 									success: () => {
 										console.log("comics.json更新成功");
 										prompt.showToast({
-											message: "已删除！",
+											message: this.$t("offline.delComplete"),
 											duration: 1000,
 										});
 										console.log("重新加载···");

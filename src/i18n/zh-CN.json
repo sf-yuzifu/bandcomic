@@ -1,1 +1,84 @@
-{"a":{"b":"你好"}}
+{
+    "appName": "腕上漫画",
+    "JMPlaceholder": "输入车号/关键词",
+    "EHPlaceholder": "输入关键词",
+    "elsePlaceholder": "输入漫画ID/关键词",
+    "tip": "请输入漫画ID或关键词",
+    "loading": "正在请求漫画信息...",
+    "currentSourceName": "当前源: ",
+    "donate": "支持小鱼谢谢喵~",
+    "donateHint": "（点击任意区域进入主界面）",
+    "about": "关于",
+    "author": "作者",
+    "tks": "感谢",
+    "setting": "设置",
+    "settings": {
+        "searchPageSize": "搜索每页个数",
+        "imageQuality": "图片质量",
+        "imageSize": "图片尺寸",
+        "showCoverInSearch": "搜索显示封面"
+    },
+    "error": {
+        "noComicFound": "未找到相关漫画，请检查输入是否正确",
+        "networkError": "网络错误，请稍后重试",
+        "unknownError": "发生未知错误，错误："
+    },
+    "cookie": {
+        "receive": "接收到Cookie！",
+        "success": "保存Cookie成功！",
+        "fail": "保存Cookie失败！",
+        "wrong": "同步数据格式错误"
+    },
+    "search": {
+        "search": "搜索: ",
+        "searching": "搜索中...",
+        "noFound": "未找到相关漫画",
+        "fail": "搜索失败: ",
+        "APIError": "API 返回失败",
+        "networkError": "网络连接失败",
+        "requestError": "请求失败",
+        "up": "上一页",
+        "down": "下一页",
+        "totalPage": "{page}页",
+        "page": "第 {page} 页"
+    },
+    "detail": {
+        "detail": "详情",
+        "page_count": "页数",
+        "total_chapters": "章节数",
+        "views": "浏览",
+        "rate": "评分",
+        "tags": "标签"
+    },
+    "photo": {
+        "page": "第 {page} 页",
+        "chapterChange": "章节切换",
+        "photoSizeChange": "图片大小调整",
+        "chapter": "章节"
+    },
+    "offline": {
+        "offline": "本地漫画",
+        "storage": "可用空间",
+        "size": "大小",
+        "downloading": "正在下载",
+        "complete": "下载完成",
+        "page": "第 {page}/{total_page} 页",
+        "empty": "空空如也",
+        "del": "再次点击删除",
+        "secondDel": "正在删除···",
+        "delComplete": "已删除！"
+    },
+    "edit": {
+        "title": "编辑漫画源",
+        "input": "输入漫画源",
+        "complete": "已添加",
+        "storageError": "无法写入漫画源，存储已满",
+        "unknownWriteError": "无法写入漫画源，错误代码",
+        "domainError": "请输入可用域名",
+        "timeoutError": "未找到漫画源Config，请检查网络！",
+        "unknownRequestError":"无法请求漫画源，错误为",
+        "del": "已删除",
+        "unknownDelError": "无法删除当前已有漫画源，错误代码",
+        "unknownReadError": "无法读取当前已有漫画源，错误代码"
+    }
+}
