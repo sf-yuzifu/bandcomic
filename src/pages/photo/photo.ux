@@ -82,7 +82,7 @@
 		<div class="com" if="{{ showSlider }}">
 			<div class="shade">
 				<div
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
 					class="chapter"
 				>
 					<img src="/common/left.png" onclick="toChapter('-')" class="" />
@@ -91,16 +91,16 @@
 				</div>
 				<text
 					class="subtitle"
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
 				>
 					{{ $t("photo.chapterChange") }}
 				</text>
 				<div
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
 					style="height: 10px"
 				></div>
 				<slider
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
 					class="slider"
 					min="0"
 					max="100"
@@ -110,7 +110,7 @@
 					onchange="onSliderChange('c')"
 				></slider>
 				<div
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' }}"
+					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
 					style="height: 20px"
 				></div>
 				<text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
