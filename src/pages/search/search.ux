@@ -1,22 +1,30 @@
 <template>
 	<div class="demo-page">
 		<text class="time">{{ time }}</text>
-		<text
-			class="title"
-			@click="
-				() => {
-					if (global.screenShape == 'circle') {
-						routeBack();
-					}
-				}
-			"
-		>
-			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
-				&#xe6bc;
-			</span>
-			<span>{{ $t("search.search") }}{{ keyword }}</span>
-		</text>
 
+		<div class="title">
+			<text
+				class="iconfont"
+				style="margin-right: 10px"
+				if="{{ global.screenShape == 'circle' }}"
+			>
+				&#xe6bc;
+			</text>
+			<marquee
+				scrollamount="{{ 20 }}"
+				text-offset="{{ 20 }}"
+				style="font-size: 32px; font-weight: bold"
+				@click="
+					() => {
+						if (global.screenShape == 'circle') {
+							routeBack();
+						}
+					}
+				"
+			>
+				{{ $t("search.search") }}{{ keyword }}
+			</marquee>
+		</div>
 		<img
 			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
@@ -592,6 +600,26 @@ export default {
 	}
 	.pagination-controls {
 		justify-content: center;
+	}
+}
+
+/* 看看是不是小米手环Pro */
+@media (device-type: band) and (shape: rect) {
+	.title {
+		width: 180px;
+	}
+}
+
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+	.title {
+		width: 248px;
+	}
+}
+
+@media (device-type: watch) and (shape: circle) {
+	.title {
+		width: 240px;
 	}
 }
 </style>
