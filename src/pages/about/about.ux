@@ -51,9 +51,9 @@
 			<div class="settings">
 				<text class="re bold">{{ $t("setting") }}</text>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">
+					<marquee scrollamount="{{20}}" text-offset="{{20}}" style="font-weight: bold; color: #fff">
 						{{ $t("settings.searchPageSize") }}
-					</text>
+					</marquee>
 					<picker
 						class="picker"
 						type="text"
@@ -63,9 +63,9 @@
 					></picker>
 				</div>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">
+					<marquee scrollamount="{{20}}" text-offset="{{20}}" style="font-weight: bold; color: #fff">
 						{{ $t("settings.imageQuality") }}
-					</text>
+					</marquee>
 					<picker
 						class="picker"
 						type="text"
@@ -75,9 +75,9 @@
 					></picker>
 				</div>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">
+					<marquee scrollamount="{{20}}" text-offset="{{20}}" style="font-weight: bold; color: #fff">
 						{{ $t("settings.imageSize") }}
-					</text>
+					</marquee>
 					<picker
 						class="picker"
 						type="text"
@@ -87,9 +87,9 @@
 					></picker>
 				</div>
 				<div class="setting-item">
-					<text style="font-weight: bold; color: #fff">
+					<marquee scrollamount="{{20}}" text-offset="{{20}}" style="font-weight: bold; color: #fff">
 						{{ $t("settings.showCoverInSearch") }}
-					</text>
+					</marquee>
 					<switch
 						checked="{{ global.APP_SETTING }}"
 						class="switch"
