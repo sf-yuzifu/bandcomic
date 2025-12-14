@@ -2,7 +2,7 @@
 	<div class="demo-page">
 		<text class="time">{{ time }}</text>
 
-		<div class="title">
+		<div class="title" style="justify-content: center">
 			<text
 				class="iconfont"
 				style="margin-right: 10px"
