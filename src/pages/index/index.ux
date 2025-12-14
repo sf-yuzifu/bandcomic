@@ -4,6 +4,9 @@
 ></import>
 <template>
 	<div class="demo-page">
+		<text id="getWidth" style="position: absolute; top: -50px">
+			{{ word }}
+		</text>
 		<img
 			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
@@ -54,9 +57,11 @@
 				{{ $t("EHPlaceholder") }}
 			</text>
 			<text else style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
-			<div class="input-line" @click="changeState">
-				<text>{{ context }}</text>
-			</div>
+			<scroll scroll-x="true" class="input-line" @click="changeState">
+				<text class="input-text" style="{{ `width:${textWidth}px;` }}">
+					{{ context }}
+				</text>
+			</scroll>
 			<div class="padding" style="height: 60%" if="{{ !hide }}"></div>
 			<div
 				class="padding"
@@ -121,6 +126,8 @@ export default {
 		currentSourceName: "腾讯动漫",
 		API_SETTING: global.API_SETTING,
 		display: true,
+		textWidth: 50,
+		word: "",
 	},
 
 	onBackPress() {
@@ -191,7 +198,14 @@ export default {
 	},
 
 	deleteit() {
+		this.word = this.context.slice(-1);
 		this.context = this.context.slice(0, -1);
+		this.$element("getWidth").getBoundingClientRect({
+			success: (data) => {
+				const { top, bottom, left, right, width, height } = data;
+				this.textWidth -= width;
+			},
+		});
 		// console.log("删除字符");
 	},
 
@@ -257,6 +271,13 @@ export default {
 
 	complete(evt) {
 		this.context += evt.detail.content;
+		this.word = evt.detail.content;
+		this.$element("getWidth").getBoundingClientRect({
+			success: (data) => {
+				const { top, bottom, left, right, width, height } = data;
+				this.textWidth += width;
+			},
+		});
 		// console.log("onComplete:" + JSON.stringify(evt));
 	},
 
@@ -375,7 +396,8 @@ export default {
 	background-color: #262626;
 	border: 3px solid rgba(255, 255, 255, 0.06);
 	border-radius: 100%;
-	padding-left: 12px;
+	padding: 0 12px;
+	align-items: center;
 }
 
 .source-selector {
@@ -409,6 +431,10 @@ export default {
 	width: 100%;
 	height: 100%;
 	background-color: #000;
+}
+
+.input-text {
+	lines: 1;
 }
 
 /* 看看是不是小米手表s3/s4 */
