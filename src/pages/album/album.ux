@@ -51,8 +51,15 @@
 					<text class="bold">{{ data.gid.toString() }}</text>
 				</div>
 				<div class="column" else>
-					<text class="bold grey">ID</text>
-					<text class="bold">{{ data.item_id.toString() }}</text>
+					<text class="bold grey" style="width: 48px">ID</text>
+					<marquee
+						style="font-size: 24px"
+						scrollamount="{{ 20 }}"
+						text-offset="{{ 20 }}"
+						class="bold"
+					>
+						{{ data.item_id.toString() }}
+					</marquee>
 				</div>
 				<div class="column" if="{{ data.page_count }}">
 					<text class="bold grey">{{ $t("detail.page_count") }}</text>
