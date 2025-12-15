@@ -82,7 +82,7 @@
 						class="picker"
 						type="text"
 						range="{{ pickerList3 }}"
-						selected="{{ pickerList3.indexOf(global.APP_SETTING) }}"
+						selected="{{ pickerList3.indexOf(global.APP_SETTING.imageSize) }}"
 						onchange="onPicker3Change"
 					></picker>
 				</div>
@@ -91,7 +91,7 @@
 						{{ $t("settings.showCoverInSearch") }}
 					</marquee>
 					<switch
-						checked="{{ global.APP_SETTING }}"
+						checked="{{ global.APP_SETTING.showCoverInSearch }}"
 						class="switch"
 						@change="onSwitchChange"
 					></switch>
