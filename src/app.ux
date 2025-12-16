@@ -13,8 +13,18 @@ global.API_SETTING = {
 		photoPath: "/comic/<id>/chapter/<chapter>",
 		type: "qqcomic",
 	},
+	MangaDex: {
+		name: "MangaDex",
+		apiUrl: "https://example.invalid:443",
+		detailPath: "/comic/<id>",
+		photoPath: "/photo/<id>/ch/<chapter>",
+		searchPath: "/search/<text>/<page>",
+		type: "mangedex",
+	},
 	using: "QQComic",
 };
+
+global.buildin = ["QQComic", "MangaDex"];
 
 device.getInfo({
 	success: function (ret) {
@@ -56,12 +66,12 @@ global.apiCall = function (apiKey, options) {
 	}
 };
 
-global.APP_SETTING =  {
+global.APP_SETTING = {
 	searchPageSize: "10",
 	imageQuality: "50",
 	imageSize: "600",
 	showCoverInSearch: true,
-}
+};
 
 export default {};
 </script>

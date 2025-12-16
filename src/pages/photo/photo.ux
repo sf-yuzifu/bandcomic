@@ -81,26 +81,23 @@
 
 		<div class="com" if="{{ showSlider }}">
 			<div class="shade">
-				<div
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
-					class="chapter"
-				>
+				<div if="{{ total_chapters && !local }}" class="chapter">
 					<img src="/common/left.png" onclick="toChapter('-')" class="" />
-					<text class="subtitle">{{ title }}</text>
+					<marquee
+						class="subtitle"
+						scrollamount="{{ 20 }}"
+						text-offset="{{ 20 }}"
+					>
+						{{ title }}
+					</marquee>
 					<img src="/common/right.png" onclick="toChapter('+')" class="" />
 				</div>
-				<text
-					class="subtitle"
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
-				>
+				<text class="subtitle" if="{{ total_chapters && !local }}">
 					{{ $t("photo.chapterChange") }}
 				</text>
-				<div
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
-					style="height: 10px"
-				></div>
+				<div if="{{ total_chapters && !local }}" style="height: 10px"></div>
 				<slider
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
+					if="{{ total_chapters && !local }}"
 					class="slider"
 					min="0"
 					max="100"
@@ -109,10 +106,7 @@
 					ontouchend="toChapter"
 					onchange="onSliderChange('c')"
 				></slider>
-				<div
-					if="{{ global.API_SETTING[global.API_SETTING.using].type === 'qqcomic' && !local }}"
-					style="height: 20px"
-				></div>
+				<div if="{{ total_chapters && !local }}" style="height: 20px"></div>
 				<text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
 				<div style="height: 10px"></div>
 				<slider
@@ -312,7 +306,7 @@ export default {
 				global.API_SETTING[global.API_SETTING.using].apiUrl +
 				global.API_SETTING[global.API_SETTING.using].photoPath
 					.replace("<id>", this.id)
-					.replace("<page>", this.page),
+					.replace("<chapter>", Math.floor(this.chapter)),
 			success: (response) => {
 				const body = response.data;
 				ImageCache = [...body.images.map((img) => img.url)];
