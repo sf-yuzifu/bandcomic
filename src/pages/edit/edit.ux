@@ -45,7 +45,7 @@
 					{{ global.API_SETTING[source].name }}
 				</text>
 				<image
-					if="{{ source != 'QQComic' }}"
+					if="{{ !global.buildin.includes(source) }}"
 					src="/common/listDel.png"
 					@click="del(source)"
 				></image>
@@ -206,7 +206,9 @@ export default {
 						if (code == 300) {
 							prompt.showToast({ message: this.$t("edit.storageError") });
 						} else {
-							prompt.showToast({ message: this.$t("edit.unknownWriteError") + code });
+							prompt.showToast({
+								message: this.$t("edit.unknownWriteError") + code,
+							});
 						}
 					},
 				});
@@ -217,7 +219,9 @@ export default {
 				} else if (code == "Timeout was reached") {
 					prompt.showToast({ message: this.$t("edit.timeoutError") });
 				} else {
-					prompt.showToast({ message: this.$t("edit.unknownRequestError") + code });
+					prompt.showToast({
+						message: this.$t("edit.unknownRequestError") + code,
+					});
 				}
 			},
 		});
@@ -303,7 +307,7 @@ export default {
 }
 
 .search-results {
-	flex: 1;
+	height: 65%;
 	width: 324px;
 	margin-top: 10px;
 	align-self: center;
@@ -331,6 +335,7 @@ export default {
 
 	.search-results {
 		width: 80%;
+		height: 65%;
 	}
 }
 
@@ -344,6 +349,7 @@ export default {
 
 	.search-results {
 		width: 80%;
+		height: 65%;
 	}
 }
 
