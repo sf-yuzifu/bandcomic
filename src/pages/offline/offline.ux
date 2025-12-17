@@ -155,6 +155,7 @@ export default {
 		cover: "",
 		processing: false,
 		storage: "",
+		chapter: 0,	
 	},
 
 	onShow() {
@@ -559,7 +560,7 @@ export default {
 					global.API_SETTING[global.API_SETTING.using].apiUrl +
 					global.API_SETTING[global.API_SETTING.using].photoPath
 						.replace("<id>", this.id)
-						.replace("<page>", this.page),
+						.replace("<chapter>", this.chapter),
 				success: async (response) => {
 					const body = response.data;
 					ImageCache = [...body.images.map((img) => img.url)];

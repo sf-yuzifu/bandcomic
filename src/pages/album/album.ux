@@ -100,15 +100,15 @@
 			<div class="padding"></div>
 		</scroll>
 		<img
-			if="{{ global.screenShape != 'circle' &&
-global.API_SETTING[global.API_SETTING.using].type !== 'qqcomic' }}"
+			if="{{ global.screenShape != 'circle' && (!data.total_chapters || data.total_chapters
+<=1) }}"
 			class="rightButton bottom"
 			src="/common/dl.png"
 			@click="download"
 		/>
 		<img
-			if="{{ global.screenShape == 'circle' &&
-global.API_SETTING[global.API_SETTING.using].type !== 'qqcomic' }}"
+			if="{{ global.screenShape == 'circle' && (!data.total_chapters || data.total_chapters
+<=1) }}"
 			class="bottom"
 			src="/common/dl_s4.png"
 			@click="download"
@@ -177,6 +177,7 @@ export default {
 			params: {
 				id: this.data.item_id,
 				page_count: this.data.page_count,
+				chapter: this.data.total_chapters || 1,
 				name: this.data.name,
 				cover: this.data.cover,
 				dl: true,
