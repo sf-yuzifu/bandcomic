@@ -30,7 +30,7 @@
         "wrong": "Data format error"
     },
     "search": {
-        "search": "Search",
+        "search": "Search: ",
         "searching": "Searching...",
         "noFound": "No results",
         "fail": "Failed: ",
