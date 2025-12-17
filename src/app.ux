@@ -25,6 +25,7 @@ global.API_SETTING = {
 };
 
 global.buildin = ["QQComic", "MangaDex"];
+global.display = true;
 
 device.getInfo({
 	success: function (ret) {

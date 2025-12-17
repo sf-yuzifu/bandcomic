@@ -92,7 +92,16 @@
 			@complete="complete"
 		></input-method>
 
-		<div class="donate" if="{{ display }}" @click="() => (display = false)">
+		<div
+			class="donate"
+			if="{{ display }}"
+			@click="
+				() => {
+					display = false;
+					global.display = false;
+				}
+			"
+		>
 			<image src="/common/donate.png" />
 			<text style="color: #fff; font-weight: bold">{{ $t("donate") }}</text>
 			<text
@@ -123,9 +132,9 @@ export default {
 		context: "",
 		hide: true,
 		time: "",
-		currentSourceName: "腾讯动漫",
+		currentSourceName: global.API_SETTING[global.API_SETTING.using].name,
 		API_SETTING: global.API_SETTING,
-		display: true,
+		display: global.display,
 		textWidth: 50,
 		word: "",
 	},
@@ -150,6 +159,8 @@ export default {
 			fail: function () {},
 			complete: () => {
 				this.API_SETTING = global.API_SETTING;
+				this.currentSourceName =
+					global.API_SETTING[global.API_SETTING.using].name;
 			},
 		});
 		file.readText({
