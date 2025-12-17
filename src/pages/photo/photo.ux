@@ -118,6 +118,9 @@
 					onchange="onSliderChange('s')"
 				></slider>
 				<div style="height: 10px"></div>
+				<text if="{{ total_chapters && !local && global.API_SETTING[global.API_SETTING.using].type !== 'qqcomic' }}" class="subtitle dl" @click="download">
+					{{ $t("photo.dl") }}
+				</text>
 			</div>
 		</div>
 
@@ -215,6 +218,7 @@ export default {
 		loading: true,
 		title: "",
 		chapter: 1,
+		cover: "",
 		total_chapters: 0,
 	},
 
@@ -508,6 +512,20 @@ export default {
 			});
 		}
 	},
+
+	download() {
+		router.replace({
+			uri: "/pages/offline",
+			params: {
+				id: this.id,
+				page_count: this.page_count,
+				chapter: this.chapter,
+				name: this.title,
+				cover: this.cover,
+				dl: true,
+			},
+		});
+	},
 };
 </script>
 
@@ -590,6 +608,13 @@ text {
 	text-align: center;
 	font-weight: bold;
 	color: rgba(255, 255, 255, 1);
+}
+
+.dl {
+	border-radius: 100%;
+	border: 3px rgba(255, 255, 255, 0.24);
+	background-color: #262626;
+	padding: 10px;
 }
 
 /* 看看是不是小米手表 */

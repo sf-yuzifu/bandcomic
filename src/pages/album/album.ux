@@ -167,6 +167,7 @@ export default {
 				id: this.data.item_id,
 				total_chapters: this.data.total_chapters,
 				page_count: this.data.page_count,
+				cover: this.data.cover,
 			},
 		});
 	},

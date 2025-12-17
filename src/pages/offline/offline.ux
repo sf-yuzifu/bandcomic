@@ -155,7 +155,7 @@ export default {
 		cover: "",
 		processing: false,
 		storage: "",
-		chapter: 0,	
+		chapter: 0,
 	},
 
 	onShow() {
@@ -278,12 +278,12 @@ export default {
 						const newComic = {
 							name: this.name,
 							page_count: this.page_count,
-							id: this.id,
+							id: this.id + (this.chapter ? "_" + this.chapter : ""),
 						};
 
 						// 检查是否已存在相同id的漫画
 						const existingIndex = comicsData.findIndex(
-							(comic) => comic.id === this.id
+							(comic) => comic.id === newComic.id
 						);
 						if (existingIndex !== -1) {
 							comicsData[existingIndex] = newComic;
@@ -320,7 +320,7 @@ export default {
 				{
 					name: this.name,
 					page_count: this.page_count,
-					id: this.id,
+					id: this.id + this.chapter ? "_" + this.chapter : "",
 				},
 			];
 
@@ -341,7 +341,9 @@ export default {
 	async createFolderAndDownload() {
 		try {
 			// 创建文件夹
-			const folderUri = `internal://files/${this.id}`;
+			const folderUri = `internal://files/${
+				this.id + (this.chapter ? "_" + this.chapter : "")
+			}`;
 			await this.createFolder(folderUri);
 
 			await this.downloadCover(folderUri);

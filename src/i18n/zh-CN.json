@@ -54,7 +54,8 @@
         "page": "第 {page} 页",
         "chapterChange": "章节切换",
         "photoSizeChange": "图片大小调整",
-        "chapter": "章节"
+        "chapter": "章节",
+        "dl": "下载当前章节"
     },
     "offline": {
         "offline": "本地漫画",
