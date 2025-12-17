@@ -1,6 +1,6 @@
 {
   "name": "bandcomic",
-  "version": "1.6",
+  "version": "1.7",
   "description": "",
   "engines": {
     "node": ">=8.10"

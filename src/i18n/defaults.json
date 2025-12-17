@@ -54,7 +54,8 @@
         "page": "P{page}",
         "chapterChange": "Switch",
         "photoSizeChange": "Resize",
-        "chapter": "Ch"
+        "chapter": "Ch",
+        "dl": "Download Ch"
     },
     "offline": {
         "offline": "Local",
