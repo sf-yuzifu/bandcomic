@@ -44,7 +44,7 @@
     "name":"sourceName", // 漫画源名称（这行为主界面显示的名称）
     "apiUrl":"https://youapi.domain", // 漫画源地址
     "detailPath":"/comic/<id>", // 漫画源详情API，<id>为漫画ID
-    "photoPath":"/photo/<id>", // 漫画源获取漫画图片API，<id>为漫画ID
+    "photoPath":"/photo/<id>/chapter/<chapter>", // 漫画源获取漫画图片API，<id>为漫画ID，<chapter>为第几章
     "searchPath":"/search/<text>/<page>", // 漫画源搜索API，<text>为搜索关键词，<page>为搜索的第几页
     "type":"sourceType" // 漫画源名称
   }
