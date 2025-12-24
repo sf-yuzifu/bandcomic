@@ -101,6 +101,35 @@
   
 > 在1.6(50)版本中新增了调整图片尺寸大小和质量的功能，目前做法是在`photoPath`-`images`的每个`url`中添加`width`和`quality`两个参数，所以你提供的URL地址最好是有这个功能的。
 
+## 如何快速搭建可用的自定义漫画源
+> 鉴于大部分用户没有写代码的经历，由于个人原因无法保证所有的漫画源可用（不要让我倒贴钱维护服务器😭）
+> 
+> 在这里优先推荐各位用户搭建自己的自定义漫画源
+>
+> 搭建方法非常简单，只需要一个Vercel账号以及一个自己的域名即可
+
+选择下面可用的仓库按照指引部署即可快速搭建好可用的漫画源，不过其中的域名是无法访问的，需要搜索Vercel如何绑定自定义域名才可以使用
+
+<a href="https://github.com/sf-yuzifu/vercel-flask-jmcomic-api">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api&theme=radical" />
+    <source media="(prefers-color-scheme: light)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
+    <img alt="Repo Card" src="https://github-readme-stats.vercel.app/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
+  </picture>
+</a>
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/sf-yuzifu/vercel-flask-jmcomic-api)
+
+<a href="https://github.com/OrPudding/vela-py-eh-api-server">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=OrPudding&repo=vela-py-eh-api-server&theme=radical" />
+    <source media="(prefers-color-scheme: light)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=OrPudding&repo=vela-py-eh-api-server" />
+    <img alt="Repo Card" src="https://github-readme-stats.vercel.app/api/pin/?username=OrPudding&repo=vela-py-eh-api-server" />
+  </picture>
+</a>
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/OrPudding/vela-py-eh-api-server)
+
 ## 快速上手
 
 ### 1. 开发环境搭建
