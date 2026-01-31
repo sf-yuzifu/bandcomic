@@ -784,59 +784,91 @@ export default {
 				message: this.$t("offline.secondDel"),
 				duration: 1000,
 			});
-			file.rmdir({
-				uri: "internal://files/" + id + "/",
-				recursive: true,
+			
+			const folderUri = "internal://files/" + id + "/";
+			
+			file.access({
+				uri: folderUri,
 				success: () => {
-					file.readText({
-						uri: "internal://files/comics.json",
-						success: (data) => {
-							try {
-								let comicsData = [];
-								if (data.text) {
-									comicsData = JSON.parse(data.text);
-								}
-
-								// 检查是否已存在相同id的漫画
-								const existingIndex = comicsData.findIndex(
-									(comic) => comic.id === id
-								);
-
-								if (existingIndex !== -1) {
-									comicsData.splice(existingIndex, 1);
-								}
-
-								// 写回文件
-								file.writeText({
-									uri: "internal://files/comics.json",
-									text: JSON.stringify(comicsData),
-									success: () => {
-										console.log("comics.json更新成功");
-										prompt.showToast({
-											message: this.$t("offline.delComplete"),
-											duration: 1000,
-										});
-										console.log("重新加载···");
-										this.loadingComic();
-									},
-									fail: function (data, code) {
-										console.log(`写入comics.json失败, code = ${code}`);
-									},
-								});
-							} catch (parseError) {
-								console.log(`解析comics.json失败: ${parseError}`);
-							}
+					file.rmdir({
+						uri: folderUri,
+						recursive: true,
+						success: () => {
+							this.updateComicsIndex(id);
 						},
-						fail: function (data, code) {
-							console.log(`读取comics.json失败, code = ${code}`);
+						fail: (data, code) => {
+							console.log(`删除文件夹失败, code = ${code}`);
+							prompt.showToast({
+								message: "删除失败：" + code,
+								duration: 2000,
+							});
 						},
 					});
 				},
-				fail: function (data, code) {
-					console.log(`handling fail, code = ${code}`);
+				fail: () => {
+					console.log(`文件夹不存在，直接删除索引`);
+					this.updateComicsIndex(id);
 				},
 			});
 		}
+	},
+
+	updateComicsIndex(id) {
+		file.readText({
+			uri: "internal://files/comics.json",
+			success: (data) => {
+				try {
+					let comicsData = [];
+					if (data.text) {
+						comicsData = JSON.parse(data.text);
+					}
+
+					const existingIndex = comicsData.findIndex(
+						(comic) => comic.id === id
+					);
+
+					if (existingIndex !== -1) {
+						comicsData.splice(existingIndex, 1);
+					}
+
+					file.writeText({
+						uri: "internal://files/comics.json",
+						text: JSON.stringify(comicsData),
+						success: () => {
+							console.log("comics.json更新成功");
+							prompt.showToast({
+								message: this.$t("offline.delComplete"),
+								duration: 1000,
+							});
+							this.loadingComic();
+						},
+						fail: (data, code) => {
+							console.log(`写入comics.json失败, code = ${code}`);
+							prompt.showToast({
+								message: "删除成功，但索引更新失败",
+								duration: 2000,
+							});
+							this.loadingComic();
+						},
+					});
+				} catch (parseError) {
+					console.log(`解析comics.json失败: ${parseError}`);
+					prompt.showToast({
+						message: "删除成功，但索引读取失败",
+						duration: 2000,
+					});
+					this.loadingComic();
+				}
+			},
+			fail: (data, code) => {
+				console.log(`读取comics.json失败, code = ${code}`);
+				prompt.showToast({
+					message: "删除成功，但索引文件不存在",
+					duration: 2000,
+				});
+				this.loadingComic();
+			},
+		});
 	},
 
 	routeBack() {
