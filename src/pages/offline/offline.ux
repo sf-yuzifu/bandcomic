@@ -44,35 +44,43 @@
 				<image src="/common/del.png" @click="del($item.id)"></image>
 			</list-item>
 		</list>
-		<div class="downloading" if="{{ dl && global.screenShape != 'circle' }}">
+		<div class="downloading" if="{{ dl && global.screenShape != 'circle' && !downloadError }}">
 			<image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
 			<text class="dl-text">
 				{{ processing ? $t("offline.complete") : $t("offline.downloading") }}
 			</text>
 		</div>
-		<div id="process" if="{{ dl && global.screenShape != 'circle' }}">
+		<div id="process" if="{{ dl && global.screenShape != 'circle' && !downloadError }}">
 			<text class="content">
 				{{ $t("offline.page", { page: page, total_page: page_count }) }}
 			</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
+		<div class="downloading" if="{{ dl && global.screenShape != 'circle' && downloadError }}">
+			<image src="/common/fail.png"></image>
+			<text class="dl-text">{{ downloadError }}</text>
+		</div>
 
 		<image
-			if="{{ dl && global.screenShape == 'circle' }}"
+			if="{{ dl && global.screenShape == 'circle' && !downloadError }}"
 			id="mask"
 			src="/common/{{ processing ? 'success':'dling' }}_s4.png"
 		></image>
-		<div class="downloading" if="{{ dl && global.screenShape == 'circle' }}">
+		<div class="downloading" if="{{ dl && global.screenShape == 'circle' && !downloadError }}">
 			<text class="dl-text">
 				{{ processing ? $t("offline.complete") : $t("offline.downloading") }}
 			</text>
 			<image src="/common/{{ processing ? 'success':'dl' }}_icon.png"></image>
 		</div>
-		<div id="process" if="{{ dl && global.screenShape == 'circle' }}">
+		<div id="process" if="{{ dl && global.screenShape == 'circle' && !downloadError }}">
 			<text class="content">
 				{{ $t("offline.page", { page: page, total_page: page_count }) }}
 			</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
+		</div>
+		<div class="downloading" if="{{ dl && global.screenShape == 'circle' && downloadError }}">
+			<image src="/common/fail.png"></image>
+			<text class="dl-text">{{ downloadError }}</text>
 		</div>
 
 		<div class="empty" if="{{ comicsList.length == 0 && !dl }}">
@@ -156,6 +164,7 @@ export default {
 		processing: false,
 		storage: "",
 		chapter: 0,
+		downloadError: "",
 	},
 
 	onShow() {
@@ -340,21 +349,17 @@ export default {
 
 	async createFolderAndDownload() {
 		try {
-			// 创建文件夹
 			const folderUri = `internal://files/${
 				this.id + (this.chapter ? "_" + this.chapter : "")
 			}`;
 			await this.createFolder(folderUri);
 
 			await this.downloadCover(folderUri);
-			// console.log(`封面下载完成`);
 
-			// 逐页下载图片
 			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
 				for (let page = 1; page <= this.page_count; page++) {
 					this.page = page;
 					await this.downloadImage(page, folderUri);
-					// console.log(`第 ${page} 页下载完成`);
 				}
 			} else if (
 				global.API_SETTING[global.API_SETTING.using].type === "ehentai"
@@ -363,70 +368,88 @@ export default {
 				for (let page = 1; page <= this.page_count; page++) {
 					this.page = page;
 					await this.downloadImage(page, folderUri);
-					// console.log(`第 ${page} 页下载完成`);
 				}
 				for (let i = 0; i < ehImageCache.length; i++) {
 					this.page = i + 1;
-					fetch.fetch({
-						url: ehImageCache[i],
-						responseType: "file",
-						success: (response) => {
-							let fileUri = `${folderUri}/${i + 1}`;
-							if (response.data) {
-								// 将下载的文件移动到目标文件夹
-								file.move({
-									srcUri: response.data,
-									dstUri: fileUri,
-									success: function () {
-										console.log(`图片保存成功: ${fileUri}`);
-									},
-									fail: function (data, code) {
-										console.log(`移动图片失败, code = ${code}`);
-									},
-								});
-							} else {
-								console.log("下载的图片数据为空");
-							}
-						},
-						fail: function (data, code) {
-							console.log(`下载图片失败, code = ${code}`);
-						},
-					});
+					try {
+						await new Promise((resolve, reject) => {
+							fetch.fetch({
+								url: ehImageCache[i],
+								responseType: "file",
+								success: (response) => {
+									let fileUri = `${folderUri}/${i + 1}`;
+									if (response.data) {
+										file.move({
+											srcUri: response.data,
+											dstUri: fileUri,
+											success: function () {
+												console.log(`图片保存成功: ${fileUri}`);
+												resolve();
+											},
+											fail: function (data, code) {
+												reject(`移动图片失败, code = ${code}`);
+											},
+										});
+									} else {
+										reject("下载的图片数据为空");
+									}
+								},
+								fail: (data, code) => {
+									if (code === 28) {
+										reject(`下载超时`);
+									} else {
+										reject(`下载图片失败, code = ${code}`);
+									}
+								},
+							});
+						});
+					} catch (error) {
+						throw error;
+					}
 				}
 			} else {
 				await this.DownloadImage();
 				for (let page = 1; page <= this.page_count; page++) {
 					this.page = page;
 					await this.downloadImage(page, folderUri);
-					// console.log(`第 ${page} 页下载完成`);
 				}
 				for (let i = 0; i < ImageCache.length; i++) {
 					this.page = i + 1;
-					fetch.fetch({
-						url: ImageCache[i],
-						responseType: "file",
-						success: (response) => {
-							let fileUri = `${folderUri}/${i + 1}`;
-							if (response.data) {
-								// 将下载的文件移动到目标文件夹
-								file.move({
-									srcUri: response.data,
-									dstUri: fileUri,
-									success: function () {
-										console.log(`图片保存成功: ${fileUri}`);
-									},
-									fail: function (data, code) {
-										console.log(`移动图片失败, code = ${code}`);
-									},
-								});
-							} else {
-								console.log("下载的图片数据为空");
-							}
-						},
-						fail: function (data, code) {
-							console.log(`下载图片失败, code = ${code}`);
-						},
-					});
+					try {
+						await new Promise((resolve, reject) => {
+							fetch.fetch({
+								url: ImageCache[i],
+								responseType: "file",
+								success: (response) => {
+									let fileUri = `${folderUri}/${i + 1}`;
+									if (response.data) {
+										file.move({
+											srcUri: response.data,
+											dstUri: fileUri,
+											success: function () {
+												console.log(`图片保存成功: ${fileUri}`);
+												resolve();
+											},
+											fail: function (data, code) {
+												reject(`移动图片失败, code = ${code}`);
+											},
+										});
+									} else {
+										reject("下载的图片数据为空");
+									}
+								},
+								fail: (data, code) => {
+									if (code === 28) {
+										reject(`下载超时`);
+									} else {
+										reject(`下载图片失败, code = ${code}`);
+									}
+								},
+							});
+						});
+					} catch (error) {
+						throw error;
+					}
 				}
 			}
 
@@ -436,7 +459,9 @@ export default {
 			this.dl = false;
 			console.log("所有图片下载完成");
 		} catch (error) {
-			console.log(`创建文件夹或下载图片失败: ${error}`);
+			console.log(`下载过程出错: ${error}`);
+			this.downloadError = error;
+			this.processing = false;
 		}
 	},
 
@@ -461,8 +486,10 @@ export default {
 		});
 	},
 
-	downloadImage(page, folderUri) {
+	downloadImage(page, folderUri, retryCount = 0) {
 		let imageUrl;
+		const MAX_RETRY = 3;
+
 		return new Promise((resolve, reject) => {
 			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
 				imageUrl =
@@ -496,7 +523,6 @@ export default {
 				responseType: "file",
 				success: (response) => {
 					if (response.data) {
-						// 将下载的文件移动到目标文件夹
 						file.move({
 							srcUri: response.data,
 							dstUri: fileUri,
@@ -512,14 +538,45 @@ export default {
 						reject("下载的图片数据为空");
 					}
 				},
-				fail: function (data, code) {
-					reject(`下载图片失败, code = ${code}`);
+				fail: (data, code) => {
+					console.log(`下载图片失败, code = ${code}, retryCount = ${retryCount}`);
+					
+					if (code === 28 && retryCount < MAX_RETRY) {
+						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络超时，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.downloadImage(page, folderUri, retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else if (retryCount < MAX_RETRY) {
+						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络错误，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.downloadImage(page, folderUri, retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else {
+						if (code === 28) {
+							reject(`下载超时`);
+						} else {
+							reject(`下载图片失败, code = ${code}`);
+						}
+					}
 				},
 			});
 		});
 	},
 
-	ehDownloadImage(page = 0) {
+	ehDownloadImage(page = 0, retryCount = 0) {
+		const MAX_RETRY = 3;
 		return new Promise((resolve, reject) => {
 			const [gid, token] = this.id.split("_");
 
@@ -546,16 +603,44 @@ export default {
 					resolve();
 				},
 				fail: (data, code) => {
-					this.images = "internal://files/error.png";
-					console.log(`handling fail, errMsg = ${data}`);
-					console.log(`handling fail, errCode = ${code}`);
-					reject(`获取图片失败, code = ${code}`);
+					console.log(`获取图片列表失败, code = ${code}, retryCount = ${retryCount}`);
+					
+					if (code === 28 && retryCount < MAX_RETRY) {
+						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络超时，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.ehDownloadImage(page, retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else if (retryCount < MAX_RETRY) {
+						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络错误，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.ehDownloadImage(page, retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else {
+						if (code === 28) {
+							reject(`获取图片列表超时，已重试${MAX_RETRY}次仍失败`);
+						} else {
+							reject(`获取图片列表失败, code = ${code}`);
+						}
+					}
 				},
 			});
 		});
 	},
 
-	DownloadImage() {
+	DownloadImage(retryCount = 0) {
+		const MAX_RETRY = 3;
 		return new Promise((resolve, reject) => {
 			fetch.fetch({
 				url:
@@ -569,16 +654,44 @@ export default {
 					resolve();
 				},
 				fail: (data, code) => {
-					this.images = "internal://files/error.png";
-					console.log(`handling fail, errMsg = ${data}`);
-					console.log(`handling fail, errCode = ${code}`);
-					reject(`获取图片失败, code = ${code}`);
+					console.log(`获取图片列表失败, code = ${code}, retryCount = ${retryCount}`);
+					
+					if (code === 28 && retryCount < MAX_RETRY) {
+						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络超时，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.DownloadImage(retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else if (retryCount < MAX_RETRY) {
+						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络错误，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.DownloadImage(retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else {
+						if (code === 28) {
+							reject(`获取图片列表超时，已重试${MAX_RETRY}次仍失败`);
+						} else {
+							reject(`获取图片列表失败, code = ${code}`);
+						}
+					}
 				},
 			});
 		});
 	},
 
-	downloadCover(folderUri) {
+	downloadCover(folderUri, retryCount = 0) {
+		const MAX_RETRY = 3;
 		return new Promise((resolve, reject) => {
 			let imageUrl;
 			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
@@ -596,7 +709,6 @@ export default {
 				responseType: "file",
 				success: (response) => {
 					if (response.data) {
-						// 将下载的文件移动到目标文件夹
 						file.move({
 							srcUri: response.data,
 							dstUri: fileUri,
@@ -612,8 +724,38 @@ export default {
 						reject("下载的图片数据为空");
 					}
 				},
-				fail: function (data, code) {
-					reject(`下载图片失败, code = ${code}`);
+				fail: (data, code) => {
+					console.log(`下载封面失败, code = ${code}, retryCount = ${retryCount}`);
+					
+					if (code === 28 && retryCount < MAX_RETRY) {
+						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络超时，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.downloadCover(folderUri, retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else if (retryCount < MAX_RETRY) {
+						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
+						prompt.showToast({
+							message: `网络错误，正在重试第 ${retryCount + 1} 次...`,
+							duration: 1500,
+						});
+						sleep(1000).then(() => {
+							this.downloadCover(folderUri, retryCount + 1)
+								.then(resolve)
+								.catch(reject);
+						});
+					} else {
+						if (code === 28) {
+							reject(`下载封面超时，已重试${MAX_RETRY}次仍失败`);
+						} else {
+							reject(`下载封面失败, code = ${code}`);
+						}
+					}
 				},
 			});
 		});
