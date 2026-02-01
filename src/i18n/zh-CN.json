@@ -89,10 +89,7 @@
         "readIndexFailed": "读取索引文件失败，错误码：{code}",
         "createIndexFailed": "创建索引文件失败，错误码：{code}",
         "createFolderFailed": "创建文件夹失败，错误码：{code}",
-        "systemReserved": "系统预留",
-        "actualTotal": "实际可用",
         "legendReserved": "系统预留",
-        "legendUsed": "其他已用",
         "comicsUsed": "漫画占用",
         "otherUsed": "其他已用",
         "remaining": "剩余可用"
