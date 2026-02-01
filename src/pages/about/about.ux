@@ -18,7 +18,7 @@
 			class="title"
 		>
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
-				&#xe6bc;
+				&#xe685;
 			</span>
 			<span>{{ $t("about") }}</span>
 		</text>
