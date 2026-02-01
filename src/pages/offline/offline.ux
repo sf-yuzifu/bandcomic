@@ -26,9 +26,40 @@
 			style="height: 78px"
 			if="{{ !dl && global.screenShape == 'circle' }}"
 		></div>
-		<text if="{{ !dl && storage }}" class="storage">
-			{{ $t("offline.storage") }} {{ storage }}
-		</text>
+		<div if="{{ !dl }}" class="storage-container">
+			<text class="storage-label">{{ $t("offline.storage") }}</text>
+			<div class="storage-bar">
+				<div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
+				<div class="storage-bar-segment-comics" style="width: {{ comicsUsedPercent }}%"></div>
+				<div class="storage-bar-segment-other" style="width: {{ actualUsedPercent - comicsUsedPercent }}%"></div>
+			</div>
+			<div class="storage-list">
+				<div class="storage-list-item" @click="toggleStorageList">
+					<div class="storage-list-color storage-list-color-remaining"></div>
+					<text class="storage-list-label">{{ $t("offline.remaining") }}</text>
+					<text class="storage-list-value">{{ remaining }}</text>
+					<text class="storage-list-arrow">{{ storageListExpanded ? '&#xe686' : '&#xe685' }}</text>
+				</div>
+				<div if="{{ storageListExpanded }}" class="storage-list-item">
+					<div class="storage-list-color storage-list-color-reserved"></div>
+					<text class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
+					<text class="storage-list-value">{{ systemReserved }}</text>
+					<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+				</div>
+				<div if="{{ storageListExpanded }}" class="storage-list-item">
+					<div class="storage-list-color storage-list-color-comics"></div>
+					<text class="storage-list-label">{{ $t("offline.comicsUsed") }}</text>
+					<text class="storage-list-value">{{ comicsUsed }}</text>
+					<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+				</div>
+				<div if="{{ storageListExpanded }}" class="storage-list-item">
+					<div class="storage-list-color storage-list-color-other"></div>
+					<text class="storage-list-label">{{ $t("offline.otherUsed") }}</text>
+					<text class="storage-list-value">{{ otherUsed }}</text>
+					<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+				</div>
+			</div>
+		</div>
 		<div style="height: 10px" if="{{ !dl }}"></div>
 		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
 			<list-item for="{{ comicsList }}" class="item" type="list-item">
@@ -163,6 +194,18 @@ export default {
 		cover: "",
 		processing: false,
 		storage: "",
+		storagePercent: 0,
+		storageUsed: "",
+		storageTotal: "",
+		systemReserved: "",
+		actualTotal: "",
+		systemReservedPercent: 25,
+		actualUsedPercent: 0,
+		comicsUsed: "",
+		comicsUsedPercent: 0,
+		otherUsed: "",
+		remaining: "",
+		storageListExpanded: false,
 		chapter: 0,
 		downloadError: "",
 	},
@@ -206,14 +249,46 @@ export default {
 	},
 
 	getStorage() {
-		device.getAvailableStorage({
+		let totalStorage = 0;
+		let availableStorage = 0;
+		let comicsTotalSize = 0;
+		let completedCount = 0;
+		
+		device.getTotalStorage({
 			success: (data) => {
-				this.storage = formatFileSize(data.availableStorage);
+				totalStorage = data.totalStorage;
+				const systemReserved = Math.floor(totalStorage / 4);
+				const actualTotal = totalStorage - systemReserved;
+				
+				this.storageTotal = formatFileSize(totalStorage);
+				this.systemReserved = formatFileSize(systemReserved);
+				this.actualTotal = formatFileSize(actualTotal);
+				
+				if (availableStorage > 0) {
+					this.updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize);
+				}
 			},
 			fail: (data, code) => {
-				console.log(`handling fail, code = ${code}`);
+				console.log(`获取总存储空间失败, code = ${code}`);
 			},
 		});
+		
+		device.getAvailableStorage({
+			success: (data) => {
+				availableStorage = data.availableStorage;
+				this.storage = formatFileSize(availableStorage);
+				
+				if (totalStorage > 0) {
+					const systemReserved = Math.floor(totalStorage / 4);
+					const actualTotal = totalStorage - systemReserved;
+					this.updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize);
+				}
+			},
+			fail: (data, code) => {
+				console.log(`获取可用存储空间失败, code = ${code}`);
+			},
+		});
+		
 		for (let a = 0; a < this.comicsList.length; a++) {
 			file.get({
 				uri: `internal://files/${this.comicsList[a].id}`,
@@ -224,13 +299,34 @@ export default {
 						length += i.length;
 					}
 					this.comicsList[a].size = formatFileSize(length);
+					comicsTotalSize += length;
+					this.comicsUsed = formatFileSize(comicsTotalSize);
 					console.log("大小：", this.comicsList[a].size);
+					
+					completedCount++;
+					if (completedCount === this.comicsList.length && totalStorage > 0) {
+						const systemReserved = Math.floor(totalStorage / 4);
+						const actualTotal = totalStorage - systemReserved;
+						this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
+					}
 				},
 				fail: function (data, code) {
 					console.log(`handling fail, code = ${code}`);
+					completedCount++;
 				},
 			});
 		}
+	},
+
+	updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize) {
+		this.storageUsed = formatFileSize(actualTotal - availableStorage);
+		this.actualUsedPercent = Math.floor(
+			((actualTotal - availableStorage) / actualTotal) * 100
+		);
+		this.comicsUsed = formatFileSize(comicsTotalSize);
+		this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
+		this.otherUsed = formatFileSize(actualTotal - availableStorage - comicsTotalSize);
+		this.remaining = formatFileSize(availableStorage);
 	},
 
 	async startDownloadProcess() {
@@ -870,6 +966,10 @@ export default {
 		});
 	},
 
+	toggleStorageList() {
+		this.storageListExpanded = !this.storageListExpanded;
+	},
+
 	routeBack() {
 		router.back();
 	},
@@ -883,6 +983,112 @@ export default {
 	flex-direction: column;
 	justify-content: flex-start;
 	align-items: center;
+}
+
+.storage-container {
+	width: 85%;
+	flex-direction: column;
+	align-items: center;
+	padding: 10px 20px;
+	background-color: #262626;
+	border-radius: 24px;
+	margin-top: 10px;
+}
+
+.storage-label {
+	font-size: 24px;
+	color: rgba(255, 255, 255, 0.8);
+	font-weight: bold;
+	margin-bottom: 8px;
+}
+
+.storage-bar {
+	width: 100%;
+	height: 12px;
+	background-color: rgba(255, 255, 255, 0.2);
+	border-radius: 6px;
+	overflow: hidden;
+	margin-bottom: 8px;
+	display: flex;
+	flex-direction: row;
+}
+
+.storage-bar-segment {
+	height: 100%;
+	display: flex;
+	border-radius: 6px;
+	flex-direction: row;
+	align-items: center;
+}
+
+.storage-bar-segment-reserved {
+	background-color: rgba(255, 255, 255, 0.3);
+	border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.storage-bar-segment-comics {
+	background-color: #4CAF50;
+	border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.storage-bar-segment-other {
+	background-color: rgba(76, 175, 80, 0.3);
+}
+
+.storage-list {
+	width: 100%;
+	flex-direction: column;
+}
+
+.storage-list-item {
+	width: 100%;
+	flex-direction: row;
+	align-items: center;
+	padding: 6px 0;
+	justify-content: space-between;
+}
+
+.storage-list-color {
+	width: 12px;
+	height: 12px;
+	border-radius: 3px;
+	margin-right: 8px;
+}
+
+.storage-list-color-reserved {
+	background-color: rgba(255, 255, 255, 0.3);
+}
+
+.storage-list-color-comics {
+	background-color: #4CAF50;
+}
+
+.storage-list-color-other {
+	background-color: rgba(76, 175, 80, 0.3);
+}
+
+.storage-list-color-remaining {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.storage-list-label {
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.6);
+	flex: 1;
+}
+
+.storage-list-value {
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.8);
+	font-weight: bold;
+}
+
+.storage-list-arrow {
+	font-size: 16px;
+	font-family: "iconfont" !important;
+    font-style: normal;
+	color: rgba(255, 255, 255, 0.8);
+	margin-left: 4px;
 }
 
 .storage {
@@ -958,7 +1164,7 @@ export default {
 
 .box {
 	width: 85%;
-	height: 75%;
+	flex: 1
 }
 
 .item {
@@ -988,6 +1194,10 @@ export default {
 
 /* 看看是不是小米手表 */
 @media (min-width: 200) and (max-width: 235) and (shape: circle) {
+	.storage-container {
+		width: 75%;
+	}
+
 	#process {
 		position: absolute;
 		width: 80%;
@@ -1043,7 +1253,6 @@ export default {
 
 	.box {
 		width: 75%;
-		height: 73%;
 	}
 }
 </style>
