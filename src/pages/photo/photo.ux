@@ -156,7 +156,7 @@
 			if="{{ showit }}"
 		>
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
-				&#xe6bc;
+				&#xe685;
 			</span>
 			<span>{{ $t("photo.page", { page: page }) }}</span>
 		</text>
