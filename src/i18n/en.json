@@ -88,7 +88,14 @@
         "parseIndexFailed": "Parse index failed",
         "readIndexFailed": "Read index failed, code: {code}",
         "createIndexFailed": "Create index failed, code: {code}",
-        "createFolderFailed": "Create folder failed, code: {code}"
+        "createFolderFailed": "Create folder failed, code: {code}",
+        "systemReserved": "System reserved",
+        "actualTotal": "Available",
+        "legendReserved": "System reserved",
+        "legendUsed": "Other used",
+        "comicsUsed": "Comics used",
+        "otherUsed": "Other used",
+        "remaining": "Remaining"
     },
     "edit": {
         "title": "Edit Sources",
