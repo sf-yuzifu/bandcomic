@@ -62,6 +62,7 @@
         "storage": "可用空间",
         "size": "大小",
         "downloading": "正在下载",
+        "loading": "加载中...",
         "complete": "下载完成",
         "page": "第 {page}/{total_page} 页",
         "empty": "空空如也",

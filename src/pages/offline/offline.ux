@@ -116,7 +116,7 @@
 
 		<div class="empty" if="{{ comicsList.length == 0 && !dl }}">
 			<image src="/common/empty.png"></image>
-			<text class="empty-text">{{ $t("offline.empty") }}</text>
+			<text class="empty-text">{{ isLoading ? $t("offline.loading") : $t("offline.empty") }}</text>
 		</div>
 	</div>
 </template>
@@ -207,6 +207,7 @@ export default {
 		remaining: "",
 		storageListExpanded: false,
 		storageLoaded: false,
+		isLoading: false,
 		chapter: 0,
 		downloadError: "",
 	},
@@ -224,6 +225,7 @@ export default {
 	},
 
 	async loadingComic() {
+		this.isLoading = true;
 		// 1. 检查comics.json文件是否存在
 		const fileExists = await this.checkFileExists();
 
@@ -241,11 +243,15 @@ export default {
 					} catch (parseError) {
 						console.log(`解析comics.json失败: ${parseError}`);
 					}
+					this.isLoading = false;
 				},
 				fail: function (data, code) {
 					console.log(`读取comics.json失败, code = ${code}`);
+					this.isLoading = false;
 				},
 			});
+		} else {
+			this.isLoading = false;
 		}
 	},
 
@@ -1132,7 +1138,7 @@ export default {
 		justify-content: center;
 		align-items: center;
 		width: 100%;
-		height: 80%;
+		flex: 1;
 		flex-direction: column;
 	}
 }
@@ -1226,7 +1232,6 @@ export default {
 		justify-content: center;
 		align-items: center;
 		width: 100%;
-		height: 80%;
 		flex-direction: column;
 	}
 
