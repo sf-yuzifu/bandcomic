@@ -53,7 +53,7 @@
 				<div class="column" else>
 					<text class="bold grey" style="width: 48px">ID</text>
 					<marquee
-						style="font-size: 24px"
+						style="font-size: 24px; width: 100%; text-align: right;"
 						scrollamount="{{ 20 }}"
 						text-offset="{{ 20 }}"
 						class="bold"
@@ -240,6 +240,8 @@ text {
 .box {
 	flex-direction: column;
 	align-items: center;
+	flex: 1;
+	width: 100%;
 }
 
 .column {
@@ -261,22 +263,12 @@ text {
 		width: 1px;
 		height: 20%;
 	}
-
-	.box {
-		width: 100%;
-		height: 80%;
-	}
 }
 
 @media screen and (shape: rect) {
 	.padding {
 		width: 1px;
 		height: 10%;
-	}
-
-	.box {
-		width: 100%;
-		height: 80%;
 	}
 }
 </style>
