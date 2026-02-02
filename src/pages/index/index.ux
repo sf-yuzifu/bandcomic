@@ -4,9 +4,6 @@
 ></import>
 <template>
 	<div class="demo-page">
-		<text id="getWidth" style="position: absolute; top: -50px">
-			{{ word }}
-		</text>
 		<img
 			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
@@ -57,11 +54,13 @@
 				{{ $t("EHPlaceholder") }}
 			</text>
 			<text else style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
-			<scroll scroll-x="true" class="input-line" @click="changeState">
-				<text class="input-text" style="{{ `width:${textWidth}px;` }}">
-					{{ context }}
-				</text>
-			</scroll>
+			<div class="input-line" @click="changeState">
+				<scroll style="position: absolute; width: 100%; height: 42px;" scroll-x="true">
+					<text class="input-text">
+						{{ context }}
+					</text>
+				</scroll>
+			</div>
 			<div class="padding" style="height: 60%" if="{{ !hide }}"></div>
 			<div
 				class="padding"
@@ -135,8 +134,6 @@ export default {
 		currentSourceName: global.API_SETTING[global.API_SETTING.using].name,
 		API_SETTING: global.API_SETTING,
 		display: global.display,
-		textWidth: 50,
-		word: "",
 	},
 
 	onBackPress() {
@@ -209,14 +206,7 @@ export default {
 	},
 
 	deleteit() {
-		this.word = this.context.slice(-1);
 		this.context = this.context.slice(0, -1);
-		this.$element("getWidth").getBoundingClientRect({
-			success: (data) => {
-				const { top, bottom, left, right, width, height } = data;
-				this.textWidth -= width;
-			},
-		});
 		// console.log("删除字符");
 	},
 
@@ -282,13 +272,6 @@ export default {
 
 	complete(evt) {
 		this.context += evt.detail.content;
-		this.word = evt.detail.content;
-		this.$element("getWidth").getBoundingClientRect({
-			success: (data) => {
-				const { top, bottom, left, right, width, height } = data;
-				this.textWidth += width;
-			},
-		});
 		// console.log("onComplete:" + JSON.stringify(evt));
 	},
 
@@ -407,8 +390,8 @@ export default {
 	background-color: #262626;
 	border: 3px solid rgba(255, 255, 255, 0.06);
 	border-radius: 100%;
-	padding: 0 12px;
 	align-items: center;
+	justify-content: center;
 }
 
 .source-selector {
@@ -446,6 +429,8 @@ export default {
 
 .input-text {
 	lines: 1;
+	position: absolute;
+	padding: 0 12px;
 }
 
 /* 看看是不是小米手表s3/s4 */
