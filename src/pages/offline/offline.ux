@@ -399,7 +399,7 @@ export default {
 						const newComic = {
 							name: this.name,
 							page_count: this.page_count,
-							id: this.id + (this.chapter ? "_" + this.chapter : ""),
+							id: global.API_SETTING.using + "_" + this.id + (this.chapter ? "_" + this.chapter : ""),
 						};
 
 						// 检查是否已存在相同id的漫画
@@ -441,7 +441,7 @@ export default {
 				{
 					name: this.name,
 					page_count: this.page_count,
-					id: this.id + this.chapter ? "_" + this.chapter : "",
+					id: global.API_SETTING.using + "_" + this.id + (this.chapter ? "_" + this.chapter : ""),
 				},
 			];
 
@@ -462,7 +462,7 @@ export default {
 	async createFolderAndDownload() {
 		try {
 			const folderUri = `internal://files/${
-				this.id + (this.chapter ? "_" + this.chapter : "")
+				global.API_SETTING.using + "_" + this.id + (this.chapter ? "_" + this.chapter : "")
 			}`;
 			await this.createFolder(folderUri);
 
