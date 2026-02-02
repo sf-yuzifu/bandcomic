@@ -26,7 +26,7 @@
 			style="height: 78px"
 			if="{{ !dl && global.screenShape == 'circle' }}"
 		></div>
-		<div if="{{ !dl }}" class="storage-container">
+		<div if="{{ !dl && storageLoaded }}" class="storage-container">
 			<text class="storage-label">{{ $t("offline.storage") }}</text>
 			<div class="storage-bar">
 				<div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
@@ -206,6 +206,7 @@ export default {
 		otherUsed: "",
 		remaining: "",
 		storageListExpanded: false,
+		storageLoaded: false,
 		chapter: 0,
 		downloadError: "",
 	},
@@ -327,6 +328,7 @@ export default {
 		this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
 		this.otherUsed = formatFileSize(actualTotal - availableStorage - comicsTotalSize);
 		this.remaining = formatFileSize(availableStorage);
+		this.storageLoaded = true;
 	},
 
 	async startDownloadProcess() {
