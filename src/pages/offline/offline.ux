@@ -109,9 +109,17 @@
 			</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
+		<image
+			if="{{ dl && global.screenShape == 'circle' && downloadError }}"
+			id="mask"
+			src="/common/fail_s4.png"
+		></image>
 		<div class="downloading" if="{{ dl && global.screenShape == 'circle' && downloadError }}">
-			<image src="/common/fail.png"></image>
-			<text class="dl-text">{{ downloadError }}</text>
+			<text class="dl-text">{{ $t("offline.downloadFailedText") }}</text>
+			<image src="/common/fail_icon.png"></image>
+		</div>
+		<div id="process-s4" if="{{ dl && global.screenShape == 'circle' && downloadError }}">
+			<text class="content">{{ downloadError }}</text>
 		</div>
 
 		<div class="empty" if="{{ comicsList.length == 0 && !dl }}">
@@ -122,7 +130,7 @@
 </template>
 
 <script>
-import router from "@system.router";
+import router from "@system.router"
 import file from "@system.file";
 import fetch from "@system.fetch";
 import prompt from "@system.prompt";
@@ -1210,6 +1218,15 @@ export default {
 		position: absolute;
 		width: 80%;
 		height: 92px;
+		background-color: #262626;
+		border-radius: 100%;
+		justify-content: space-around;
+	}
+
+	#process-s4 {
+		position: absolute;
+		width: 80%;
+		padding: 10px 25px;
 		background-color: #262626;
 		border-radius: 100%;
 		justify-content: space-around;

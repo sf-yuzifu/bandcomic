@@ -63,6 +63,7 @@
         "size": "Size",
         "downloading": "Downloading",
         "loading": "Loading...",
+        "downloadFailedText": "Failed",
         "complete": "Done",
         "page": "{page}/{total}",
         "empty": "Empty",
