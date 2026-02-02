@@ -118,7 +118,11 @@
 					onchange="onSliderChange('s')"
 				></slider>
 				<div style="height: 10px"></div>
-				<text if="{{ total_chapters && !local && global.API_SETTING[global.API_SETTING.using].type !== 'qqcomic' }}" class="subtitle dl" @click="download">
+				<text
+					if="{{ total_chapters && !local }}"
+					class="subtitle dl"
+					@click="download"
+				>
 					{{ $t("photo.dl") }}
 				</text>
 			</div>
