@@ -113,6 +113,9 @@
 					></switch>
 				</div>
 			</div>
+			<text class="bold" style="color: #fff; width: 276px; text-align: center; height: 100%">
+				本项目由米坛社区开源项目支持计划提供支持
+			</text>
 			<div class="padding"></div>
 		</scroll>
 	</div>
@@ -256,7 +259,7 @@ export default {
 .box {
 	position: relative;
 	width: 100%;
-	height: 80%;
+	flex: 1;
 	flex-direction: column;
 	align-items: center;
 }
