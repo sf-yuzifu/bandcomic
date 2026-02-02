@@ -761,7 +761,14 @@ export default {
 						.replace("<chapter>", this.chapter),
 				success: async (response) => {
 					const body = response.data;
-					ImageCache = [...body.images.map((img) => img.url)];
+					// 是否为腾讯动漫
+
+					if (body.images_data) {
+						ImageCache = [...body.images_data.data.picture.map((img) => global.API_SETTING[global.API_SETTING.using].apiUrl + img.url)];
+					}
+					else {
+						ImageCache = [...body.images.map((img) => img.url)];
+					}
 					resolve();
 				},
 				fail: (data, code) => {
