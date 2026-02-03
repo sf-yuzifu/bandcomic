@@ -1100,6 +1100,8 @@ export default {
 	color: #ffffff;
 	font-weight: bold;
 	margin-bottom: 80px;
+	margin-left: 40px;
+	margin-right: 40px;
 }
 
 .empty-text {
