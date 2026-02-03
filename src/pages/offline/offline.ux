@@ -481,87 +481,11 @@ export default {
 					this.page = page;
 					await this.downloadImage(page, folderUri);
 				}
-				for (let i = 0; i < ehImageCache.length; i++) {
-					this.page = i + 1;
-					try {
-						await new Promise((resolve, reject) => {
-							fetch.fetch({
-								url: ehImageCache[i],
-								responseType: "file",
-								success: (response) => {
-									let fileUri = `${folderUri}/${i + 1}`;
-									if (response.data) {
-										file.move({
-											srcUri: response.data,
-											dstUri: fileUri,
-											success: function () {
-												console.log(`图片保存成功: ${fileUri}`);
-												resolve();
-											},
-											fail: function (data, code) {
-												reject(this.$t("offline.moveImageFailed", { code: code }));
-											},
-										});
-									} else {
-										reject(this.$t("offline.emptyImageData"));
-									}
-								},
-								fail: (data, code) => {
-									if (code === 28) {
-										reject(this.$t("offline.downloadTimeoutFailed"));
-									} else {
-										reject(this.$t("offline.downloadFailed", { code: code }));
-									}
-								},
-							});
-						});
-					} catch (error) {
-						throw error;
-					}
-				}
 			} else {
 				await this.DownloadImage();
 				for (let page = 1; page <= this.page_count; page++) {
 					this.page = page;
 					await this.downloadImage(page, folderUri);
-				}
-				for (let i = 0; i < ImageCache.length; i++) {
-					this.page = i + 1;
-					try {
-						await new Promise((resolve, reject) => {
-							fetch.fetch({
-								url: ImageCache[i],
-								responseType: "file",
-								success: (response) => {
-									let fileUri = `${folderUri}/${i + 1}`;
-									if (response.data) {
-										file.move({
-											srcUri: response.data,
-											dstUri: fileUri,
-											success: function () {
-												console.log(`图片保存成功: ${fileUri}`);
-												resolve();
-											},
-											fail: function (data, code) {
-												reject(this.$t("offline.moveImageFailed", { code: code }));
-											},
-										});
-									} else {
-										reject(this.$t("offline.emptyImageData"));
-									}
-								},
-								fail: (data, code) => {
-									if (code === 28) {
-										reject(this.$t("offline.downloadTimeoutFailed"));
-									} else {
-										reject(this.$t("offline.downloadFailed", { code: code }));
-									}
-								},
-							});
-						});
-					} catch (error) {
-						throw error;
-					}
 				}
 			}
 
