@@ -55,7 +55,10 @@
 			</text>
 			<text else style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
 			<div class="input-line" @click="changeState">
-				<scroll style="position: absolute; width: 100%; height: 42px;" scroll-x="true">
+				<scroll
+					style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
+					scroll-x="true"
+				>
 					<text class="input-text">
 						{{ context }}
 					</text>
