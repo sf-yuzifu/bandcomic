@@ -523,7 +523,7 @@ export default {
 			params: {
 				id: this.id,
 				page_count: this.page_count,
-				chapter: this.chapter,
+				chapter: Math.floor(this.chapter),
 				name: this.title,
 				cover: this.cover,
 				dl: true,
