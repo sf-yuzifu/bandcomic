@@ -33,7 +33,8 @@
 					}
 				"
 				@click="showButton"
-				alt="{{ loading ? '/common/loading.png' : '/common/error.png' }}"
+				alt="{{ loading == 'end' ? '/common/end.png' : loading ? '/common/loading.png' :
+'/common/error.png' }}"
 				style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale
 / 100 * 2)}px;` }}"
 			></image>
@@ -162,7 +163,9 @@
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
 				&#xe685;
 			</span>
-			<span>{{ $t("photo.page", { page: page }) }}</span>
+			<span>
+				{{ $t("photo.page", { page: page > page_count ? page_count : page }) }}
+			</span>
 		</text>
 	</div>
 </template>
@@ -377,6 +380,11 @@ export default {
 		this.size.width = screenSize.width / 2;
 		this.size.height = screenSize.height / 2;
 
+		if (this.page > this.page_count) {
+			this.loading = "end";
+			return;
+		}
+
 		if (this.local) {
 			this.images = `internal://files/${this.id}/${this.page}`;
 			return;
@@ -424,6 +432,12 @@ export default {
 		this.scale = 0;
 		this.size.width = screenSize.width / 2;
 		this.size.height = screenSize.height / 2;
+
+		if (this.page > this.page_count) {
+			this.loading = "end";
+			return;
+		}
+
 		if (this.local) {
 			this.images = `internal://files/${this.id}/${this.page}`;
 			return;
@@ -474,7 +488,7 @@ export default {
 	toPage(value) {
 		switch (value) {
 			case "+":
-				if (this.page < this.page_count) {
+				if (this.page <= this.page_count) {
 					this.page += 1;
 				}
 				break;
