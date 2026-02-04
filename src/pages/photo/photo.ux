@@ -245,7 +245,7 @@ export default {
 		if (!this.local) {
 			originalName = this.title;
 			this.is_serial = this.total_chapters > 1;
-		} else if (this.is_serial){
+		} else if (this.is_serial) {
 			this.downloadChapter = JSON.parse(this.downloadChapter);
 			this.total_chapters = this.downloadChapter.length;
 		}
@@ -287,6 +287,7 @@ export default {
 		this.scale = 0;
 		this.size.width = screenSize.width / 2;
 		this.size.height = screenSize.height / 2;
+		const chapter = this.chapter;
 
 		fetch.fetch({
 			url:
@@ -298,6 +299,9 @@ export default {
 				"QQComic-Cookie": global.cookie || "",
 			},
 			success: (response) => {
+				if (chapter != this.chapter) {
+					return;
+				}
 				const body = response.data;
 				ImageCache = [
 					...body.images_data.data.picture.map(
@@ -310,6 +314,9 @@ export default {
 				this.getImageForPage();
 			},
 			fail: (data, code) => {
+				if (chapter != this.chapter) {
+					return;
+				}
 				this.images = "internal://files/error.png";
 				console.log(`handling fail, errMsg = ${data}`);
 				console.log(`handling fail, errCode = ${code}`);
@@ -323,6 +330,7 @@ export default {
 		this.scale = 0;
 		this.size.width = screenSize.width / 2;
 		this.size.height = screenSize.height / 2;
+		const chapter = this.chapter;
 
 		fetch.fetch({
 			url:
@@ -331,6 +339,9 @@ export default {
 					.replace("<id>", this.id)
 					.replace("<chapter>", Math.floor(this.chapter)),
 			success: (response) => {
+				if (chapter != this.chapter) {
+					return;
+				}
 				const body = response.data;
 				ImageCache = [...body.images.map((img) => img.url)];
 				this.title = body.title;
@@ -338,6 +349,9 @@ export default {
 				this.getImageForPage();
 			},
 			fail: (data, code) => {
+				if (chapter != this.chapter) {
+					return;
+				}
 				this.images = "internal://files/error.png";
 				console.log(`handling fail, errMsg = ${data}`);
 				console.log(`handling fail, errCode = ${code}`);
