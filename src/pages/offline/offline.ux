@@ -319,7 +319,7 @@ export default {
 				success: (data) => {
 					let length = 0;
 					for (let i of data.subFiles) {
-						if ( i.type === "dir") {
+						if ( i.type === "dir" && i.subFiles.length != 0) {
 							if (!this.comicsList[a].totalChapter) {
 								this.comicsList[a].totalChapter = []
 							}
