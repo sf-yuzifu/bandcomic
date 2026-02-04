@@ -551,6 +551,10 @@ export default {
 					Math.floor((e.progress / 100) * this.total_chapters) || 1;
 				if (this.local) {
 					this.title = this.downloadChapter[this.chapter - 1][0];
+				} else {
+					this.title = `${this.$t("photo.chapter")} ${Math.floor(
+						this.chapter
+					)}`;
 				}
 			}
 		} else {
