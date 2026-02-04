@@ -120,7 +120,7 @@
 				></slider>
 				<div style="height: 10px"></div>
 				<text
-					if="{{ total_chapters > 1 && !local }}"
+					if="{{ total_chapters > 1 && !local && canDownload }}"
 					class="subtitle dl"
 					@click="download"
 				>
@@ -224,6 +224,7 @@ export default {
 		images: null,
 		local: false,
 		loading: true,
+		canDownload: false,
 		title: "",
 		chapter: 1,
 		cover: "",
@@ -252,6 +253,7 @@ export default {
 	},
 
 	processData() {
+		this.canDownload = false;
 		if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
 			this.getImages();
 		} else if (
@@ -395,6 +397,8 @@ export default {
 			return;
 		}
 
+		this.canDownload = true;
+
 		if (this.local) {
 			if (this.is_serial) {
 				const chapterNum = this.downloadChapter[this.chapter - 1][2];
@@ -455,6 +459,8 @@ export default {
 			this.loading = "end";
 			return;
 		}
+
+		this.canDownload = true;
 
 		if (this.local) {
 			if (this.is_serial) {
