@@ -397,10 +397,10 @@ export default {
 
 		if (this.local) {
 			if (this.is_serial) {
-				this.images = `internal://files/${this.id}/${
-					this.downloadChapter[this.chapter - 1][0]
-				}/${this.page}`;
-				this.title = this.downloadChapter[this.chapter - 1][0];
+				const chapterNum = this.downloadChapter[this.chapter - 1][2];
+				const chapterName = this.downloadChapter[this.chapter - 1][0];
+				this.images = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
+				this.title = chapterName;
 				this.page_count = this.downloadChapter[this.chapter - 1][1];
 			} else {
 				this.images = `internal://files/${this.id}/${this.page}`;
@@ -458,10 +458,10 @@ export default {
 
 		if (this.local) {
 			if (this.is_serial) {
-				this.images = `internal://files/${this.id}/${
-					this.downloadChapter[this.chapter - 1][0]
-				}/${this.page}`;
-				this.title = this.downloadChapter[this.chapter - 1][0];
+				const chapterNum = this.downloadChapter[this.chapter - 1][2];
+				const chapterName = this.downloadChapter[this.chapter - 1][0];
+				this.images = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
+				this.title = chapterName;
 				this.page_count = this.downloadChapter[this.chapter - 1][1];
 			} else {
 				this.images = `internal://files/${this.id}/${this.page}`;

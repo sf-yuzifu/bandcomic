@@ -323,13 +323,20 @@ export default {
 							if (!this.comicsList[a].totalChapter) {
 								this.comicsList[a].totalChapter = []
 							}
-							this.comicsList[a].totalChapter.push([i.uri.split("/").pop(),i.subFiles.length])
+							const folderName = i.uri.split("/").pop();
+							const parts = folderName.split("　");
+							const chapterNum = parts[0];
+							const chapterName = parts.slice(1).join("　");
+							this.comicsList[a].totalChapter.push([chapterName, i.subFiles.length, chapterNum])
 							for (let m of i.subFiles) {
 								length += m.length;
 							}
 						} else {
 							length += i.length;
 						}
+					}
+					if (this.comicsList[a].totalChapter) {
+						this.comicsList[a].totalChapter.sort((a, b) => a[2] - b[2]);
 					}
 					this.comicsList[a].size = formatFileSize(length);
 					comicsTotalSize += length;
@@ -487,7 +494,7 @@ export default {
 				}`;
 				await this.createFolder(mainFolderUri);
 				const chapterName = sanitizeFolderName(this.name);
-				folderUri = `${mainFolderUri}/${chapterName}`;
+				folderUri = `${mainFolderUri}/${this.chapter}　${chapterName}`;
 				coverUri = mainFolderUri;
 			} else {
 				folderUri = `internal://files/${
