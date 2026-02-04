@@ -82,7 +82,7 @@
 
 		<div class="com" if="{{ showSlider }}">
 			<div class="shade">
-				<div if="{{ total_chapters && !local }}" class="chapter">
+				<div if="{{ total_chapters > 1 }}" class="chapter">
 					<img src="/common/left.png" onclick="toChapter('-')" class="" />
 					<marquee
 						class="subtitle"
@@ -93,12 +93,12 @@
 					</marquee>
 					<img src="/common/right.png" onclick="toChapter('+')" class="" />
 				</div>
-				<text class="subtitle" if="{{ total_chapters && !local }}">
+				<text class="subtitle" if="{{ total_chapters > 1 }}">
 					{{ $t("photo.chapterChange") }}
 				</text>
-				<div if="{{ total_chapters && !local }}" style="height: 10px"></div>
+				<div if="{{ total_chapters > 1 }}" style="height: 10px"></div>
 				<slider
-					if="{{ total_chapters && !local }}"
+					if="{{ total_chapters > 1 }}"
 					class="slider"
 					min="0"
 					max="100"
@@ -107,7 +107,7 @@
 					ontouchend="toChapter"
 					onchange="onSliderChange('c')"
 				></slider>
-				<div if="{{ total_chapters && !local }}" style="height: 20px"></div>
+				<div if="{{ total_chapters > 1 }}" style="height: 20px"></div>
 				<text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
 				<div style="height: 10px"></div>
 				<slider
@@ -120,7 +120,7 @@
 				></slider>
 				<div style="height: 10px"></div>
 				<text
-					if="{{ total_chapters && !local }}"
+					if="{{ total_chapters > 1 && !local }}"
 					class="subtitle dl"
 					@click="download"
 				>
@@ -177,6 +177,7 @@ import fetch from "@system.fetch";
 const { screenSize, getTime } = global;
 
 let ImageCache = [];
+let originalName;
 
 function addImageParams(
 	url,
@@ -227,6 +228,8 @@ export default {
 		chapter: 1,
 		cover: "",
 		total_chapters: 0,
+		is_serial: false,
+		downloadChapter: "",
 	},
 
 	onShow() {
@@ -238,6 +241,13 @@ export default {
 	},
 
 	onInit() {
+		if (!this.local) {
+			originalName = this.title;
+			this.is_serial = this.total_chapters > 1;
+		} else if (this.is_serial){
+			this.downloadChapter = JSON.parse(this.downloadChapter);
+			this.total_chapters = this.downloadChapter.length;
+		}
 		this.processData();
 	},
 
@@ -386,7 +396,15 @@ export default {
 		}
 
 		if (this.local) {
-			this.images = `internal://files/${this.id}/${this.page}`;
+			if (this.is_serial) {
+				this.images = `internal://files/${this.id}/${
+					this.downloadChapter[this.chapter - 1][0]
+				}/${this.page}`;
+				this.title = this.downloadChapter[this.chapter - 1][0];
+				this.page_count = this.downloadChapter[this.chapter - 1][1];
+			} else {
+				this.images = `internal://files/${this.id}/${this.page}`;
+			}
 			return;
 		}
 
@@ -439,7 +457,15 @@ export default {
 		}
 
 		if (this.local) {
-			this.images = `internal://files/${this.id}/${this.page}`;
+			if (this.is_serial) {
+				this.images = `internal://files/${this.id}/${
+					this.downloadChapter[this.chapter - 1][0]
+				}/${this.page}`;
+				this.title = this.downloadChapter[this.chapter - 1][0];
+				this.page_count = this.downloadChapter[this.chapter - 1][1];
+			} else {
+				this.images = `internal://files/${this.id}/${this.page}`;
+			}
 			return;
 		}
 		fetch.fetch({
@@ -520,8 +546,13 @@ export default {
 
 	onSliderChange(type, e) {
 		if (type === "c") {
-			this.chapter = (e.progress / 100) * this.total_chapters || 1;
-			this.title = `${this.$t("photo.chapter")} ${Math.floor(this.chapter)}`;
+			if (e.isFromUser) {
+				this.chapter =
+					Math.floor((e.progress / 100) * this.total_chapters) || 1;
+				if (this.local) {
+					this.title = this.downloadChapter[this.chapter - 1][0];
+				}
+			}
 		} else {
 			this.scale = e.progress;
 			this.$element("scrollId").scrollTo({
@@ -538,7 +569,9 @@ export default {
 				id: this.id,
 				page_count: this.page_count,
 				chapter: Math.floor(this.chapter),
+				is_serial: this.is_serial,
 				name: this.title,
+				originalName: this.is_serial ? originalName : this.title,
 				cover: this.cover,
 				dl: true,
 			},

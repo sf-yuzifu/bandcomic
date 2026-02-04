@@ -65,7 +65,7 @@
 					<text class="bold grey">{{ $t("detail.page_count") }}</text>
 					<text class="bold">{{ data.page_count }}</text>
 				</div>
-				<div class="column" if="{{ data.total_chapters }}">
+				<div class="column" if="{{ data.total_chapters > 1 }}">
 					<text class="bold grey">{{ $t("detail.total_chapters") }}</text>
 					<text class="bold">{{ data.total_chapters }}</text>
 				</div>
@@ -165,8 +165,9 @@ export default {
 			uri: "/pages/photo",
 			params: {
 				id: this.data.item_id,
-				total_chapters: this.data.total_chapters,
+				total_chapters: this.data.total_chapters <= 1 ? 0 : this.data.total_chapters,
 				page_count: this.data.page_count,
+				title: this.data.name,
 				cover: this.data.cover,
 			},
 		});

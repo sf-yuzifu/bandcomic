@@ -158,6 +158,12 @@ function formatFileSize(size) {
 	}
 }
 
+function sanitizeFolderName(name) {
+	if (!name) return name;
+	const invalidChars = /[\\/:*?"<>|]/g;
+	return name.replace(invalidChars, '_');
+}
+
 function addImageParams(
 	url,
 	width = 600,
@@ -218,6 +224,8 @@ export default {
 		isLoading: false,
 		chapter: 0,
 		downloadError: "",
+		originalName: "",
+		is_serial: false,
 	},
 
 	onShow() {
@@ -311,12 +319,22 @@ export default {
 				success: (data) => {
 					let length = 0;
 					for (let i of data.subFiles) {
-						length += i.length;
+						if ( i.type === "dir") {
+							if (!this.comicsList[a].totalChapter) {
+								this.comicsList[a].totalChapter = []
+							}
+							this.comicsList[a].totalChapter.push([i.uri.split("/").pop(),i.subFiles.length])
+							for (let m of i.subFiles) {
+								length += m.length;
+							}
+						} else {
+							length += i.length;
+						}
 					}
 					this.comicsList[a].size = formatFileSize(length);
 					comicsTotalSize += length;
 					this.comicsUsed = formatFileSize(comicsTotalSize);
-					console.log("大小：", this.comicsList[a].size);
+					// console.log("大小：", this.comicsList[a].size);
 					
 					completedCount++;
 					if (completedCount === this.comicsList.length && totalStorage > 0) {
@@ -395,14 +413,13 @@ export default {
 							comicsData = JSON.parse(data.text);
 						}
 
-						// 添加新的漫画信息
 						const newComic = {
-							name: this.name,
+							name: this.is_serial ? this.originalName : this.name,
 							page_count: this.page_count,
-							id: global.API_SETTING.using + "_" + this.id + (this.chapter ? "_" + this.chapter : ""),
+							id: global.API_SETTING.using + "_" + this.id,
+							is_serial: this.is_serial,
 						};
 
-						// 检查是否已存在相同id的漫画
 						const existingIndex = comicsData.findIndex(
 							(comic) => comic.id === newComic.id
 						);
@@ -412,7 +429,6 @@ export default {
 							comicsData.push(newComic);
 						}
 
-						// 写回文件
 						file.writeText({
 							uri: "internal://files/comics.json",
 							text: JSON.stringify(comicsData),
@@ -439,9 +455,10 @@ export default {
 		return new Promise((resolve, reject) => {
 			const initialData = [
 				{
-					name: this.name,
+					name: this.is_serial ? this.originalName : this.name,
 					page_count: this.page_count,
-					id: global.API_SETTING.using + "_" + this.id + (this.chapter ? "_" + this.chapter : ""),
+					id: global.API_SETTING.using + "_" + this.id,
+					is_serial: this.is_serial,
 				},
 			];
 
@@ -461,12 +478,26 @@ export default {
 
 	async createFolderAndDownload() {
 		try {
-			const folderUri = `internal://files/${
-				global.API_SETTING.using + "_" + this.id + (this.chapter ? "_" + this.chapter : "")
-			}`;
+			let folderUri;
+			let coverUri;
+
+			if (this.is_serial) {
+				const mainFolderUri = `internal://files/${
+					global.API_SETTING.using + "_" + this.id
+				}`;
+				await this.createFolder(mainFolderUri);
+				const chapterName = sanitizeFolderName(this.name);
+				folderUri = `${mainFolderUri}/${chapterName}`;
+				coverUri = mainFolderUri;
+			} else {
+				folderUri = `internal://files/${
+					global.API_SETTING.using + "_" + this.id
+				}`;
+				coverUri = folderUri;
+			}
 			await this.createFolder(folderUri);
 
-			await this.downloadCover(folderUri);
+			await this.downloadCover(coverUri);
 
 			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
 				for (let page = 1; page <= this.page_count; page++) {
@@ -809,6 +840,8 @@ export default {
 			params: {
 				id: val.id,
 				page_count: val.page_count,
+				is_serial: val.is_serial ? 1 : "",
+				downloadChapter: JSON.stringify(val.totalChapter),
 				local: true,
 			},
 		});
