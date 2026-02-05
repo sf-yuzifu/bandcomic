@@ -97,16 +97,23 @@
 					{{ $t("photo.chapterChange") }}
 				</text>
 				<div if="{{ total_chapters > 1 }}" style="height: 10px"></div>
-				<slider
+				<div
 					if="{{ total_chapters > 1 }}"
-					class="slider"
-					min="0"
-					max="100"
-					step="1"
-					value="{{ chapter / total_chapters * 100 }}"
-					ontouchend="toChapter"
-					onchange="onSliderChange('c')"
-				></slider>
+					style="
+						flex-direction: row;
+						justify-content: space-around;
+						height: 40px;
+					"
+				>
+					<picker
+						for="pickerValue in pickerValues"
+						type="text"
+						style="width:{{ 80/pickerValues.length }}%; selected-font-size: 32px;"
+						range="{{ pickerValue }}"
+						selected="{{ chapter.toString().padStart(pickerValues.length, '0')[$idx] }}"
+						onchange="onPickerChange($idx)"
+					></picker>
+				</div>
 				<div if="{{ total_chapters > 1 }}" style="height: 20px"></div>
 				<text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
 				<div style="height: 10px"></div>
@@ -231,6 +238,8 @@ export default {
 		total_chapters: 0,
 		is_serial: false,
 		downloadChapter: "",
+		chapterList: [],
+		pickerValues: [],
 	},
 
 	onShow() {
@@ -245,11 +254,37 @@ export default {
 		if (!this.local) {
 			originalName = this.title;
 			this.is_serial = this.total_chapters > 1;
+			if (this.is_serial) {
+				this.chapterList = [];
+				for (let i = 1; i <= this.total_chapters; i++) {
+					this.chapterList.push(`${this.$t("photo.chapter")} ${i}`);
+				}
+				this.generatePickerRanges(this.total_chapters);
+			}
 		} else if (this.is_serial) {
 			this.downloadChapter = JSON.parse(this.downloadChapter);
 			this.total_chapters = this.downloadChapter.length;
+			this.chapterList = this.downloadChapter.map((ch) => ch[0]);
+			this.generatePickerRanges(this.total_chapters);
 		}
 		this.processData();
+	},
+
+	generatePickerRanges(total) {
+		const values = [];
+		const totalStr = total.toString();
+		const digits = totalStr.length;
+
+		for (let i = 0; i < digits; i++) {
+			const digit = parseInt(totalStr[i]);
+			const maxDigit = i === 0 ? digit : 9;
+			const valueRange = [];
+			for (let j = 0; j <= maxDigit; j++) {
+				valueRange.push(j.toString());
+			}
+			values.push(valueRange);
+		}
+		this.pickerValues = values;
 	},
 
 	processData() {
@@ -564,26 +599,81 @@ export default {
 		this.showit = !this.showit;
 	},
 
-	onSliderChange(type, e) {
-		if (type === "c") {
-			if (e.isFromUser) {
-				this.chapter =
-					Math.floor((e.progress / 100) * this.total_chapters) || 1;
-				if (this.local) {
-					this.title = this.downloadChapter[this.chapter - 1][0];
-				} else {
-					this.title = `${this.$t("photo.chapter")} ${Math.floor(
-						this.chapter
-					)}`;
+	onPickerChange(pickerIndex, e) {
+		const chapterStr = this.chapter
+			.toString()
+			.padStart(this.pickerValues.length, "0");
+		const newDigits = [...chapterStr];
+		newDigits[pickerIndex] = e.newValue;
+
+		let newChapter = parseInt(newDigits.join(""));
+
+		if (newChapter > this.total_chapters) {
+			newChapter = this.total_chapters;
+		}
+		if (newChapter < 1) {
+			newChapter = 1;
+		}
+		this.chapter = newChapter;
+
+		this.updatePickerRanges();
+
+		if (this.local) {
+			this.title = this.downloadChapter[this.chapter - 1][0];
+		} else {
+			this.title = `${this.$t("photo.chapter")} ${this.chapter}`;
+		}
+		this.$element("scrollId").scrollTo({
+			top: 0,
+			left: 0,
+		});
+		this.page = 1;
+		this.processData();
+	},
+
+	updatePickerRanges() {
+		const values = [];
+		const totalStr = this.total_chapters.toString();
+		const digits = totalStr.length;
+		const chapterStr = this.chapter.toString().padStart(digits, "0");
+
+		for (let i = 0; i < digits; i++) {
+			const digit = parseInt(totalStr[i]);
+			const currentDigit = parseInt(chapterStr[i]);
+			const valueRange = [];
+
+			if (i === 0) {
+				for (let j = 0; j <= digit; j++) {
+					valueRange.push(j.toString());
+				}
+			} else {
+				let maxDigit = 9;
+				for (let k = 0; k < i; k++) {
+					if (parseInt(chapterStr[k]) < parseInt(totalStr[k])) {
+						maxDigit = 9;
+						break;
+					} else if (parseInt(chapterStr[k]) > parseInt(totalStr[k])) {
+						maxDigit = 0;
+						break;
+					} else if (k === i - 1) {
+						maxDigit = digit;
+					}
+				}
+				for (let j = 0; j <= maxDigit; j++) {
+					valueRange.push(j.toString());
 				}
 			}
-		} else {
-			this.scale = e.progress;
-			this.$element("scrollId").scrollTo({
-				top: 0,
-				left: 0,
-			});
+			values.push(valueRange);
 		}
+		this.pickerValues = values;
+	},
+
+	onSliderChange(e) {
+		this.scale = e.progress;
+		this.$element("scrollId").scrollTo({
+			top: 0,
+			left: 0,
+		});
 	},
 
 	download() {
