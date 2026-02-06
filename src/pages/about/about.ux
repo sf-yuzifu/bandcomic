@@ -307,7 +307,7 @@ export default {
 
 .switch {
 	height: 36px;
-	width: 80px;
+	flex-basis: 80px;
 }
 
 /* 看看是不是小米手表 */
