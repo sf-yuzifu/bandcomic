@@ -123,7 +123,7 @@
 					max="100"
 					step="1"
 					value="{{ scale }}"
-					onchange="onSliderChange('s')"
+					onchange="onSliderChange"
 				></slider>
 				<div style="height: 10px"></div>
 				<text
