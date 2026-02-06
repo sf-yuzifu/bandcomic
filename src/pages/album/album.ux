@@ -29,76 +29,78 @@
 			</span>
 			<span>{{ $t("detail.detail") }}</span>
 		</text>
-		<scroll
-			id="scrollId"
-			class="box"
-			scroll-x="true"
-			scroll-y="true"
-			bounces="true"
-		>
-			<image
-				class="cover"
-				@complete="getPhoto"
-				src="{{ data.cover || '/common/loading.png' }}"
-				alt="/common/loading.png"
-				onclick="toPhoto"
-				style="{{ `width:${size.width}px;height:${size.height}px;` }}"
-			></image>
-			<text class="title1">{{ data.name }}</text>
-			<div class="detail">
-				<div class="column" if="{{ data.gid }}">
-					<text class="bold grey">GID</text>
-					<text class="bold">{{ data.gid.toString() }}</text>
-				</div>
-				<div class="column" else>
-					<text class="bold grey" style="width: 48px">ID</text>
-					<marquee
-						style="font-size: 24px; width: 100%; text-align: right;"
-						scrollamount="{{ 20 }}"
-						text-offset="{{ 20 }}"
-						class="bold"
+		<div class="box">
+			<scroll
+				id="scrollId"
+				class="box"
+				scroll-x="true"
+				scroll-y="true"
+				bounces="true"
+			>
+				<image
+					class="cover"
+					@complete="getPhoto"
+					src="{{ data.cover || '/common/loading.png' }}"
+					alt="/common/loading.png"
+					onclick="toPhoto"
+					style="{{ `width:${size.width}px;height:${size.height}px;` }}"
+				></image>
+				<text class="title1">{{ data.name }}</text>
+				<div class="detail">
+					<div class="column" if="{{ data.gid }}">
+						<text class="bold grey">GID</text>
+						<text class="bold">{{ data.gid.toString() }}</text>
+					</div>
+					<div class="column" else>
+						<text class="bold grey" style="width: 48px">ID</text>
+						<marquee
+							style="font-size: 24px; width: 100%; text-align: right"
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							class="bold"
+						>
+							{{ data.item_id.toString() }}
+						</marquee>
+					</div>
+					<div class="column" if="{{ data.page_count }}">
+						<text class="bold grey">{{ $t("detail.page_count") }}</text>
+						<text class="bold">{{ data.page_count }}</text>
+					</div>
+					<div class="column" if="{{ data.total_chapters > 1 }}">
+						<text class="bold grey">{{ $t("detail.total_chapters") }}</text>
+						<text class="bold">{{ data.total_chapters }}</text>
+					</div>
+					<div class="column" if="{{ data.views }}">
+						<text class="bold grey">{{ $t("detail.views") }}</text>
+						<text class="bold">{{ data.views }}</text>
+					</div>
+					<div class="column" if="{{ data.rate }}">
+						<text class="bold grey">{{ $t("detail.rate") }}</text>
+						<text class="bold">{{ data.rate }}</text>
+					</div>
+					<div
+						class="column tags"
+						if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type !== 'ehentai' }}"
 					>
-						{{ data.item_id.toString() }}
-					</marquee>
+						<text class="bold grey">{{ $t("detail.tags") }}</text>
+						<text for="{{ tag in data.tags }}" class="bold">
+							{{ tag }}
+						</text>
+					</div>
+					<div
+						class="column tags"
+						if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type === 'ehentai' }}"
+						for="{{ tagType in Object.keys(data.tags) }}"
+					>
+						<text class="bold grey">{{ tagType }}</text>
+						<text for="{{ tag in data.tags[tagType] }}" class="bold">
+							{{ tag }}
+						</text>
+					</div>
 				</div>
-				<div class="column" if="{{ data.page_count }}">
-					<text class="bold grey">{{ $t("detail.page_count") }}</text>
-					<text class="bold">{{ data.page_count }}</text>
-				</div>
-				<div class="column" if="{{ data.total_chapters > 1 }}">
-					<text class="bold grey">{{ $t("detail.total_chapters") }}</text>
-					<text class="bold">{{ data.total_chapters }}</text>
-				</div>
-				<div class="column" if="{{ data.views }}">
-					<text class="bold grey">{{ $t("detail.views") }}</text>
-					<text class="bold">{{ data.views }}</text>
-				</div>
-				<div class="column" if="{{ data.rate }}">
-					<text class="bold grey">{{ $t("detail.rate") }}</text>
-					<text class="bold">{{ data.rate }}</text>
-				</div>
-				<div
-					class="column tags"
-					if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type !== 'ehentai' }}"
-				>
-					<text class="bold grey">{{ $t("detail.tags") }}</text>
-					<text for="{{ tag in data.tags }}" class="bold">
-						{{ tag }}
-					</text>
-				</div>
-				<div
-					class="column tags"
-					if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type === 'ehentai' }}"
-					for="{{ tagType in Object.keys(data.tags) }}"
-				>
-					<text class="bold grey">{{ tagType }}</text>
-					<text for="{{ tag in data.tags[tagType] }}" class="bold">
-						{{ tag }}
-					</text>
-				</div>
-			</div>
-			<div class="padding"></div>
-		</scroll>
+				<div class="padding"></div>
+			</scroll>
+		</div>
 		<img
 			if="{{ global.screenShape != 'circle' && (!data.total_chapters || data.total_chapters
 <=1) }}"
@@ -165,7 +167,8 @@ export default {
 			uri: "/pages/photo",
 			params: {
 				id: this.data.item_id,
-				total_chapters: this.data.total_chapters <= 1 ? 0 : this.data.total_chapters,
+				total_chapters:
+					this.data.total_chapters <= 1 ? 0 : this.data.total_chapters,
 				page_count: this.data.page_count,
 				title: this.data.name,
 				cover: this.data.cover,

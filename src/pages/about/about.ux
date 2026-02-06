@@ -23,101 +23,106 @@
 			<span>{{ $t("about") }}</span>
 		</text>
 		<div style="height: 6px"></div>
-		<scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
-			<div id="info">
-				<div id="inner">
-					<text class="bold" style="color: #fff; font-size: 30px">
-						{{ $t("appName") }}
+		<div class="box">
+			<scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+				<div id="info">
+					<div id="inner">
+						<text class="bold" style="color: #fff; font-size: 30px">
+							{{ $t("appName") }}
+						</text>
+						<text id="version" class="re">{{ ver }}({{ code }})</text>
+					</div>
+					<div id="logo-container">
+						<image id="logo" style="width: 76px" src="/common/logo.png" />
+					</div>
+				</div>
+				<div id="copyright">
+					<text class="re bold">
+						<span>{{ $t("author") }}</span>
+						<!-- 这里是占位符 -->
+						<span style="color: transparent">2</span>
+						<span class="bold" style="color: #fff">小鱼yuzifu</span>
 					</text>
-					<text id="version" class="re">{{ ver }}({{ code }})</text>
+					<div style="width: 1px; height: 10px"></div>
+					<text class="re bold">{{ $t("tks") }}</text>
+					<text class="bold" style="color: #fff">OrPudding</text>
+					<text class="bold" style="color: #fff">NEORUAA</text>
+					<text class="bold" style="color: #fff">无源流沙</text>
 				</div>
-				<div id="logo-container">
-					<image id="logo" style="width: 76px" src="/common/logo.png" />
+				<div class="settings">
+					<text class="re bold">{{ $t("setting") }}</text>
+					<div class="setting-item">
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							style="font-weight: bold; color: #fff"
+						>
+							{{ $t("settings.searchPageSize") }}
+						</marquee>
+						<picker
+							class="picker"
+							type="text"
+							range="{{ pickerList1 }}"
+							selected="{{ pickerList1.indexOf(global.APP_SETTING.searchPageSize) }}"
+							onchange="onPicker1Change"
+						></picker>
+					</div>
+					<div class="setting-item">
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							style="font-weight: bold; color: #fff"
+						>
+							{{ $t("settings.imageQuality") }}
+						</marquee>
+						<picker
+							class="picker"
+							type="text"
+							range="{{ pickerList2 }}"
+							selected="{{ pickerList2.indexOf(global.APP_SETTING.imageQuality) }}"
+							onchange="onPicker2Change"
+						></picker>
+					</div>
+					<div class="setting-item">
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							style="font-weight: bold; color: #fff"
+						>
+							{{ $t("settings.imageSize") }}
+						</marquee>
+						<picker
+							class="picker"
+							type="text"
+							range="{{ pickerList3 }}"
+							selected="{{ pickerList3.indexOf(global.APP_SETTING.imageSize) }}"
+							onchange="onPicker3Change"
+						></picker>
+					</div>
+					<div class="setting-item">
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							style="font-weight: bold; color: #fff"
+						>
+							{{ $t("settings.showCoverInSearch") }}
+						</marquee>
+						<switch
+							checked="{{ global.APP_SETTING.showCoverInSearch }}"
+							class="switch"
+							@change="onSwitchChange"
+						></switch>
+					</div>
 				</div>
-			</div>
-			<div id="copyright">
-				<text class="re bold">
-					<span>{{ $t("author") }}</span>
-					<!-- 这里是占位符 -->
-					<span style="color: transparent">2</span>
-					<span class="bold" style="color: #fff">小鱼yuzifu</span>
+				<text
+					class="bold"
+					style="color: #fff; width: 276px; text-align: center; height: 100%"
+				>
+					本项目由米坛社区开源项目支持计划提供支持
 				</text>
-				<div style="width: 1px; height: 10px"></div>
-				<text class="re bold">{{ $t("tks") }}</text>
-				<text class="bold" style="color: #fff">OrPudding</text>
-				<text class="bold" style="color: #fff">NEORUAA</text>
-				<text class="bold" style="color: #fff">无源流沙</text>
-			</div>
-			<div class="settings">
-				<text class="re bold">{{ $t("setting") }}</text>
-				<div class="setting-item">
-					<marquee
-						scrollamount="{{ 20 }}"
-						text-offset="{{ 20 }}"
-						style="font-weight: bold; color: #fff"
-					>
-						{{ $t("settings.searchPageSize") }}
-					</marquee>
-					<picker
-						class="picker"
-						type="text"
-						range="{{ pickerList1 }}"
-						selected="{{ pickerList1.indexOf(global.APP_SETTING.searchPageSize) }}"
-						onchange="onPicker1Change"
-					></picker>
-				</div>
-				<div class="setting-item">
-					<marquee
-						scrollamount="{{ 20 }}"
-						text-offset="{{ 20 }}"
-						style="font-weight: bold; color: #fff"
-					>
-						{{ $t("settings.imageQuality") }}
-					</marquee>
-					<picker
-						class="picker"
-						type="text"
-						range="{{ pickerList2 }}"
-						selected="{{ pickerList2.indexOf(global.APP_SETTING.imageQuality) }}"
-						onchange="onPicker2Change"
-					></picker>
-				</div>
-				<div class="setting-item">
-					<marquee
-						scrollamount="{{ 20 }}"
-						text-offset="{{ 20 }}"
-						style="font-weight: bold; color: #fff"
-					>
-						{{ $t("settings.imageSize") }}
-					</marquee>
-					<picker
-						class="picker"
-						type="text"
-						range="{{ pickerList3 }}"
-						selected="{{ pickerList3.indexOf(global.APP_SETTING.imageSize) }}"
-						onchange="onPicker3Change"
-					></picker>
-				</div>
-				<div class="setting-item">
-					<marquee
-						scrollamount="{{ 20 }}"
-						text-offset="{{ 20 }}"
-						style="font-weight: bold; color: #fff"
-					>
-						{{ $t("settings.showCoverInSearch") }}
-					</marquee>
-					<switch
-						checked="{{ global.APP_SETTING.showCoverInSearch }}"
-						class="switch"
-						@change="onSwitchChange"
-					></switch>
-				</div>
-			</div>
-			<text class="bold" style="color: #fff; width: 276px; text-align: center; height: 100%">
-				本项目由米坛社区开源项目支持计划提供支持
-			</text>
-			<div class="padding"></div>
-		</scroll>
+				<div class="padding"></div>
+			</scroll>
+		</div>
 	</div>
 </template>
 
