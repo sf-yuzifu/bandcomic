@@ -159,16 +159,10 @@ export default {
 		apiCall(apiKey, {
 			responseType: "json",
 			success: (response) => {
-				if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
-					this.ehHandleSearchSuccess(response);
-				} else if (
+				if (
 					global.API_SETTING[global.API_SETTING.using].type === "qqcomic"
 				) {
 					this.QQComicHandleSearchSuccess(response);
-				} else if (
-					global.API_SETTING[global.API_SETTING.using].type === "jmcomic"
-				) {
-					this.JMComicHandleSearchSuccess(response);
 				} else {
 					this.ComicHandleSearchSuccess(response);
 				}
@@ -186,85 +180,6 @@ export default {
 				this.searched = true;
 			},
 		});
-	},
-
-	JMComicHandleSearchSuccess(response) {
-		const data = response.data;
-		if (data.results) {
-			const newGalleries = data.results.map((gallery) => {
-				let thumbUrl =
-					global.API_SETTING[global.API_SETTING.using].apiUrl +
-					global.API_SETTING[global.API_SETTING.using].coverPath.replace(
-						"<id>",
-						gallery.album_id
-					);
-
-				return {
-					gid: gallery.album_id,
-					title: gallery.title,
-					thumb: thumbUrl,
-				};
-			});
-
-			this.apiResults = this.apiResults.concat(newGalleries);
-
-			this.apiHasNext = data.client_page_count > data.current_client_page;
-			this.apiNextCursor = data.current_client_page + 1;
-
-			// 如果是第一次加载，或因为翻页触发了加载，则更新显示
-			if (
-				this.searchResults.length === 0 ||
-				this.apiResults.length >= (this.displayPage - 1) * PAGE_SIZE
-			) {
-				this.updateSearchResults();
-			}
-		} else {
-			if (!data.success) {
-				this.error = true;
-				this.errorMsg = data.error || this.$t("search.APIError");
-			}
-		}
-	},
-
-	ehHandleSearchSuccess(response) {
-		const data = response.data;
-
-		if (data.success && data.galleries) {
-			const newGalleries = data.galleries.map((gallery) => {
-				let thumbUrl = gallery.thumbnail_proxy || gallery.thumbnail || "";
-				if (thumbUrl && thumbUrl.startsWith("/")) {
-					thumbUrl =
-						global.API_SETTING[global.API_SETTING.using].apiUrl + thumbUrl;
-				}
-
-				return {
-					gid: gallery.gid,
-					token: gallery.token,
-					title: gallery.title,
-					thumb: thumbUrl,
-					pages: gallery.pages || 0,
-					item_id: `${gallery.gid}_${gallery.token}`,
-				};
-			});
-
-			this.apiResults = this.apiResults.concat(newGalleries);
-
-			this.apiHasNext = newGalleries.length >= API_PAGE_SIZE;
-			this.apiNextCursor = data.pagination.next_id;
-
-			// 如果是第一次加载，或因为翻页触发了加载，则更新显示
-			if (
-				this.searchResults.length === 0 ||
-				this.apiResults.length >= (this.displayPage - 1) * PAGE_SIZE
-			) {
-				this.updateSearchResults();
-			}
-		} else {
-			if (!data.success) {
-				this.error = true;
-				this.errorMsg = data.error || this.$t("search.APIError");
-			}
-		}
 	},
 
 	QQComicHandleSearchSuccess(response) {
@@ -357,91 +272,50 @@ export default {
 	},
 
 	selectResult(result) {
-		if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
-			if (result && result.item_id) {
-				fetch.fetch({
-					url:
-						global.API_SETTING[global.API_SETTING.using].apiUrl +
-						global.API_SETTING[global.API_SETTING.using].detailPath
-							.replace("<gid>", result.gid)
-							.replace("<token>", result.token),
-					responseType: "json",
-					success: (response) => {
-						const comicData = {
-							name: result.title,
-							item_id: result.item_id,
-							page_count: result.pages,
-							cover: result.thumb,
-							gid: result.gid,
-							rate: response.data.gallery.rating,
-							tags: response.data.gallery.tags,
-						};
-						router.push({
-							uri: "/pages/album",
-							params: { data: JSON.stringify(comicData) },
-						});
-					},
-					fail: function (data, code) {
-						if (code == 28) {
-							prompt.showToast({
-								message: this.$t("error.noComicFound"),
-								duration: 3000,
-							});
-						} else {
-							prompt.showToast({
-								message: this.$t("error.unknownError") + data,
-								duration: 3000,
-							});
-						}
-					},
-				});
-			}
-		} else {
-			fetch.fetch({
-				url:
-					global.API_SETTING[global.API_SETTING.using].apiUrl +
-					global.API_SETTING[global.API_SETTING.using].detailPath.replace(
-						"<id>",
-						result.gid
-					),
-				responseType: "json",
-				success: (response) => {
-					if (global.API_SETTING.using === "QQComic") {
-						let data = {
-							item_id: result.gid,
-							name: response.data.title,
-							page_count: response.data.page_count,
-							views: response.data.popularity,
-							rate: response.data.rating.score,
-							cover: response.data.cover_url,
-							total_chapters: response.data.total_chapters,
-						};
-						router.push({
-							uri: "/pages/album",
-							params: { data: data },
-						});
-					} else {
-						router.push({
-							uri: "/pages/album",
-							params: { data: response.data },
-						});
-					}
-				},
-				fail: function (data, code) {
-					if (code == 28) {
-						prompt.showToast({
-							message: this.$t("error.noComicFound"),
-							duration: 3000,
-						});
-					} else {
-						prompt.showToast({
-							message: this.$t("error.unknownError") + data,
-							duration: 3000,
-						});
-					}
-				},
-			});
-		}
+		fetch.fetch({
+			url:
+				global.API_SETTING[global.API_SETTING.using].apiUrl +
+				global.API_SETTING[global.API_SETTING.using].detailPath.replace(
+					"<id>",
+					result.gid
+				),
+			responseType: "json",
+			success: (response) => {
+				if (global.API_SETTING.using === "QQComic") {
+					let data = {
+						item_id: result.gid,
+						name: response.data.title,
+						page_count: response.data.page_count,
+						views: response.data.popularity,
+						rate: response.data.rating.score,
+						cover: response.data.cover_url,
+						total_chapters: response.data.total_chapters,
+					};
+					router.push({
+						uri: "/pages/album",
+						params: { data: data },
+					});
+				} else {
+					router.push({
+						uri: "/pages/album",
+						params: { data: response.data },
+					});
+				}
+			},
+			fail: function (data, code) {
+				if (code == 28) {
+					prompt.showToast({
+						message: this.$t("error.noComicFound"),
+						duration: 3000,
+					});
+				} else {
+					prompt.showToast({
+						message: this.$t("error.unknownError") + data,
+						duration: 3000,
+					});
+				}
+			},
+		});
 	},
 
 	routeBack() {

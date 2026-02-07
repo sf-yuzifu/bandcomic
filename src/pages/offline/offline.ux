@@ -139,7 +139,6 @@ import device from "@system.device";
 const { getTime } = global;
 
 let del;
-let ehImageCache = [];
 let ImageCache = [];
 
 function sleep(ms) {
@@ -506,25 +505,10 @@ export default {
 
 			await this.downloadCover(coverUri);
 
-			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
-				for (let page = 1; page <= this.page_count; page++) {
-					this.page = page;
-					await this.downloadImage(page, folderUri);
-				}
-			} else if (
-				global.API_SETTING[global.API_SETTING.using].type === "ehentai"
-			) {
-				await this.ehDownloadImage();
-				for (let page = 1; page <= this.page_count; page++) {
-					this.page = page;
-					await this.downloadImage(page, folderUri);
-				}
-			} else {
-				await this.DownloadImage();
-				for (let page = 1; page <= this.page_count; page++) {
-					this.page = page;
-					await this.downloadImage(page, folderUri);
-				}
+			await this.DownloadImage();
+			for (let page = 1; page <= this.page_count; page++) {
+				this.page = page;
+				await this.downloadImage(page, folderUri);
 			}
 
 			this.processing = true;
@@ -564,30 +548,12 @@ export default {
 		const MAX_RETRY = 3;
 
 		return new Promise((resolve, reject) => {
-			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
-				imageUrl =
-					global.API_SETTING[global.API_SETTING.using].apiUrl +
-					global.API_SETTING[global.API_SETTING.using].photoPath
-						.replace("<id>", this.id)
-						.replace("<page>", page);
-			} else if (
-				global.API_SETTING[global.API_SETTING.using].type === "ehentai"
-			) {
-				imageUrl = ehImageCache[page - 1];
-				imageUrl = addImageParams(
-					imageUrl,
-					parseInt(global.APP_SETTING.imageSize) || 600,
-					parseInt(global.APP_SETTING.imageQuality) || 50,
-					["w", "q"]
-				);
-			} else {
-				imageUrl = ImageCache[page - 1];
-				imageUrl = addImageParams(
-					imageUrl,
-					parseInt(global.APP_SETTING.imageSize) || 600,
-					parseInt(global.APP_SETTING.imageQuality) || 50
-				);
-			}
+			imageUrl = ImageCache[page - 1];
+			imageUrl = addImageParams(
+				imageUrl,
+				parseInt(global.APP_SETTING.imageSize) || 600,
+				parseInt(global.APP_SETTING.imageQuality) || 50
+			);
 
 			const fileUri = `${folderUri}/${page}`;
 
@@ -641,70 +607,6 @@ export default {
 							reject(this.$t("offline.downloadTimeoutFailed"));
 						} else {
 							reject(this.$t("offline.downloadFailed", { code: code }));
-						}
-					}
-				},
-			});
-		});
-	},
-
-	ehDownloadImage(page = 0, retryCount = 0) {
-		const MAX_RETRY = 3;
-		return new Promise((resolve, reject) => {
-			const [gid, token] = this.id.split("_");
-
-			fetch.fetch({
-				url:
-					global.API_SETTING[global.API_SETTING.using].apiUrl +
-					global.API_SETTING[global.API_SETTING.using].photoPath
-						.replace("<gid>", gid)
-						.replace("<token>", token)
-						.replace("<page>", page),
-				success: async (response) => {
-					const body = response.data;
-					ehImageCache = [
-						...ehImageCache,
-						...body.images.map(
-							(img) =>
-								global.API_SETTING[global.API_SETTING.using].apiUrl +
-								img.image_jpg
-						),
-					];
-					if ((page + 1) * 20 <= this.page_count) {
-						await this.ehDownloadImage(page + 1);
-					}
-					resolve();
-				},
-				fail: (data, code) => {
-					console.log(`获取图片列表失败, code = ${code}, retryCount = ${retryCount}`);
-					
-					if (code === 28 && retryCount < MAX_RETRY) {
-						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.downloadTimeout", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.ehDownloadImage(page, retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else if (retryCount < MAX_RETRY) {
-						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.networkErrorRetry", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.ehDownloadImage(page, retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else {
-						if (code === 28) {
-							reject(this.$t("offline.fetchListTimeoutFailed"));
-						} else {
-							reject(this.$t("offline.fetchListFailed", { code: code }));
 						}
 					}
 				},
@@ -774,13 +676,7 @@ export default {
 		const MAX_RETRY = 3;
 		return new Promise((resolve, reject) => {
 			let imageUrl;
-			if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
-				imageUrl = `${
-					global.API_SETTING[global.API_SETTING.using].apiUrl
-				}/album/${this.id}/cover`;
-			} else {
-				imageUrl = this.cover;
-			}
+			imageUrl = this.cover;
 
 			const fileUri = `${folderUri}/cover`;
 

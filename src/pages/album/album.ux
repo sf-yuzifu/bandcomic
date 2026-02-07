@@ -80,16 +80,7 @@
 					</div>
 					<div
 						class="column tags"
-						if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type !== 'ehentai' }}"
-					>
-						<text class="bold grey">{{ $t("detail.tags") }}</text>
-						<text for="{{ tag in data.tags }}" class="bold">
-							{{ tag }}
-						</text>
-					</div>
-					<div
-						class="column tags"
-						if="{{ data.tags && global.API_SETTING[global.API_SETTING.using].type === 'ehentai' }}"
+						if="{{ data.tags }}"
 						for="{{ tagType in Object.keys(data.tags) }}"
 					>
 						<text class="bold grey">{{ tagType }}</text>
@@ -144,18 +135,9 @@ export default {
 		if (typeof this.data === "string") {
 			this.data = JSON.parse(this.data);
 		}
-		this.processData();
 	},
 
 	onInit() {},
-
-	processData() {
-		if (global.API_SETTING[global.API_SETTING.using].type === "jmcomic") {
-			this.data.cover = `${
-				global.API_SETTING[global.API_SETTING.using].apiUrl
-			}/album/${this.data.item_id}/cover?w=400`;
-		}
-	},
 
 	getPhoto(value) {
 		this.size.width = screenSize.width / 2;

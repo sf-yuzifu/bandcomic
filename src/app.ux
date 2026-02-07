@@ -52,14 +52,6 @@ global.apiCall = function (apiKey, options) {
 				.replace("<text>", encodeURIComponent(apiKey.text))
 				.replace("<page>", apiKey.page || "");
 
-		// 如果是E-Hentai源，需要添加特殊请求头
-		if (global.API_SETTING[global.API_SETTING.using].type === "ehentai") {
-			const headers = options.header || {};
-			// 这里可以添加E-Hentai的Cookie配置
-			// headers['X-EH-Cookie'] = 'your_cookie_here';
-			options.header = headers;
-		}
-
 		return fetch.fetch({
 			url: url,
 			...options,
