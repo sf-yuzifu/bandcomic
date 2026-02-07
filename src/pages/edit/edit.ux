@@ -187,6 +187,9 @@ export default {
 		fetch.fetch({
 			url: "https://" + this.context + "/config",
 			responseType: "text",
+			header: {
+				"User-Agent": global.userAgent()
+			},
 			success: (response) => {
 				let data = JSON.parse(response.data);
 				if (text) {

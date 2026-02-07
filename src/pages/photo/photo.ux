@@ -322,6 +322,7 @@ export default {
 					.replace("<chapter>", Math.floor(this.chapter)),
 			header: {
 				"QQComic-Cookie": global.cookie || "",
+				"User-Agent": global.userAgent()
 			},
 			success: (response) => {
 				if (chapter != this.chapter) {
@@ -363,6 +364,9 @@ export default {
 				global.API_SETTING[global.API_SETTING.using].photoPath
 					.replace("<id>", this.id)
 					.replace("<chapter>", Math.floor(this.chapter)),
+			header: {
+				"User-Agent": global.userAgent()
+			},
 			success: (response) => {
 				if (chapter != this.chapter) {
 					return;
@@ -429,6 +433,9 @@ export default {
 		fetch.fetch({
 			url: imageUrl,
 			responseType: "file",
+			header: {
+				"User-Agent": global.userAgent()
+			},
 			success: (response) => {
 				this.images = response.data;
 			},
@@ -470,6 +477,9 @@ export default {
 				global.API_SETTING[global.API_SETTING.using].photoPath
 					.replace("<id>", this.id)
 					.replace("<page>", this.page),
+			header: {
+				"User-Agent": global.userAgent()
+			},
 			responseType: "file",
 			success: (response) => {
 				this.images = response.data;

@@ -294,6 +294,9 @@ export default {
 					this.context
 				),
 			responseType: "json",
+			header: {
+				"User-Agent": global.userAgent()
+			},
 			success: (response) => {
 				if (global.API_SETTING.using === "QQComic") {
 					let data = {
