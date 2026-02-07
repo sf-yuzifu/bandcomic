@@ -12,6 +12,7 @@
     "author": "作者",
     "tks": "感谢",
     "setting": "设置",
+    "cleanTempFiles": "已清理 {count} 个临时文件",
     "settings": {
         "searchPageSize": "搜索每页个数",
         "imageQuality": "图片质量",
