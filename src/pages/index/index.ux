@@ -171,6 +171,7 @@ export default {
 			},
 			fail: function () {},
 		});
+		this.cleanTempFiles();
 	},
 
 	onInit() {
@@ -295,7 +296,7 @@ export default {
 				),
 			responseType: "json",
 			header: {
-				"User-Agent": global.userAgent()
+				"User-Agent": global.userAgent(),
 			},
 			success: (response) => {
 				if (global.API_SETTING.using === "QQComic") {
@@ -362,6 +363,38 @@ export default {
 	routeEdit() {
 		router.push({
 			uri: "/pages/edit",
+		});
+	},
+
+	cleanTempFiles() {
+		file.list({
+			uri: "internal://files",
+			success: (data) => {
+				const files = data.fileList || [];
+				const keepFiles = [
+					"comics.json",
+					"settings.json",
+					"cookie",
+					"sources.json",
+				];
+
+				const filesToDelete = files.filter((file) => {
+					const fileName = file.uri.split("/").pop();
+					return !keepFiles.includes(fileName);
+				});
+
+				if (filesToDelete.length > 0) {
+					filesToDelete.forEach((files) => {
+						file.delete({
+							uri: files.uri,
+						});
+					});
+					prompt.showToast({
+						message: this.$t("cleanTempFiles", { count: filesToDelete.length }),
+						duration: 2000,
+					});
+				}
+			},
 		});
 	},
 

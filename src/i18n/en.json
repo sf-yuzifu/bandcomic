@@ -12,6 +12,7 @@
     "author": "Author",
     "tks": "Thanks",
     "setting": "Settings",
+    "cleanTempFiles": "Cleaned {count} temp files",
     "settings": {
         "searchPageSize": "Items per page",
         "imageQuality": "Quality",
