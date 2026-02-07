@@ -1,7 +1,10 @@
 <script>
 import device from "@system.device";
+import app from "@system.app";
 import fetch from "@system.fetch";
 
+let appInfo = app.getInfo();
+let deviceInfo = {};
 let screenSize = { width: 0, height: 0 };
 
 global.API_SETTING = {
@@ -28,13 +31,26 @@ global.buildin = ["QQComic", "MangaDex"];
 global.display = true;
 
 device.getInfo({
-	success: function (ret) {
-		screenSize.width = ret.screenWidth;
-		screenSize.height = ret.screenHeight;
-		global.screenShape = ret.screenShape;
+	success: function (deviceRet) {
+		screenSize.width = deviceRet.screenWidth;
+		screenSize.height = deviceRet.screenHeight;
+		global.screenShape = deviceRet.screenShape;
 		global.screenSize = screenSize;
+		deviceInfo = {
+			product: deviceRet.product,
+			brand: deviceRet.brand,
+			osType: deviceRet.osType,
+			osVersionName: deviceRet.osVersionName,
+			osVersionCode: deviceRet.osVersionCode,
+			language: deviceRet.language,
+			region: deviceRet.region,
+		};
 	},
 });
+
+global.userAgent = function () {
+	return `${appInfo.packageName}(${appInfo.versionName}(${appInfo.versionCode}))/${deviceInfo.product}/${deviceInfo.brand}/${deviceInfo.osType}/${deviceInfo.osVersionName}/${deviceInfo.osVersionCode}/${deviceInfo.language}/${deviceInfo.region}`;
+};
 
 global.getTime = function () {
 	const date = new Date();
@@ -52,9 +68,13 @@ global.apiCall = function (apiKey, options) {
 				.replace("<text>", encodeURIComponent(apiKey.text))
 				.replace("<page>", apiKey.page || "");
 
+		const headers = options.header || {};
+		headers["User-Agent"] = global.userAgent();
+
 		return fetch.fetch({
 			url: url,
 			...options,
+			header: headers,
 		});
 	}
 };

@@ -560,6 +560,9 @@ export default {
 			fetch.fetch({
 				url: imageUrl,
 				responseType: "file",
+				header: {
+					"User-Agent": global.userAgent()
+				},
 				success: (response) => {
 					if (response.data) {
 						file.move({
@@ -623,6 +626,9 @@ export default {
 					global.API_SETTING[global.API_SETTING.using].photoPath
 						.replace("<id>", this.id)
 						.replace("<chapter>", this.chapter),
+				header: {
+					"User-Agent": global.userAgent()
+				},
 				success: async (response) => {
 					const body = response.data;
 					// 是否为腾讯动漫
@@ -683,6 +689,9 @@ export default {
 			fetch.fetch({
 				url: imageUrl,
 				responseType: "file",
+				header: {
+					"User-Agent": global.userAgent()
+				},
 				success: (response) => {
 					if (response.data) {
 						file.move({
