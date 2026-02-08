@@ -140,7 +140,12 @@ export default {
 	},
 
 	onBackPress() {
-		return !this.hide;
+		if (this.hide) {
+			return false;
+		} else {
+			this.hide = !this.hide;
+			return true;
+		}
 	},
 
 	onShow() {
@@ -351,7 +356,11 @@ export default {
 	},
 
 	routeBack() {
-		router.back();
+		if (this.hide) {
+			router.back();
+		} else {
+			this.hide = !this.hide;
+		}
 	},
 
 	routeAbout() {
@@ -376,7 +385,7 @@ export default {
 					"settings.json",
 					"cookie",
 					"sources.json",
-					"history.json"
+					"history.json",
 				];
 
 				const filesToDelete = files.filter((file) => {
