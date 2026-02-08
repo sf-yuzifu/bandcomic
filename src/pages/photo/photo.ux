@@ -625,7 +625,7 @@ export default {
 
 	download() {
 		router.replace({
-			uri: "/pages/offline",
+			uri: "/pages/download",
 			params: {
 				id: this.id,
 				page_count: this.page_count,
@@ -634,7 +634,6 @@ export default {
 				name: this.title,
 				originalName: this.is_serial ? originalName : this.title,
 				cover: this.cover,
-				dl: true,
 			},
 		});
 	},

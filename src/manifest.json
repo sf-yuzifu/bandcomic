@@ -59,6 +59,9 @@
       "pages/offline": {
         "component": "offline"
       },
+      "pages/download": {
+        "component": "download"
+      },
       "pages/search": {
         "component": "search"
       },

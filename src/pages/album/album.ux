@@ -160,14 +160,13 @@ export default {
 
 	download() {
 		router.push({
-			uri: "/pages/offline",
+			uri: "/pages/download",
 			params: {
 				id: this.data.item_id,
 				page_count: this.data.page_count,
 				chapter: this.data.total_chapters || 1,
 				name: this.data.name,
 				cover: this.data.cover,
-				dl: true,
 			},
 		});
 	},

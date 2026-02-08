@@ -8,13 +8,7 @@
 		/>
 		<text class="time">{{ time }}</text>
 		<text
-			@click="
-				() => {
-					if (global.screenShape == 'circle') {
-						routeBack();
-					}
-				}
-			"
+			@click="routeBack"
 			class="title"
 		>
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
@@ -24,9 +18,9 @@
 		</text>
 		<div
 			style="height: 78px"
-			if="{{ !dl && global.screenShape == 'circle' }}"
+			if="{{ global.screenShape == 'circle' }}"
 		></div>
-		<div if="{{ !dl && storageLoaded }}" class="storage-container">
+		<div if="{{ storageLoaded }}" class="storage-container">
 			<text class="storage-label">{{ $t("offline.storage") }}</text>
 			<div class="storage-bar">
 				<div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
@@ -60,8 +54,8 @@
 				</div>
 			</div>
 		</div>
-		<div style="height: 10px" if="{{ !dl }}"></div>
-		<list if="{{ !dl && comicsList.length != 0 }}" class="box" bounces="true">
+		<div style="height: 10px"></div>
+		<list if="{{ comicsList.length != 0 }}" class="box" bounces="true">
 			<list-item for="{{ comicsList }}" class="item" type="list-item">
 				<image
 					@click="toPhoto($item)"
@@ -75,54 +69,8 @@
 				<image src="/common/del.png" @click="del($item.id)"></image>
 			</list-item>
 		</list>
-		<div class="downloading" if="{{ dl && global.screenShape != 'circle' && !downloadError }}">
-			<image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
-			<text class="dl-text">
-				{{ processing ? $t("offline.complete") : $t("offline.downloading") }}
-			</text>
-		</div>
-		<div id="process" if="{{ dl && global.screenShape != 'circle' && !downloadError }}">
-			<text class="content">
-				{{ $t("offline.page", { page: page, total_page: page_count }) }}
-			</text>
-			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
-		</div>
-		<div class="downloading" if="{{ dl && global.screenShape != 'circle' && downloadError }}">
-			<image src="/common/fail.png"></image>
-			<text class="dl-text">{{ downloadError }}</text>
-		</div>
 
-		<image
-			if="{{ dl && global.screenShape == 'circle' && !downloadError }}"
-			id="mask"
-			src="/common/{{ processing ? 'success':'dling' }}_s4.png"
-		></image>
-		<div class="downloading" if="{{ dl && global.screenShape == 'circle' && !downloadError }}">
-			<text class="dl-text">
-				{{ processing ? $t("offline.complete") : $t("offline.downloading") }}
-			</text>
-			<image src="/common/{{ processing ? 'success':'dl' }}_icon.png"></image>
-		</div>
-		<div id="process" if="{{ dl && global.screenShape == 'circle' && !downloadError }}">
-			<text class="content">
-				{{ $t("offline.page", { page: page, total_page: page_count }) }}
-			</text>
-			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
-		</div>
-		<image
-			if="{{ dl && global.screenShape == 'circle' && downloadError }}"
-			id="mask"
-			src="/common/fail_s4.png"
-		></image>
-		<div class="downloading" if="{{ dl && global.screenShape == 'circle' && downloadError }}">
-			<text class="dl-text">{{ $t("offline.downloadFailedText") }}</text>
-			<image src="/common/fail_icon.png"></image>
-		</div>
-		<div id="process-s4" if="{{ dl && global.screenShape == 'circle' && downloadError }}">
-			<text class="content">{{ downloadError }}</text>
-		</div>
-
-		<div class="empty" if="{{ comicsList.length == 0 && !dl }}">
+		<div class="empty" if="{{ comicsList.length == 0 }}">
 			<image src="/common/empty.png"></image>
 			<text class="empty-text">{{ isLoading ? $t("offline.loading") : $t("offline.empty") }}</text>
 		</div>
@@ -132,18 +80,12 @@
 <script>
 import router from "@system.router"
 import file from "@system.file";
-import fetch from "@system.fetch";
 import prompt from "@system.prompt";
 import device from "@system.device";
 
 const { getTime } = global;
 
 let del;
-let ImageCache = [];
-
-function sleep(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function formatFileSize(size) {
 	if (size < 1024) {
@@ -157,55 +99,10 @@ function formatFileSize(size) {
 	}
 }
 
-function sanitizeFolderName(name) {
-	if (!name) return name;
-	const invalidChars = /[\\/:*?"<>|]/g;
-	return name.replace(invalidChars, '_');
-}
-
-function addImageParams(
-	url,
-	width = 600,
-	quality = 50,
-	params = ["width", "quality"]
-) {
-	try {
-		// 解析URL
-		const urlObj = new URL(url);
-
-		// 直接在主URL中添加参数
-		urlObj.searchParams.set(params[0], width.toString());
-		urlObj.searchParams.set(params[1], quality.toString());
-
-		return urlObj.toString();
-	} catch (error) {
-		// URL解析失败，手动处理
-		const separator = url.includes("?") ? "&" : "?";
-		let result = url;
-
-		// 确保不重复添加参数
-		if (!url.includes(params[0] + "=")) {
-			result += `${separator}${params[0]}=${width}`;
-		}
-		if (!url.includes(params[1] + "=")) {
-			result += "&" + params[1] + "=" + quality;
-		}
-
-		return result;
-	}
-}
-
 export default {
 	private: {
 		time: "",
-		dl: false,
-		id: 0,
-		page_count: 0,
-		name: "",
 		comicsList: [],
-		page: 0,
-		cover: "",
-		processing: false,
 		storage: "",
 		storagePercent: 0,
 		storageUsed: "",
@@ -221,27 +118,18 @@ export default {
 		storageListExpanded: false,
 		storageLoaded: false,
 		isLoading: false,
-		chapter: 0,
-		downloadError: "",
-		originalName: "",
-		is_serial: false,
 	},
 
 	onShow() {
 		this.time = getTime();
 	},
 
-	async onInit() {
-		if (this.dl) {
-			this.startDownloadProcess();
-		} else {
-			this.loadingComic();
-		}
+	onInit() {
+		this.loadingComic();
 	},
 
 	async loadingComic() {
 		this.isLoading = true;
-		// 1. 检查comics.json文件是否存在
 		const fileExists = await this.checkFileExists();
 
 		if (fileExists) {
@@ -268,6 +156,24 @@ export default {
 		} else {
 			this.isLoading = false;
 		}
+	},
+
+	checkFileExists() {
+		return new Promise((resolve) => {
+			file.readText({
+				uri: "internal://files/comics.json",
+				success: function () {
+					resolve(true);
+				},
+				fail: function (data, code) {
+					if (code === 301) {
+						resolve(false);
+					} else {
+						resolve(false);
+					}
+				},
+			});
+		});
 	},
 
 	getStorage() {
@@ -340,7 +246,6 @@ export default {
 					this.comicsList[a].size = formatFileSize(length);
 					comicsTotalSize += length;
 					this.comicsUsed = formatFileSize(comicsTotalSize);
-					// console.log("大小：", this.comicsList[a].size);
 					
 					completedCount++;
 					if (completedCount === this.comicsList.length && totalStorage > 0) {
@@ -367,383 +272,6 @@ export default {
 		this.otherUsed = formatFileSize(actualTotal - availableStorage - comicsTotalSize);
 		this.remaining = formatFileSize(availableStorage);
 		this.storageLoaded = true;
-	},
-
-	async startDownloadProcess() {
-		try {
-			// 1. 检查comics.json文件是否存在
-			const fileExists = await this.checkFileExists();
-
-			if (fileExists) {
-				// 2. 读取并更新comics.json
-				await this.readAndUpdateComicsJson();
-			} else {
-				// 3. 创建新的comics.json文件
-				await this.createComicsJson();
-			}
-
-			// 4. 创建文件夹并下载图片
-			await this.createFolderAndDownload();
-		} catch (error) {
-			console.log(`下载过程出错: ${error}`);
-		}
-	},
-
-	checkFileExists() {
-		return new Promise((resolve, reject) => {
-			file.readText({
-				uri: "internal://files/comics.json",
-				success: function () {
-					resolve(true);
-				},
-				fail: function (data, code) {
-					if (code === 301) {
-						// 文件不存在
-						resolve(false);
-					} else {
-						reject(this.$t("offline.checkFileFailed", { code: code }));
-					}
-				},
-			});
-		});
-	},
-
-	readAndUpdateComicsJson() {
-		return new Promise((resolve, reject) => {
-			file.readText({
-				uri: "internal://files/comics.json",
-				success: (data) => {
-					try {
-						let comicsData = [];
-						if (data.text) {
-							comicsData = JSON.parse(data.text);
-						}
-
-						const newComic = {
-							name: this.is_serial ? this.originalName : this.name,
-							page_count: this.page_count,
-							id: global.API_SETTING.using + "_" + this.id,
-							is_serial: this.is_serial,
-						};
-
-						const existingIndex = comicsData.findIndex(
-							(comic) => comic.id === newComic.id
-						);
-						if (existingIndex !== -1) {
-							comicsData[existingIndex] = newComic;
-						} else {
-							comicsData.push(newComic);
-						}
-
-						file.writeText({
-							uri: "internal://files/comics.json",
-							text: JSON.stringify(comicsData),
-							success: function () {
-								console.log("comics.json更新成功");
-								resolve();
-							},
-							fail: function (data, code) {
-								reject(this.$t("offline.writeIndexFailed", { code: code }));
-							},
-						});
-					} catch (parseError) {
-						reject(this.$t("offline.parseIndexFailed"));
-					}
-				},
-				fail: function (data, code) {
-					reject(this.$t("offline.readIndexFailed", { code: code }));
-				},
-			});
-		});
-	},
-
-	createComicsJson() {
-		return new Promise((resolve, reject) => {
-			const initialData = [
-				{
-					name: this.is_serial ? this.originalName : this.name,
-					page_count: this.page_count,
-					id: global.API_SETTING.using + "_" + this.id,
-					is_serial: this.is_serial,
-				},
-			];
-
-			file.writeText({
-				uri: "internal://files/comics.json",
-				text: JSON.stringify(initialData),
-				success: function () {
-					console.log("comics.json创建成功");
-					resolve();
-				},
-				fail: function (data, code) {
-					reject(this.$t("offline.createIndexFailed", { code: code }));
-				},
-			});
-		});
-	},
-
-	async createFolderAndDownload() {
-		try {
-			let folderUri;
-			let coverUri;
-
-			if (this.is_serial) {
-				const mainFolderUri = `internal://files/${
-					global.API_SETTING.using + "_" + this.id
-				}`;
-				await this.createFolder(mainFolderUri);
-				const chapterName = sanitizeFolderName(this.name);
-				folderUri = `${mainFolderUri}/${this.chapter}　${chapterName}`;
-				coverUri = mainFolderUri;
-			} else {
-				folderUri = `internal://files/${
-					global.API_SETTING.using + "_" + this.id
-				}`;
-				coverUri = folderUri;
-			}
-			await this.createFolder(folderUri);
-
-			await this.downloadCover(coverUri);
-
-			await this.DownloadImage();
-			for (let page = 1; page <= this.page_count; page++) {
-				this.page = page;
-				await this.downloadImage(page, folderUri);
-			}
-
-			this.processing = true;
-			await sleep(1000);
-			this.loadingComic();
-			this.dl = false;
-			console.log("所有图片下载完成");
-		} catch (error) {
-			console.log(`下载过程出错: ${error}`);
-			this.downloadError = error;
-			this.processing = false;
-		}
-	},
-
-	createFolder(folderUri) {
-		return new Promise((resolve, reject) => {
-			file.mkdir({
-				uri: folderUri,
-				success: function () {
-					console.log(`文件夹创建成功: ${folderUri}`);
-					resolve();
-				},
-				fail: function (data, code) {
-					if (code === 13900001) {
-						console.log("文件夹已存在");
-						resolve();
-					} else {
-						reject(this.$t("offline.createFolderFailed", { code: code }));
-					}
-				},
-			});
-		});
-	},
-
-	downloadImage(page, folderUri, retryCount = 0) {
-		let imageUrl;
-		const MAX_RETRY = 3;
-
-		return new Promise((resolve, reject) => {
-			imageUrl = ImageCache[page - 1];
-			imageUrl = addImageParams(
-				imageUrl,
-				parseInt(global.APP_SETTING.imageSize) || 600,
-				parseInt(global.APP_SETTING.imageQuality) || 50
-			);
-
-			const fileUri = `${folderUri}/${page}`;
-
-			fetch.fetch({
-				url: imageUrl,
-				responseType: "file",
-				header: {
-					"User-Agent": global.userAgent()
-				},
-				success: (response) => {
-					if (response.data) {
-						file.move({
-							srcUri: response.data,
-							dstUri: fileUri,
-							success: function () {
-								console.log(`图片保存成功: ${fileUri}`);
-								resolve();
-							},
-							fail: function (data, code) {
-								reject(this.$t("offline.moveImageFailed", { code: code }));
-							},
-						});
-					} else {
-						reject(this.$t("offline.emptyImageData"));
-					}
-				},
-				fail: (data, code) => {
-					console.log(`下载图片失败, code = ${code}, retryCount = ${retryCount}`);
-					
-					if (code === 28 && retryCount < MAX_RETRY) {
-						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.downloadTimeout", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.downloadImage(page, folderUri, retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else if (retryCount < MAX_RETRY) {
-						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.networkErrorRetry", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.downloadImage(page, folderUri, retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else {
-						if (code === 28) {
-							reject(this.$t("offline.downloadTimeoutFailed"));
-						} else {
-							reject(this.$t("offline.downloadFailed", { code: code }));
-						}
-					}
-				},
-			});
-		});
-	},
-
-	DownloadImage(retryCount = 0) {
-		const MAX_RETRY = 3;
-		return new Promise((resolve, reject) => {
-			fetch.fetch({
-				url:
-					global.API_SETTING[global.API_SETTING.using].apiUrl +
-					global.API_SETTING[global.API_SETTING.using].photoPath
-						.replace("<id>", this.id)
-						.replace("<chapter>", this.chapter),
-				header: {
-					"User-Agent": global.userAgent()
-				},
-				success: async (response) => {
-					const body = response.data;
-					// 是否为腾讯动漫
-
-					if (body.images_data) {
-						ImageCache = [...body.images_data.data.picture.map((img) => global.API_SETTING[global.API_SETTING.using].apiUrl + img.url)];
-					}
-					else {
-						ImageCache = [...body.images.map((img) => img.url)];
-					}
-					resolve();
-				},
-				fail: (data, code) => {
-					console.log(`获取图片列表失败, code = ${code}, retryCount = ${retryCount}`);
-					
-					if (code === 28 && retryCount < MAX_RETRY) {
-						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.downloadTimeout", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.DownloadImage(retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else if (retryCount < MAX_RETRY) {
-						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.networkErrorRetry", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.DownloadImage(retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else {
-						if (code === 28) {
-							reject(this.$t("offline.fetchListTimeoutFailed"));
-						} else {
-							reject(this.$t("offline.fetchListFailed", { code: code }));
-						}
-					}
-				},
-			});
-		});
-	},
-
-	downloadCover(folderUri, retryCount = 0) {
-		const MAX_RETRY = 3;
-		return new Promise((resolve, reject) => {
-			let imageUrl;
-			imageUrl = this.cover;
-
-			const fileUri = `${folderUri}/cover`;
-
-			fetch.fetch({
-				url: imageUrl,
-				responseType: "file",
-				header: {
-					"User-Agent": global.userAgent()
-				},
-				success: (response) => {
-					if (response.data) {
-						file.move({
-							srcUri: response.data,
-							dstUri: fileUri,
-							success: function () {
-								console.log(`图片保存成功: ${fileUri}`);
-								resolve();
-							},
-							fail: function (data, code) {
-								reject(this.$t("offline.moveImageFailed", { code: code }));
-							},
-						});
-					} else {
-						reject(this.$t("offline.emptyImageData"));
-					}
-				},
-				fail: (data, code) => {
-					console.log(`下载封面失败, code = ${code}, retryCount = ${retryCount}`);
-					
-					if (code === 28 && retryCount < MAX_RETRY) {
-						console.log(`网络超时，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.downloadTimeout", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.downloadCover(folderUri, retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else if (retryCount < MAX_RETRY) {
-						console.log(`网络错误，正在重试第 ${retryCount + 1} 次...`);
-						prompt.showToast({
-							message: this.$t("offline.networkErrorRetry", { count: retryCount + 1 }),
-							duration: 1500,
-						});
-						sleep(1000).then(() => {
-							this.downloadCover(folderUri, retryCount + 1)
-								.then(resolve)
-								.catch(reject);
-						});
-					} else {
-						if (code === 28) {
-							reject(this.$t("offline.coverTimeoutFailed"));
-						} else {
-							reject(this.$t("offline.coverFailed", { code: code }));
-						}
-					}
-				},
-			});
-		});
 	},
 
 	toPhoto(val) {
@@ -978,7 +506,7 @@ export default {
 .storage-list-arrow {
 	font-size: 16px;
 	font-family: "iconfont" !important;
-    font-style: normal;
+	font-style: normal;
 	color: rgba(255, 255, 255, 0.8);
 	margin-left: 4px;
 }
@@ -1005,48 +533,12 @@ export default {
 	color: rgba(255, 255, 255, 0.7);
 }
 
-/* 看看是不是红米手表 */
-@media (shape: rect) {
-	#process {
-		position: absolute;
-		bottom: 6px;
-		width: 95%;
-		height: 92px;
-		background-color: #262626;
-		border-radius: 36px;
-		justify-content: space-around;
-	}
-
-	.downloading,
-	.empty {
-		justify-content: center;
-		align-items: center;
-		width: 100%;
-		flex: 1;
-		flex-direction: column;
-	}
-}
-
-.content {
-	font-size: 32px;
-	color: #ffffff;
-	font-weight: bold;
-}
-
-.per {
-	font-size: 32px;
-	color: rgba(255, 255, 255, 0.6);
-	font-weight: bold;
-}
-
-.dl-text {
-	margin-top: 24px;
-	font-size: 32px;
-	color: #ffffff;
-	font-weight: bold;
-	margin-bottom: 80px;
-	margin-left: 40px;
-	margin-right: 40px;
+.empty {
+	justify-content: center;
+	align-items: center;
+	width: 100%;
+	flex: 1;
+	flex-direction: column;
 }
 
 .empty-text {
@@ -1086,71 +578,10 @@ export default {
 	width: 92px;
 }
 
-/* 看看是不是小米手表 */
+/* 圆形手表适配 */
 @media (min-width: 200) and (max-width: 235) and (shape: circle) {
 	.storage-container {
 		width: 75%;
-	}
-
-	#process {
-		position: absolute;
-		width: 80%;
-		height: 92px;
-		background-color: #262626;
-		border-radius: 100%;
-		justify-content: space-around;
-	}
-
-	#process-s4 {
-		position: absolute;
-		width: 80%;
-		padding: 10px 25px;
-		background-color: #262626;
-		border-radius: 100%;
-		justify-content: space-around;
-	}
-
-	.container {
-		justify-content: center;
-	}
-
-	.downloading {
-		justify-content: center;
-		align-items: center;
-		width: 100%;
-		flex-direction: column;
-		position: absolute;
-		bottom: 40px;
-	}
-
-	.empty {
-		justify-content: center;
-		align-items: center;
-		width: 100%;
-		flex-direction: column;
-	}
-
-	.title {
-		position: absolute;
-		top: 35px;
-	}
-
-	.time {
-		position: absolute;
-		top: 7px;
-	}
-
-	#mask {
-		position: absolute;
-		top: 100px;
-	}
-
-	.dl-text {
-		margin-top: 24px;
-		font-size: 32px;
-		color: #ffffff;
-		font-weight: bold;
-		margin-bottom: 20px;
 	}
 
 	.box {
