@@ -376,6 +376,7 @@ export default {
 					"settings.json",
 					"cookie",
 					"sources.json",
+					"history.json"
 				];
 
 				const filesToDelete = files.filter((file) => {
