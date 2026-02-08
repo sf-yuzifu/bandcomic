@@ -588,4 +588,11 @@ export default {
 		width: 75%;
 	}
 }
+
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+  .title {
+	margin-bottom: 10px;
+  }
+}
 </style>
