@@ -84,11 +84,13 @@
   }
 
   .top {
-    top: 60%;
+    position: absolute;
+    top: 6px;
   }
 
   .bottom {
-    bottom: 60%;
+    position: absolute;
+    bottom: 6px;
   }
 }
 
