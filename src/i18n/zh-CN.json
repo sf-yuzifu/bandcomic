@@ -75,7 +75,20 @@
         "legendReserved": "系统预留",
         "comicsUsed": "漫画占用",
         "otherUsed": "其他已用",
-        "remaining": "剩余可用"
+        "remaining": "剩余可用",
+        "historyTitle": "阅读历史",
+        "historyLoading": "加载中...",
+        "historyEmpty": "暂无阅读记录",
+        "chapter": "第{chapter}话",
+        "page": "第{page}页",
+        "justNow": "刚刚",
+        "minutesAgo": "{minutes}分钟前",
+        "hoursAgo": "{hours}小时前",
+        "daysAgo": "{days}天前",
+        "historyDel": "再次点击删除",
+        "historySecondDel": "正在删除...",
+        "historyDelComplete": "已删除！",
+        "historyDeleteFailed": "删除失败：{code}"
     },
     "download": {
         "title": "下载漫画",

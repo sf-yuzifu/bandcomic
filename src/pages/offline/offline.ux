@@ -7,73 +7,93 @@
 			@click="routeBack"
 		/>
 		<text class="time">{{ time }}</text>
-		<text
-			@click="routeBack"
-			class="title"
-		>
-			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
-				&#xe685;
-			</span>
-			<span>{{ $t("offline.offline") }}</span>
+		<text @click="routeBack" class="title">
+			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+			<span>{{ currentTab === 'offline' ? $t("offline.offline") : $t("offline.historyTitle") }}</span>
 		</text>
-		<div
-			style="height: 78px"
-			if="{{ global.screenShape == 'circle' }}"
-		></div>
-		<div if="{{ storageLoaded }}" class="storage-container">
-			<text class="storage-label">{{ $t("offline.storage") }}</text>
-			<div class="storage-bar">
-				<div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
-				<div class="storage-bar-segment-comics" style="width: {{ comicsUsedPercent }}%"></div>
-				<div class="storage-bar-segment-other" style="width: {{ actualUsedPercent - comicsUsedPercent }}%"></div>
-			</div>
-			<div class="storage-list">
-				<div class="storage-list-item" @click="toggleStorageList">
-					<div class="storage-list-color storage-list-color-remaining"></div>
-					<text class="storage-list-label">{{ $t("offline.remaining") }}</text>
-					<text class="storage-list-value">{{ remaining }}</text>
-					<text class="storage-list-arrow">{{ storageListExpanded ? '&#xe686' : '&#xe685' }}</text>
-				</div>
-				<div if="{{ storageListExpanded }}" class="storage-list-item">
-					<div class="storage-list-color storage-list-color-reserved"></div>
-					<text class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
-					<text class="storage-list-value">{{ systemReserved }}</text>
-					<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
-				</div>
-				<div if="{{ storageListExpanded }}" class="storage-list-item">
-					<div class="storage-list-color storage-list-color-comics"></div>
-					<text class="storage-list-label">{{ $t("offline.comicsUsed") }}</text>
-					<text class="storage-list-value">{{ comicsUsed }}</text>
-					<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
-				</div>
-				<div if="{{ storageListExpanded }}" class="storage-list-item">
-					<div class="storage-list-color storage-list-color-other"></div>
-					<text class="storage-list-label">{{ $t("offline.otherUsed") }}</text>
-					<text class="storage-list-value">{{ otherUsed }}</text>
-					<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
-				</div>
-			</div>
-		</div>
-		<div style="height: 10px"></div>
-		<list if="{{ comicsList.length != 0 }}" class="box" bounces="true">
-			<list-item for="{{ comicsList }}" class="item" type="list-item">
-				<image
-					@click="toPhoto($item)"
-					class="cover"
-					src="internal://files/{{ $item.id }}/cover"
-				></image>
-				<div @click="toPhoto($item)" class="text-content">
-					<text class="itemText">{{ $item.name }}</text>
-					<text class="meta">{{ $t("offline.size") }} {{ $item.size }}</text>
-				</div>
-				<image src="/common/del.png" @click="del($item.id)"></image>
-			</list-item>
-		</list>
 
-		<div class="empty" if="{{ comicsList.length == 0 }}">
-			<image src="/common/empty.png"></image>
-			<text class="empty-text">{{ isLoading ? $t("offline.loading") : $t("offline.empty") }}</text>
-		</div>
+		<swiper class="swiper" @change="switchTab">
+			<!-- 本地漫画标签页 -->
+			<div class="tab-switcher">
+				<div if="{{ storageLoaded }}" class="storage-container">
+					<text class="storage-label">{{ $t("offline.storage") }}</text>
+					<div class="storage-bar">
+						<div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
+						<div class="storage-bar-segment-comics" style="width: {{ comicsUsedPercent }}%"></div>
+						<div class="storage-bar-segment-other" style="width: {{ actualUsedPercent - comicsUsedPercent }}%"></div>
+					</div>
+					<div class="storage-list">
+						<div class="storage-list-item" @click="toggleStorageList">
+							<div class="storage-list-color storage-list-color-remaining"></div>
+							<text class="storage-list-label">{{ $t("offline.remaining") }}</text>
+							<text class="storage-list-value">{{ remaining }}</text>
+							<text class="storage-list-arrow">{{ storageListExpanded ? '&#xe686' : '&#xe685' }}</text>
+						</div>
+						<div if="{{ storageListExpanded }}" class="storage-list-item">
+							<div class="storage-list-color storage-list-color-reserved"></div>
+							<text class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
+							<text class="storage-list-value">{{ systemReserved }}</text>
+							<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+						</div>
+						<div if="{{ storageListExpanded }}" class="storage-list-item">
+							<div class="storage-list-color storage-list-color-comics"></div>
+							<text class="storage-list-label">{{ $t("offline.comicsUsed") }}</text>
+							<text class="storage-list-value">{{ comicsUsed }}</text>
+							<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+						</div>
+						<div if="{{ storageListExpanded }}" class="storage-list-item">
+							<div class="storage-list-color storage-list-color-other"></div>
+							<text class="storage-list-label">{{ $t("offline.otherUsed") }}</text>
+							<text class="storage-list-value">{{ otherUsed }}</text>
+							<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+						</div>
+					</div>
+				</div>
+				<div style="height: 10px"></div>
+
+				<list if="{{ comicsList.length != 0 }}" class="box" bounces="true">
+					<list-item for="{{ comicsList }}" class="item" type="list-item">
+						<image @click="toPhoto($item)" class="cover" src="internal://files/{{ $item.id }}/cover"></image>
+						<div @click="toPhoto($item)" class="text-content">
+							<text class="itemText">{{ $item.name }}</text>
+							<text class="meta">{{ $t("offline.size") }} {{ $item.size }}</text>
+						</div>
+						<image src="/common/del.png" @click="del($item.id)"></image>
+					</list-item>
+					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
+				</list>
+
+				<div class="empty" if="{{ comicsList.length == 0 }}">
+					<image src="/common/empty.png"></image>
+					<text class="empty-text">{{ isLoading ? $t("offline.loading") : $t("offline.empty") }}</text>
+				</div>
+			</div>
+
+			<!-- 历史记录标签页 -->
+			<div class="tab-switcher">
+				<div style="height: 10px"></div>
+				<list if="{{ historyList.length != 0 }}" class="box" bounces="true">
+					<list-item for="{{ historyList }}" class="item" type="list-item">
+						<image @click="toHistoryPhoto($item)" class="cover" src="{{ $item.cover }}"></image>
+						<div @click="toHistoryPhoto($item)" class="text-content">
+							<text class="itemText">{{ $item.title }}</text>
+							<text class="meta" if="{{ $item.is_serial }}">
+								{{ $t("offline.chapter", { chapter: $item.chapter }) }} - {{ $t("offline.page", { page: $item.page }) }}
+							</text>
+							<text class="meta" else>{{ $t("offline.page", { page: $item.page }) }}</text>
+							<text class="time-text">{{ formatTime($item.last_read_time) }}</text>
+						</div>
+						<image src="/common/del.png" @click="delHistory($item.id)"></image>
+					</list-item>
+					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
+				</list>
+
+				<div class="empty" if="{{ historyList.length == 0 }}">
+					<image src="/common/empty.png"></image>
+					<text class="empty-text">{{ isLoadingHistory ? $t("offline.historyLoading") : $t("offline.historyEmpty") }}</text>
+				</div>
+			</div>
+		</swiper>
 	</div>
 </template>
 
@@ -99,6 +119,8 @@ function formatFileSize(size) {
 	}
 }
 
+let delHistoryId;
+
 export default {
 	private: {
 		time: "",
@@ -118,6 +140,9 @@ export default {
 		storageListExpanded: false,
 		storageLoaded: false,
 		isLoading: false,
+		currentTab: "offline",
+		historyList: [],
+		isLoadingHistory: false,
 	},
 
 	onShow() {
@@ -126,6 +151,120 @@ export default {
 
 	onInit() {
 		this.loadingComic();
+		this.loadHistory();
+	},
+
+	switchTab(tab) {
+		this.currentTab = tab.index ? 'history' : 'offline';
+	},
+
+	loadHistory() {
+		this.isLoadingHistory = true;
+		file.readText({
+			uri: "internal://files/history.json",
+			success: (data) => {
+				let historyList = [];
+				try {
+					historyList = JSON.parse(data.text);
+					if (!Array.isArray(historyList)) {
+						historyList = [];
+					}
+				} catch (e) {
+					historyList = [];
+				}
+				this.historyList = historyList.filter(item => !item.local);
+				this.isLoadingHistory = false;
+			},
+			fail: () => {
+				this.historyList = [];
+				this.isLoadingHistory = false;
+			}
+		});
+	},
+
+	formatTime(timestamp) {
+		const date = new Date(timestamp);
+		const now = new Date();
+		const diff = now - date;
+
+		// 小于1小时
+		if (diff < 60 * 60 * 1000) {
+			const minutes = Math.floor(diff / (60 * 1000));
+			if (minutes < 1) {
+				return this.$t("offline.justNow");
+			}
+			return this.$t("offline.minutesAgo", { minutes });
+		}
+		// 小于24小时
+		if (diff < 24 * 60 * 60 * 1000) {
+			const hours = Math.floor(diff / (60 * 60 * 1000));
+			return this.$t("offline.hoursAgo", { hours });
+		}
+		// 小于7天
+		if (diff < 7 * 24 * 60 * 60 * 1000) {
+			const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+			return this.$t("offline.daysAgo", { days });
+		}
+		// 显示具体日期
+		const month = (date.getMonth() + 1).toString().padStart(2, '0');
+		const day = date.getDate().toString().padStart(2, '0');
+		return `${month}-${day}`;
+	},
+
+	toHistoryPhoto(item) {
+		router.push({
+			uri: "/pages/photo",
+			params: {
+				id: item.originalId,
+				page_count: item.page_count,
+				total_chapters: item.total_chapters,
+				title: item.title,
+				cover: item.cover,
+			},
+		});
+	},
+
+	delHistory(id) {
+		if (delHistoryId === id) {
+			// 第二次点击，执行删除
+			prompt.showToast({
+				message: this.$t("offline.historySecondDel"),
+			});
+
+			// 从列表中删除
+			const newList = this.historyList.filter(item => item.id !== id);
+			this.historyList = newList;
+
+			// 保存到文件
+			file.writeText({
+				uri: "internal://files/history.json",
+				text: JSON.stringify(newList, null, 2),
+				success: () => {
+					prompt.showToast({
+						message: this.$t("offline.historyDelComplete"),
+					});
+				},
+				fail: (data, code) => {
+					prompt.showToast({
+						message: this.$t("offline.historyDeleteFailed", { code }),
+					});
+				}
+			});
+
+			delHistoryId = null;
+		} else {
+			// 第一次点击
+			delHistoryId = id;
+			prompt.showToast({
+				message: this.$t("offline.historyDel"),
+			});
+			// 3秒后重置
+			setTimeout(() => {
+				if (delHistoryId === id) {
+					delHistoryId = null;
+				}
+			}, 3000);
+		}
 	},
 
 	async loadingComic() {
@@ -181,17 +320,17 @@ export default {
 		let availableStorage = 0;
 		let comicsTotalSize = 0;
 		let completedCount = 0;
-		
+
 		device.getTotalStorage({
 			success: (data) => {
 				totalStorage = data.totalStorage;
 				const systemReserved = Math.floor(totalStorage / 4);
 				const actualTotal = totalStorage - systemReserved;
-				
+
 				this.storageTotal = formatFileSize(totalStorage);
 				this.systemReserved = formatFileSize(systemReserved);
 				this.actualTotal = formatFileSize(actualTotal);
-				
+
 				if (availableStorage > 0) {
 					this.updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize);
 				}
@@ -200,12 +339,12 @@ export default {
 				console.log(`获取总存储空间失败, code = ${code}`);
 			},
 		});
-		
+
 		device.getAvailableStorage({
 			success: (data) => {
 				availableStorage = data.availableStorage;
 				this.storage = formatFileSize(availableStorage);
-				
+
 				if (totalStorage > 0) {
 					const systemReserved = Math.floor(totalStorage / 4);
 					const actualTotal = totalStorage - systemReserved;
@@ -216,7 +355,7 @@ export default {
 				console.log(`获取可用存储空间失败, code = ${code}`);
 			},
 		});
-		
+
 		for (let a = 0; a < this.comicsList.length; a++) {
 			file.get({
 				uri: `internal://files/${this.comicsList[a].id}`,
@@ -224,7 +363,7 @@ export default {
 				success: (data) => {
 					let length = 0;
 					for (let i of data.subFiles) {
-						if ( i.type === "dir" && i.subFiles.length != 0) {
+						if (i.type === "dir" && i.subFiles.length != 0) {
 							if (!this.comicsList[a].totalChapter) {
 								this.comicsList[a].totalChapter = []
 							}
@@ -246,7 +385,7 @@ export default {
 					this.comicsList[a].size = formatFileSize(length);
 					comicsTotalSize += length;
 					this.comicsUsed = formatFileSize(comicsTotalSize);
-					
+
 					completedCount++;
 					if (completedCount === this.comicsList.length && totalStorage > 0) {
 						const systemReserved = Math.floor(totalStorage / 4);
@@ -299,9 +438,9 @@ export default {
 				message: this.$t("offline.secondDel"),
 				duration: 1000,
 			});
-			
+
 			const folderUri = "internal://files/" + id + "/";
-			
+
 			file.access({
 				uri: folderUri,
 				success: () => {
@@ -533,6 +672,11 @@ export default {
 	color: rgba(255, 255, 255, 0.7);
 }
 
+.time-text {
+	font-size: 16px;
+	color: rgba(255, 255, 255, 0.4);
+}
+
 .empty {
 	justify-content: center;
 	align-items: center;
@@ -550,7 +694,23 @@ export default {
 
 .box {
 	width: 85%;
-	flex: 1
+	flex: 1;
+}
+
+.swiper {
+	width: 100%;
+	flex: 1;
+	justify-content: center;
+	indicator-selected-color: #ffffff;
+	indicator-color: rgba(255, 255, 255, 0.3);
+	indicator-size: 10px;
+}
+
+.tab-switcher {
+	width: 100%;
+	height: 100%;
+	flex-direction: column;
+	align-items: center;
 }
 
 .item {
@@ -567,9 +727,9 @@ export default {
 .itemText {
 	width: 100%;
 	height: 100%;
-	font-size: 24px;
+	font-size: 20px;
 	color: #ffffff;
-	lines: 3;
+	lines: 2;
 	font-weight: bold;
 }
 

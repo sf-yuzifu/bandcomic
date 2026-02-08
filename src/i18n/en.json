@@ -75,7 +75,20 @@
         "legendReserved": "System reserved",
         "comicsUsed": "Comics used",
         "otherUsed": "Other used",
-        "remaining": "Remaining"
+        "remaining": "Remaining",
+        "historyTitle": "History",
+        "historyLoading": "Loading...",
+        "historyEmpty": "No history",
+        "chapter": "Ch.{chapter}",
+        "page": "P.{page}",
+        "justNow": "Just now",
+        "minutesAgo": "{minutes}m ago",
+        "hoursAgo": "{hours}h ago",
+        "daysAgo": "{days}d ago",
+        "historyDel": "Tap twice to delete",
+        "historySecondDel": "Deleting...",
+        "historyDelComplete": "Deleted!",
+        "historyDeleteFailed": "Delete failed: {code}"
     },
     "download": {
         "title": "Download",

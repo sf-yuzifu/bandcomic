@@ -180,6 +180,7 @@
 <script>
 import router from "@system.router";
 import fetch from "@system.fetch";
+import file from "@system.file";
 
 const { screenSize, getTime } = global;
 
@@ -251,6 +252,33 @@ export default {
 	},
 
 	onInit() {
+		// 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
+		const comicId = this.getComicId();
+		file.readText({
+			uri: "internal://files/history.json",
+			success: (data) => {
+				try {
+					const historyList = JSON.parse(data.text);
+					const historyItem = historyList.find(item => item.id === comicId);
+					if (historyItem) {
+						// 恢复上次阅读的章节和页码
+						this.chapter = historyItem.chapter || 1;
+						this.page = historyItem.page || 1;
+						console.log(`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`);
+					}
+				} catch (e) {
+					console.error("读取历史记录失败:", e);
+				}
+				this.initData();
+			},
+			fail: () => {
+				// 没有历史记录，正常初始化
+				this.initData();
+			}
+		});
+	},
+
+	initData() {
 		if (!this.local) {
 			originalName = this.title;
 			this.is_serial = this.total_chapters > 1;
@@ -289,9 +317,7 @@ export default {
 
 	processData() {
 		this.canDownload = false;
-		if (
-			global.API_SETTING[global.API_SETTING.using].type === "qqcomic"
-		) {
+		if (global.API_SETTING[global.API_SETTING.using].type === "qqcomic") {
 			if (this.local) {
 				this.getImageForPage();
 			} else {
@@ -322,7 +348,7 @@ export default {
 					.replace("<chapter>", Math.floor(this.chapter)),
 			header: {
 				"QQComic-Cookie": global.cookie || "",
-				"User-Agent": global.userAgent()
+				"User-Agent": global.userAgent(),
 			},
 			success: (response) => {
 				if (chapter != this.chapter) {
@@ -365,7 +391,7 @@ export default {
 					.replace("<id>", this.id)
 					.replace("<chapter>", Math.floor(this.chapter)),
 			header: {
-				"User-Agent": global.userAgent()
+				"User-Agent": global.userAgent(),
 			},
 			success: (response) => {
 				if (chapter != this.chapter) {
@@ -434,7 +460,7 @@ export default {
 			url: imageUrl,
 			responseType: "file",
 			header: {
-				"User-Agent": global.userAgent()
+				"User-Agent": global.userAgent(),
 			},
 			success: (response) => {
 				this.images = response.data;
@@ -478,7 +504,7 @@ export default {
 					.replace("<id>", this.id)
 					.replace("<page>", this.page),
 			header: {
-				"User-Agent": global.userAgent()
+				"User-Agent": global.userAgent(),
 			},
 			responseType: "file",
 			success: (response) => {
@@ -515,6 +541,7 @@ export default {
 		});
 		this.page = 1;
 		this.processData();
+		this.saveHistory();
 	},
 
 	toPage(value) {
@@ -535,11 +562,104 @@ export default {
 			left: 0,
 		});
 		this.getImageForPage();
+		this.saveHistory();
 	},
 
 	getPhoto(value) {
 		this.size.width = screenSize.width;
 		this.size.height = (screenSize.width / value.width) * value.height;
+	},
+
+	// 获取漫画ID（区分本地和在线）
+	getComicId() {
+		if (this.local) {
+			// 本地漫画使用 local_ 前缀
+			return "local_" + this.id;
+		} else {
+			// 在线漫画使用 online_ 前缀
+			return "online_" + global.API_SETTING.using + "_" + this.id;
+		}
+	},
+
+	// 保存阅读历史
+	saveHistory() {
+		const comicId = this.getComicId();
+		const historyData = {
+			id: comicId,
+			originalId: this.id,
+			title: this.is_serial && originalName ? originalName : this.title,
+			cover: this.cover,
+			chapter: this.chapter,
+			page: this.page > this.page_count ? this.page_count : this.page,
+			total_chapters: this.total_chapters,
+			page_count: this.page_count,
+			is_serial: this.is_serial,
+			local: this.local,
+			last_read_time: Date.now(),
+		};
+
+		// 读取现有历史记录
+		file.readText({
+			uri: "internal://files/history.json",
+			success: (data) => {
+				let historyList = [];
+				try {
+					historyList = JSON.parse(data.text);
+					if (!Array.isArray(historyList)) {
+						historyList = [];
+					}
+				} catch (e) {
+					historyList = [];
+				}
+
+				// 查找是否已存在该漫画的记录
+				const existingIndex = historyList.findIndex(
+					(item) => item.id === comicId
+				);
+
+				if (existingIndex !== -1) {
+					// 更新现有记录
+					historyList[existingIndex] = historyData;
+					// 移到最前面
+					historyList.splice(existingIndex, 1);
+					historyList.unshift(historyData);
+				} else {
+					// 添加新记录到最前面
+					historyList.unshift(historyData);
+				}
+
+				// 限制历史记录数量（最多50条）
+				if (historyList.length > 50) {
+					historyList = historyList.slice(0, 50);
+				}
+
+				// 保存回文件
+				file.writeText({
+					uri: "internal://files/history.json",
+					text: JSON.stringify(historyList, null, 2),
+					success: () => {
+						console.log("历史记录保存成功");
+					},
+					fail: (data, code) => {
+						console.error("保存历史记录失败:", code);
+					},
+				});
+			},
+			fail: () => {
+				// 文件不存在，创建新文件
+				const historyList = [historyData];
+				file.writeText({
+					uri: "internal://files/history.json",
+					text: JSON.stringify(historyList, null, 2),
+					success: () => {
+						console.log("历史记录创建成功");
+					},
+					fail: (data, code) => {
+						console.error("创建历史记录失败:", code);
+					},
+				});
+			},
+		});
 	},
 
 	showButton() {
@@ -576,6 +696,7 @@ export default {
 		});
 		this.page = 1;
 		this.processData();
+		this.saveHistory();
 	},
 
 	updatePickerRanges() {
@@ -680,7 +801,7 @@ text {
 
 .title {
 	position: absolute;
-	top: 42px;
+	top: 32px;
 }
 
 .time {
