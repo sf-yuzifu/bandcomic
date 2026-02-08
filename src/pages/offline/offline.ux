@@ -532,6 +532,10 @@ export default {
 	routeBack() {
 		router.back();
 	},
+
+	onBackPress () {
+  		return true;
+	},
 };
 </script>
 
