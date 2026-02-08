@@ -78,13 +78,9 @@
 						<text class="bold grey">{{ $t("detail.rate") }}</text>
 						<text class="bold">{{ data.rate }}</text>
 					</div>
-					<div
-						class="column tags"
-						if="{{ data.tags }}"
-						for="{{ tagType in Object.keys(data.tags) }}"
-					>
-						<text class="bold grey">{{ tagType }}</text>
-						<text for="{{ tag in data.tags[tagType] }}" class="bold">
+					<div class="column tags" if="{{ data.tags }}">
+						<text class="bold grey">{{ $t("detail.tags") }}</text>
+						<text for="{{ tag in data.tags }}" class="bold">
 							{{ tag }}
 						</text>
 					</div>
