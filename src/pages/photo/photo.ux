@@ -680,12 +680,12 @@ text {
 
 .title {
 	position: absolute;
-	top: 35px;
+	top: 42px;
 }
 
 .time {
 	position: absolute;
-	top: 7px;
+	top: 10px;
 }
 
 .slider {
