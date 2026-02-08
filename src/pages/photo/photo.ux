@@ -18,6 +18,10 @@
 			scroll-x="true"
 			scroll-y="true"
 			bounces="true"
+			@touchstart="onTouchStart"
+			@touchmove="onTouchMove"
+			@touchend="onTouchEnd"
+			@scrollbottom="onScrollBottom"
 		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 			<image
@@ -241,6 +245,9 @@ export default {
 		downloadChapter: "",
 		chapterList: [],
 		pickerValues: [],
+		touchStartY: 0,
+		overscrollDistance: 0,
+		isAtImageEnd: false,
 	},
 
 	onShow() {
@@ -758,6 +765,34 @@ export default {
 			},
 		});
 	},
+
+	onScrollBottom() {
+		this.isAtImageEnd = true;
+	},
+
+	onTouchStart(e) {
+		this.touchStartY = e.touches[0].clientY;
+		this.overscrollDistance = 0;
+	},
+
+	onTouchMove(e) {
+		if (this.isAtImageEnd) {
+			const currentY = e.touches[0].clientY;
+			const deltaY = this.touchStartY - currentY;
+			if (deltaY > 0) {
+				this.overscrollDistance = deltaY;
+			}
+		}
+	},
+
+	onTouchEnd() {
+		const triggerDistance = 50;
+		if (this.isAtImageEnd && this.overscrollDistance > triggerDistance) {
+			this.toPage('+');
+		}
+		this.isAtImageEnd = false;
+		this.overscrollDistance = 0;
+	}
 };
 </script>
 
