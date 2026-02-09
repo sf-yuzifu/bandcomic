@@ -25,6 +25,11 @@
 			@scroll="onScroll"
 		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
+			<div
+				if="{{ images }}"
+				style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100
+* 2))/ 2 + 1}px;` }}"
+			></div>
 			<image
 				class="cover"
 				src="{{ images }}"
@@ -43,6 +48,11 @@
 				style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale
 / 100 * 2)}px;` }}"
 			></image>
+			<div
+				if="{{ images }}"
+				style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100
+* 2))/ 2 + 1}px;` }}"
+			></div>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 		</scroll>
 
