@@ -6,13 +6,19 @@
 			src="/common/back.png"
 			@click="routeBack"
 		/>
+		<img
+			if="{{ global.screenShape != 'circle' }}"
+			class="rightButton top"
+			src="/common/trans.png"
+			@click="changeTab"
+		/>
 		<text class="time">{{ time }}</text>
 		<text @click="routeBack" class="title">
 			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
 			<span>{{ currentTab === 'offline' ? $t("offline.offline") : $t("offline.historyTitle") }}</span>
 		</text>
 
-		<swiper class="swiper" @change="switchTab">
+		<swiper index="{{currentTab === 'offline' ? 0 : 1}}" class="swiper" @change="switchTab">
 			<!-- 本地漫画标签页 -->
 			<div class="tab-switcher">
 				<div if="{{ storageLoaded }}" class="storage-container">
@@ -156,6 +162,10 @@ export default {
 
 	switchTab(tab) {
 		this.currentTab = tab.index ? 'history' : 'offline';
+	},
+
+	changeTab() {
+		this.currentTab = this.currentTab === 'offline' ? 'history' : 'offline';
 	},
 
 	loadHistory() {
