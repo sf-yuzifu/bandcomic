@@ -259,6 +259,7 @@ export default {
 		chapterList: [],
 		pickerValues: [],
 		touchStartY: 0,
+		hasReachedBottom: false,
 		// scroll speed detection
 		scrollEvents: [], // a list of {time, y}
 	},
@@ -557,6 +558,7 @@ export default {
 				}
 				break;
 		}
+		this.hasReachedBottom = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -579,6 +581,7 @@ export default {
 				}
 				break;
 		}
+		this.hasReachedBottom = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -712,6 +715,7 @@ export default {
 		} else {
 			this.title = `${this.$t("photo.chapter")} ${this.chapter}`;
 		}
+		this.hasReachedBottom = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -803,7 +807,11 @@ export default {
 	},
 
 	onScrollBottom() {
-		this.toPage("+");
+		if (!this.hasReachedBottom) {
+			this.hasReachedBottom = true;
+		} else {
+			this.toPage("+");
+		}
 	},
 
 	onTouchStart(e) {
