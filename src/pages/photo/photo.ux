@@ -18,17 +18,14 @@
 			scroll-x="true"
 			scroll-y="true"
 			bounces="true"
-			@touchstart="onTouchStart"
-			@touchmove="onTouchMove"
-			@touchend="onTouchEnd"
+			@scrolltop="onScrollTop"
 			@scrollbottom="onScrollBottom"
-			@scroll="onScroll"
 		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 			<div
 				if="{{ images }}"
 				style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100
-* 2))/ 2 + 1}px;` }}"
+* 2))/ 2 + 2}px;` }}"
 			></div>
 			<image
 				class="cover"
@@ -51,7 +48,7 @@
 			<div
 				if="{{ images }}"
 				style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100
-* 2))/ 2 + 1}px;` }}"
+* 2))/ 2 + 2}px;` }}"
 			></div>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 		</scroll>
@@ -258,10 +255,8 @@ export default {
 		downloadChapter: "",
 		chapterList: [],
 		pickerValues: [],
-		touchStartY: 0,
 		hasReachedBottom: false,
-		// scroll speed detection
-		scrollEvents: [], // a list of {time, y}
+		hasReachedTop: false,
 	},
 
 	onShow() {
@@ -559,6 +554,7 @@ export default {
 				break;
 		}
 		this.hasReachedBottom = false;
+		this.hasReachedTop = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -582,6 +578,7 @@ export default {
 				break;
 		}
 		this.hasReachedBottom = false;
+		this.hasReachedTop = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -716,6 +713,7 @@ export default {
 			this.title = `${this.$t("photo.chapter")} ${this.chapter}`;
 		}
 		this.hasReachedBottom = false;
+		this.hasReachedTop = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -785,27 +783,6 @@ export default {
 		});
 	},
 
-	onScroll(e) {
-		const now = Date.now();
-		const currentScrollY = e.scrollY;
-
-		// 1. 如果向上滚动，则重置“在底部”状态
-		const lastEvent =
-			this.scrollEvents.length > 0
-				? this.scrollEvents[this.scrollEvents.length - 1]
-				: null;
-		if (lastEvent && currentScrollY < lastEvent.y) {
-			this.isAtImageEnd = false;
-		}
-
-		// 2. 添加当前事件并清理旧事件
-		const timeWindow = 250; // 250ms 时间窗口
-		this.scrollEvents.push({ time: now, y: currentScrollY });
-		this.scrollEvents = this.scrollEvents.filter(
-			(event) => now - event.time < timeWindow
-		);
-	},
-
 	onScrollBottom() {
 		if (!this.hasReachedBottom) {
 			this.hasReachedBottom = true;
@@ -814,9 +791,12 @@ export default {
 		}
 	},
 
-	onTouchStart(e) {
-		this.touchStartY = e.touches[0].clientY;
-		this.overscrollDistance = 0;
+	onScrollTop() {
+		if (!this.hasReachedTop) {
+			this.hasReachedTop = true;
+		} else {
+			this.toPage("-");
+		}
 	},
 };
 </script>
