@@ -22,6 +22,7 @@
 			@touchmove="onTouchMove"
 			@touchend="onTouchEnd"
 			@scrollbottom="onScrollBottom"
+			@scroll="onScroll"
 		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 			<image
@@ -248,6 +249,8 @@ export default {
 		touchStartY: 0,
 		overscrollDistance: 0,
 		isAtImageEnd: false,
+		// scroll speed detection
+		scrollEvents: [], // a list of {time, y}
 	},
 
 	onShow() {
@@ -766,8 +769,44 @@ export default {
 		});
 	},
 
+	onScroll(e) {
+		const now = Date.now();
+		const currentScrollY = e.scrollY;
+
+		// 1. 如果向上滚动，则重置“在底部”状态
+		const lastEvent = this.scrollEvents.length > 0 ? this.scrollEvents[this.scrollEvents.length - 1] : null;
+		if (lastEvent && currentScrollY < lastEvent.y) {
+			this.isAtImageEnd = false;
+		}
+
+		// 2. 添加当前事件并清理旧事件
+		const timeWindow = 250; // 250ms 时间窗口
+		this.scrollEvents.push({ time: now, y: currentScrollY });
+		this.scrollEvents = this.scrollEvents.filter(event => now - event.time < timeWindow);
+
+		// 3. 如果在底部，检查快速滚动（累积增量）
+		if (this.isAtImageEnd && this.scrollEvents.length > 1) {
+			let accumulatedDelta = 0;
+			for (let i = 1; i < this.scrollEvents.length; i++) {
+				const delta = this.scrollEvents[i].y - this.scrollEvents[i - 1].y;
+				if (delta > 0) { // 只累加正向（向下）的滚动增量
+					accumulatedDelta += delta;
+				}
+			}
+
+			const flickThreshold = 20; // 快速滚动的累积距离阈值
+
+			if (accumulatedDelta > flickThreshold) {
+				this.toPage('+');
+				this.resetInteractionState();
+			}
+		}
+	},
+
 	onScrollBottom() {
 		this.isAtImageEnd = true;
+		// Clear scroll events on reaching bottom to start fresh detection
+		this.scrollEvents = [];
 	},
 
 	onTouchStart(e) {
@@ -776,22 +815,32 @@ export default {
 	},
 
 	onTouchMove(e) {
-		if (this.isAtImageEnd) {
-			const currentY = e.touches[0].clientY;
-			const deltaY = this.touchStartY - currentY;
-			if (deltaY > 0) {
-				this.overscrollDistance = deltaY;
-			}
+		const currentY = e.touches[0].clientY;
+		const deltaY = this.touchStartY - currentY;
+
+		// This handles slow drag-to-flip
+		if (this.isAtImageEnd && deltaY > 0) {
+			this.overscrollDistance = deltaY;
 		}
 	},
 
-	onTouchEnd() {
-		const triggerDistance = 50;
-		if (this.isAtImageEnd && this.overscrollDistance > triggerDistance) {
+	onTouchEnd(e) {
+		// This only handles the slow drag-to-flip gesture
+		const slowDragThreshold = 50;
+		if (this.isAtImageEnd && this.overscrollDistance > slowDragThreshold) {
 			this.toPage('+');
+			this.resetInteractionState();
+			return;
 		}
+		this.overscrollDistance = 0;
+	},
+
+	resetInteractionState() {
 		this.isAtImageEnd = false;
 		this.overscrollDistance = 0;
+		this.touchStartY = 0;
+		// Reset scroll detection state
+		this.scrollEvents = [];
 	}
 };
 </script>
