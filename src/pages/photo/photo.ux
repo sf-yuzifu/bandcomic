@@ -269,12 +269,14 @@ export default {
 			success: (data) => {
 				try {
 					const historyList = JSON.parse(data.text);
-					const historyItem = historyList.find(item => item.id === comicId);
+					const historyItem = historyList.find((item) => item.id === comicId);
 					if (historyItem) {
 						// 恢复上次阅读的章节和页码
 						this.chapter = historyItem.chapter || 1;
 						this.page = historyItem.page || 1;
-						console.log(`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`);
+						console.log(
+							`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`
+						);
 					}
 				} catch (e) {
 					console.error("读取历史记录失败:", e);
@@ -284,7 +286,7 @@ export default {
 			fail: () => {
 				// 没有历史记录，正常初始化
 				this.initData();
-			}
+			},
 		});
 	},
 
@@ -774,7 +776,10 @@ export default {
 		const currentScrollY = e.scrollY;
 
 		// 1. 如果向上滚动，则重置“在底部”状态
-		const lastEvent = this.scrollEvents.length > 0 ? this.scrollEvents[this.scrollEvents.length - 1] : null;
+		const lastEvent =
+			this.scrollEvents.length > 0
+				? this.scrollEvents[this.scrollEvents.length - 1]
+				: null;
 		if (lastEvent && currentScrollY < lastEvent.y) {
 			this.isAtImageEnd = false;
 		}
@@ -782,19 +787,19 @@ export default {
 		// 2. 添加当前事件并清理旧事件
 		const timeWindow = 250; // 250ms 时间窗口
 		this.scrollEvents.push({ time: now, y: currentScrollY });
-		this.scrollEvents = this.scrollEvents.filter(event => now - event.time < timeWindow);
+		this.scrollEvents = this.scrollEvents.filter(
+			(event) => now - event.time < timeWindow
+		);
 	},
 
 	onScrollBottom() {
-		this.toPage('+');
+		this.toPage("+");
 	},
 
 	onTouchStart(e) {
 		this.touchStartY = e.touches[0].clientY;
 		this.overscrollDistance = 0;
 	},
-
-
 };
 </script>
 
@@ -886,6 +891,10 @@ text {
 	padding: 10px;
 }
 
+.cover-image {
+	width: 100%;
+}
+
 /* 看看是不是小米手表 */
 @media (device-type: watch) and (shape: circle) {
 	.padding {
@@ -943,18 +952,6 @@ text {
 @media (device-type: watch) and (shape: rect) {
 	.padding {
 		height: 10%;
-	}
-}
-
-@media (width: 233) {
-	.cover-image {
-		width: 466px;
-	}
-}
-
-@media (width: 216) {
-	.cover-image {
-		width: 432px;
 	}
 }
 </style>
