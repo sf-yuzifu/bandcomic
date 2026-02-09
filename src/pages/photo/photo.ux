@@ -140,13 +140,6 @@
 					onchange="onSliderChange"
 				></slider>
 				<div style="height: 10px"></div>
-				<text
-					if="{{ total_chapters > 1 && !local && canDownload }}"
-					class="subtitle dl"
-					@click="download"
-				>
-					{{ $t("photo.dl") }}
-				</text>
 			</div>
 		</div>
 
@@ -246,7 +239,6 @@ export default {
 		images: null,
 		local: false,
 		loading: true,
-		canDownload: false,
 		title: "",
 		chapter: 1,
 		cover: "",
@@ -334,7 +326,6 @@ export default {
 	},
 
 	processData() {
-		this.canDownload = false;
 		if (global.API_SETTING[global.API_SETTING.using].type === "qqcomic") {
 			if (this.local) {
 				this.getImageForPage();
@@ -443,8 +434,6 @@ export default {
 			this.loading = "end";
 			return;
 		}
-
-		this.canDownload = true;
 
 		if (this.local) {
 			if (this.is_serial) {
@@ -765,21 +754,6 @@ export default {
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
-		});
-	},
-
-	download() {
-		router.replace({
-			uri: "/pages/download",
-			params: {
-				id: this.id,
-				page_count: this.page_count,
-				chapter: Math.floor(this.chapter),
-				is_serial: this.is_serial,
-				name: this.title,
-				originalName: this.is_serial ? originalName : this.title,
-				cover: this.cover,
-			},
 		});
 	},
 
