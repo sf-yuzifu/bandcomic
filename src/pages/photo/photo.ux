@@ -435,6 +435,8 @@ export default {
 			return;
 		}
 
+		const page = this.page;
+
 		if (this.local) {
 			if (this.is_serial) {
 				const chapterNum = this.downloadChapter[this.chapter - 1][2];
@@ -470,57 +472,16 @@ export default {
 				"User-Agent": global.userAgent(),
 			},
 			success: (response) => {
+				if (page != this.page) {
+					return;
+				}
 				this.images = response.data;
 			},
 			fail: () => {
+				if (page != this.page) {
+					return;
+				}
 				this.images = "internal://files/error.png";
-			},
-		});
-	},
-
-	getImages() {
-		this.loading = true;
-		this.images = "";
-		this.scale = 0;
-		this.size.width = screenSize.width / 2;
-		this.size.height = screenSize.height / 2;
-
-		if (this.page > this.page_count) {
-			this.loading = "end";
-			return;
-		}
-
-		this.canDownload = true;
-
-		if (this.local) {
-			if (this.is_serial) {
-				const chapterNum = this.downloadChapter[this.chapter - 1][2];
-				const chapterName = this.downloadChapter[this.chapter - 1][0];
-				this.images = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
-				this.title = chapterName;
-				this.page_count = this.downloadChapter[this.chapter - 1][1];
-			} else {
-				this.images = `internal://files/${this.id}/${this.page}`;
-			}
-			return;
-		}
-		fetch.fetch({
-			url:
-				global.API_SETTING[global.API_SETTING.using].apiUrl +
-				global.API_SETTING[global.API_SETTING.using].photoPath
-					.replace("<id>", this.id)
-					.replace("<page>", this.page),
-			header: {
-				"User-Agent": global.userAgent(),
-			},
-			responseType: "file",
-			success: (response) => {
-				this.images = response.data;
-			},
-			fail: (data, code) => {
-				this.images = "internal://files/notfound.png";
-				console.log(`handling fail, errMsg = ${data}`);
-				console.log(`handling fail, errCode = ${code}`);
 			},
 		});
 	},
