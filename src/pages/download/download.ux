@@ -46,9 +46,9 @@
 		<!-- 章节选择界面 -->
 		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
 			<div style="width: 100%; height: 100%;">
-				<scroll scroll-y="true" class="chapter-list" bounces="true">
+				<scroll id="chapterScroll" scroll-y="true" class="chapter-list" bounces="true" onscrolltop="onScrollTop" onscrollbottom="onScrollBottom">
 					<div
-						for="{{ chapter in chapterList }}"
+						for="{{ chapter in chapterList.slice(displayStart, displayEnd) }}"
 						class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
 						@click="toggleChapter(chapter.num)"
 					>
@@ -206,6 +206,11 @@ export default {
 		total_chapters: 0,
 		currentChapterIndex: 0,
 		chapterName: "",
+		displayStart: 0,
+		displayEnd: 18,
+		loadingMore: false,
+		scrollTopTriggered: false,
+		scrollBottomTriggered: false,
 	},
 
 	onShow() {
@@ -224,6 +229,8 @@ export default {
 	async initData() {
 		this.is_serial = this.total_chapters > 1;
 		this.originalName = this.name;
+		this.displayStart = 0;
+		this.displayEnd = Math.min(18, this.total_chapters);
 		if (this.is_serial) {
 			this.chapterList = [];
 			for (let i = 1; i <= this.total_chapters; i++) {
@@ -265,6 +272,40 @@ export default {
 				this.chapterList[i].selected = true;
 			}
 		}
+	},
+
+	onScrollTop() {
+		if (this.displayStart === 0 || this.loadingMore) {
+			this.scrollTopTriggered = false;
+			return;
+		}
+		if (!this.scrollTopTriggered) {
+			this.scrollTopTriggered = true;
+			return;
+		}
+		this.scrollTopTriggered = false;
+		this.scrollBottomTriggered = false;
+		this.loadingMore = true;
+		this.displayEnd = this.displayStart;
+		this.displayStart = Math.max(0, this.displayStart - 18);
+		this.loadingMore = false;
+	},
+
+	onScrollBottom() {
+		if (this.displayEnd >= this.total_chapters || this.loadingMore) {
+			this.scrollBottomTriggered = false;
+			return;
+		}
+		if (!this.scrollBottomTriggered) {
+			this.scrollBottomTriggered = true;
+			return;
+		}
+		this.scrollTopTriggered = false;
+		this.scrollBottomTriggered = false;
+		this.loadingMore = true;
+		this.displayStart = this.displayEnd;
+		this.displayEnd = Math.min(this.displayEnd + 18, this.total_chapters);
+		this.loadingMore = false;
 	},
 
 	async startBatchDownload() {
@@ -818,7 +859,7 @@ export default {
 }
 
 .button {
-	min-width: 30%;
+	min-width: auto;
 	height: 100%;
 	border: 3px solid rgba(255, 255, 255, 0.24);
 	background-color: #262626;
