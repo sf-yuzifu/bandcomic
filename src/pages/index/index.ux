@@ -181,12 +181,16 @@ export default {
 
 	onInit() {
 		file.readText({
-			uri: "internal://files/cookie",
+			uri: "internal://files/cookie.json",
 			success: (data) => {
-				global.cookie = data.text;
+				try {
+					global.cookie = JSON.parse(data.text);
+				} catch (e) {
+					global.cookie = {};
+				}
 			},
 			fail: (data) => {
-				console.log(data);
+				global.cookie = {};
 			},
 		});
 		const connect = interconnect.instance();
@@ -194,11 +198,20 @@ export default {
 			const Cookie = data.data;
 			if (Cookie) {
 				prompt.showToast({ message: this.$t("cookie.receive") });
+				if (!global.cookie) {
+					global.cookie = {};
+				}
+				try {
+					const cookieObj = JSON.parse(Cookie);
+					Object.assign(global.cookie, cookieObj);
+				} catch (e) {
+					const currentSource = global.API_SETTING.using;
+					global.cookie[currentSource] = Cookie;
+				}
 				file.writeText({
-					uri: "internal://files/cookie",
-					text: Cookie,
+					uri: "internal://files/cookie.json",
+					text: JSON.stringify(global.cookie),
 					success: () => {
-						global.cookie = Cookie;
 						prompt.showToast({ message: this.$t("cookie.success") });
 					},
 					fail: () => {
