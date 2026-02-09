@@ -354,7 +354,9 @@ export default {
 					.replace("<id>", this.id)
 					.replace("<chapter>", Math.floor(this.chapter)),
 			header: {
-				"QQComic-Cookie": global.cookie || "",
+				...(global.cookie && global.cookie[global.API_SETTING.using]
+					? { Cookie: global.cookie[global.API_SETTING.using] }
+					: {}),
 				"User-Agent": global.userAgent(),
 			},
 			success: (response) => {
