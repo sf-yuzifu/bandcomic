@@ -56,14 +56,12 @@
 		<img
 			if="{{ showit }}"
 			src="/common/upCover.png"
-			class="cover-image"
-			style="position: absolute; top: 0px"
+			style="position: absolute; top: 0px; width: {{ global.screenSize.width }}px;"
 		/>
 		<img
 			if="{{ showit }}"
 			src="/common/bottomCover.png"
-			class="cover-image"
-			style="position: absolute; bottom: 0px"
+			style="position: absolute; bottom: 0px; width: {{ global.screenSize.width }}px;"
 		/>
 
 		<!-- 方表适配 -->
@@ -822,10 +820,6 @@ text {
 	border: 3px rgba(255, 255, 255, 0.24);
 	background-color: #262626;
 	padding: 10px;
-}
-
-.cover-image {
-	width: 100%;
 }
 
 /* 看看是不是小米手表 */
