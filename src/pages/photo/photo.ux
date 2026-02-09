@@ -49,11 +49,13 @@
 		<img
 			if="{{ showit }}"
 			src="/common/upCover.png"
+			class="cover-image"
 			style="position: absolute; top: 0px"
 		/>
 		<img
 			if="{{ showit }}"
 			src="/common/bottomCover.png"
+			class="cover-image"
 			style="position: absolute; bottom: 0px"
 		/>
 
@@ -941,6 +943,18 @@ text {
 @media (device-type: watch) and (shape: rect) {
 	.padding {
 		height: 10%;
+	}
+}
+
+@media (width: 233) {
+	.cover-image {
+		width: 466px;
+	}
+}
+
+@media (width: 216) {
+	.cover-image {
+		width: 432px;
 	}
 }
 </style>
