@@ -45,19 +45,27 @@
 
 		<!-- 章节选择界面 -->
 		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
-			<scroll scroll-y="true" class="chapter-list" bounces="true">
-				<div
-					for="{{ chapter in chapterList }}"
-					class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
-					@click="toggleChapter(chapter.num)"
-				>
-					<text class="chapter-text">{{ $t("photo.chapter") }}</text>
-					<text class="chapter-text">{{ chapter.num }}</text>
-				</div>
-			</scroll>
+			<div style="width: 100%; height: 100%;">
+				<scroll scroll-y="true" class="chapter-list" bounces="true">
+					<div
+						for="{{ chapter in chapterList }}"
+						class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
+						@click="toggleChapter(chapter.num)"
+					>
+						<text class="chapter-text">{{ $t("photo.chapter") }}</text>
+						<text class="chapter-text">{{ chapter.num }}</text>
+					</div>
+				</scroll>
+			</div>
 			<div class="select-buttons">
 				<div class="button" @click="selectAll">
-					<text class="select-text">{{ selectedChapters.length == total_chapters ? $t("download.deselectAll") : $t("download.selectAll") }}</text>
+					<text class="select-text">
+						{{
+							selectedChapters.length == total_chapters
+								? $t("download.deselectAll")
+								: $t("download.selectAll")
+						}}
+					</text>
 				</div>
 				<div class="button" @click="startBatchDownload">
 					<text class="select-text">
@@ -770,7 +778,6 @@ export default {
 	width: 100%;
 	flex: 1;
 	flex-wrap: wrap;
-	justify-content: space-between;
 }
 
 .chapter-item {
@@ -779,7 +786,7 @@ export default {
 	border-radius: 12px;
 	justify-content: center;
 	align-items: center;
-	margin-bottom: 10px;
+	margin: 3.33%;
 	border: 3px solid rgba(255, 255, 255, 0.24);
 	flex-direction: column;
 }
@@ -812,6 +819,7 @@ export default {
 
 .button {
 	min-width: 30%;
+	height: 100%;
 	border: 3px solid rgba(255, 255, 255, 0.24);
 	background-color: #262626;
 	padding: 10px 6px;
