@@ -18,12 +18,30 @@
 			@click="routeBack"
 		/>
 		<text class="time">{{ time }}</text>
-		<text @click="routeBack" class="title">
-			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
+
+		<div class="title" style="justify-content: center">
+			<text
+				class="iconfont"
+				style="margin-right: 10px"
+				if="{{ global.screenShape == 'circle' }}"
+			>
 				&#xe685;
-			</span>
-			<span>{{ $t("download.title") }}</span>
-		</text>
+			</text>
+			<marquee
+				scrollamount="{{ 20 }}"
+				text-offset="{{ 20 }}"
+				style="font-size: 32px; font-weight: bold"
+				@click="
+					() => {
+						if (global.screenShape == 'circle') {
+							routeBack();
+						}
+					}
+				"
+			>
+				{{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
+			</marquee>
+		</div>
 
 		<!-- 章节选择界面 -->
 		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
@@ -896,6 +914,25 @@ export default {
 	.button {
 		margin-bottom: 10px;
 		padding: 5px;
+	}
+}
+
+/* 看看是不是小米手环Pro */
+@media (device-type: band) and (shape: rect) {
+	.title {
+		width: 180px;
+	}
+}
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+	.title {
+		width: 248px;
+	}
+}
+
+@media (device-type: watch) and (shape: circle) {
+	.title {
+		width: 240px;
 	}
 }
 </style>
