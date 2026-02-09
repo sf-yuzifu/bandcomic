@@ -110,7 +110,12 @@
         "parseIndexFailed": "Parse index failed",
         "readIndexFailed": "Read index failed, code: {code}",
         "createIndexFailed": "Create index failed, code: {code}",
-        "createFolderFailed": "Create folder failed, code: {code}"
+        "createFolderFailed": "Create folder failed, code: {code}",
+        "selectChapters": "Select chapters to download",
+        "selectAll": "Select All",
+        "startDownload": "Start Download",
+        "selectAtLeastOne": "Please select at least one chapter",
+        "allComplete": "All downloads complete"
     },
     "edit": {
         "title": "Edit Sources",

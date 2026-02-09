@@ -89,15 +89,13 @@
 			</scroll>
 		</div>
 		<img
-			if="{{ global.screenShape != 'circle' && (!data.total_chapters || data.total_chapters
-<=1) }}"
+			if="{{ global.screenShape != 'circle' }}"
 			class="rightButton bottom"
 			src="/common/dl.png"
 			@click="download"
 		/>
 		<img
-			if="{{ global.screenShape == 'circle' && (!data.total_chapters || data.total_chapters
-<=1) }}"
+			if="{{ global.screenShape == 'circle' }}"
 			class="bottom"
 			src="/common/dl_s4.png"
 			@click="download"
@@ -163,6 +161,7 @@ export default {
 				chapter: this.data.total_chapters || 1,
 				name: this.data.name,
 				cover: this.data.cover,
+				total_chapters: this.data.total_chapters || 1,
 			},
 		});
 	},

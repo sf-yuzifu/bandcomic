@@ -110,7 +110,12 @@
         "parseIndexFailed": "解析索引文件失败",
         "readIndexFailed": "读取索引文件失败，错误码：{code}",
         "createIndexFailed": "创建索引文件失败，错误码：{code}",
-        "createFolderFailed": "创建文件夹失败，错误码：{code}"
+        "createFolderFailed": "创建文件夹失败，错误码：{code}",
+        "selectChapters": "选择要下载的章节",
+        "selectAll": "全选",
+        "startDownload": "开始下载",
+        "selectAtLeastOne": "请至少选择一个章节",
+        "allComplete": "全部下载完成"
     },
     "edit": {
         "title": "编辑漫画源",

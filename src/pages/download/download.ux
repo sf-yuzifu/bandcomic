@@ -1,5 +1,16 @@
 <template>
 	<div class="container">
+		<scroll
+			scroll-x="false"
+			scroll-y="false"
+			id="mask"
+			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
+		>
+			<image
+				style="top: 100px"
+				src="/common/{{ processing ? 'success':'dling' }}_s4.png"
+			></image>
+		</scroll>
 		<img
 			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
@@ -14,10 +25,34 @@
 			<span>{{ $t("download.title") }}</span>
 		</text>
 
+		<!-- 章节选择界面 -->
+		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
+			<scroll scroll-y="true" class="chapter-list" bounces="true">
+				<div
+					for="{{ chapter in chapterList }}"
+					class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
+					@click="toggleChapter(chapter.num)"
+				>
+					<text class="chapter-text">{{ $t("photo.chapter") }}</text>
+					<text class="chapter-text">{{ chapter.num }}</text>
+				</div>
+			</scroll>
+			<div class="select-buttons">
+				<div class="button" @click="selectAll">
+					<text class="select-text">{{ $t("download.selectAll") }}</text>
+				</div>
+				<div class="button" @click="startBatchDownload">
+					<text class="select-text">
+						{{ $t("download.startDownload") }}({{ selectedChapters.length }})
+					</text>
+				</div>
+			</div>
+		</div>
+
 		<!-- 方形手表下载界面 -->
 		<div
 			class="downloading"
-			if="{{ global.screenShape != 'circle' && !downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape != 'circle' && !downloadError }}"
 		>
 			<image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
 			<text class="dl-text">
@@ -26,7 +61,7 @@
 		</div>
 		<div
 			id="process"
-			if="{{ global.screenShape != 'circle' && !downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape != 'circle' && !downloadError }}"
 		>
 			<text class="content">
 				{{ $t("download.page", { page: page, total_page: page_count }) }}
@@ -35,21 +70,17 @@
 		</div>
 		<div
 			class="downloading"
-			if="{{ global.screenShape != 'circle' && downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape != 'circle' && downloadError }}"
 		>
 			<image src="/common/fail.png"></image>
 			<text class="dl-text">{{ downloadError }}</text>
 		</div>
 
 		<!-- 圆形手表下载界面 -->
-		<image
-			if="{{ global.screenShape == 'circle' && !downloadError }}"
-			id="mask"
-			src="/common/{{ processing ? 'success':'dling' }}_s4.png"
-		></image>
+
 		<div
 			class="downloading"
-			if="{{ global.screenShape == 'circle' && !downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
 		>
 			<text class="dl-text">
 				{{ processing ? $t("download.complete") : $t("download.downloading") }}
@@ -58,7 +89,7 @@
 		</div>
 		<div
 			id="process"
-			if="{{ global.screenShape == 'circle' && !downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
 		>
 			<text class="content">
 				{{ $t("download.page", { page: page, total_page: page_count }) }}
@@ -66,20 +97,20 @@
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
 		<image
-			if="{{ global.screenShape == 'circle' && downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
 			id="mask"
 			src="/common/fail_s4.png"
 		></image>
 		<div
 			class="downloading"
-			if="{{ global.screenShape == 'circle' && downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
 		>
 			<text class="dl-text">{{ $t("download.downloadFailed") }}</text>
 			<image src="/common/fail_icon.png"></image>
 		</div>
 		<div
 			id="process-s4"
-			if="{{ global.screenShape == 'circle' && downloadError }}"
+			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
 		>
 			<text class="content">{{ downloadError }}</text>
 		</div>
@@ -98,18 +129,6 @@ let ImageCache = [];
 
 function sleep(ms) {
 	return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function formatFileSize(size) {
-	if (size < 1024) {
-		return size + "B";
-	} else if (size < 1024 * 1024) {
-		return (size / 1024).toFixed(2) + "KB";
-	} else if (size < 1024 * 1024 * 1024) {
-		return (size / (1024 * 1024)).toFixed(2) + "MB";
-	} else {
-		return (size / (1024 * 1024 * 1024)).toFixed(2) + "GB";
-	}
 }
 
 function sanitizeFolderName(name) {
@@ -155,6 +174,12 @@ export default {
 		downloadError: "",
 		originalName: "",
 		is_serial: false,
+		showChapterSelect: false,
+		chapterList: [],
+		selectedChapters: [],
+		total_chapters: 0,
+		currentChapterIndex: 0,
+		chapterName: "",
 	},
 
 	onShow() {
@@ -162,23 +187,115 @@ export default {
 	},
 
 	async onInit() {
-		this.startDownloadProcess();
+		await this.initData();
+		if (this.is_serial && this.total_chapters > 1) {
+			this.showChapterSelect = true;
+		} else {
+			this.startDownloadProcess();
+		}
+	},
+
+	async initData() {
+		this.is_serial = this.total_chapters > 1;
+		this.originalName = this.name;
+		if (this.is_serial) {
+			this.chapterList = [];
+			for (let i = 1; i <= this.total_chapters; i++) {
+				this.chapterList.push({
+					num: i,
+					selected: false,
+				});
+			}
+		}
+	},
+
+	toggleChapter(chapterNum) {
+		const index = this.selectedChapters.indexOf(chapterNum);
+		if (index === -1) {
+			this.selectedChapters.push(chapterNum);
+		} else {
+			this.selectedChapters.splice(index, 1);
+		}
+		for (let i = 0; i < this.chapterList.length; i++) {
+			if (this.chapterList[i].num === chapterNum) {
+				this.chapterList[i].selected = !this.chapterList[i].selected;
+				break;
+			}
+		}
+	},
+
+	selectAll() {
+		if (this.selectedChapters.length === this.total_chapters) {
+			this.selectedChapters = [];
+			for (let i = 0; i < this.chapterList.length; i++) {
+				this.chapterList[i].selected = false;
+			}
+		} else {
+			this.selectedChapters = [];
+			for (let i = 1; i <= this.total_chapters; i++) {
+				this.selectedChapters.push(i);
+			}
+			for (let i = 0; i < this.chapterList.length; i++) {
+				this.chapterList[i].selected = true;
+			}
+		}
+	},
+
+	async startBatchDownload() {
+		if (this.selectedChapters.length === 0) {
+			prompt.showToast({
+				message: this.$t("download.selectAtLeastOne"),
+				duration: 2000,
+			});
+			return;
+		}
+		this.showChapterSelect = false;
+		this.currentChapterIndex = 0;
+		await this.downloadNextChapter();
+	},
+
+	async downloadNextChapter() {
+		if (this.currentChapterIndex >= this.selectedChapters.length) {
+			this.processing = true;
+			prompt.showToast({
+				message: this.$t("download.allComplete"),
+				duration: 2000,
+			});
+			await sleep(1000);
+			router.replace({
+				uri: "/pages/offline",
+			});
+			return;
+		}
+
+		this.chapter = this.selectedChapters[this.currentChapterIndex];
+		this.chapterName = "";
+		this.processing = false;
+		this.page = 0;
+		this.downloadError = "";
+
+		try {
+			await this.startDownloadProcess();
+			this.currentChapterIndex++;
+			await sleep(500);
+			await this.downloadNextChapter();
+		} catch (error) {
+			console.error(`章节 ${this.chapter} 下载失败:`, error);
+			this.downloadError = error;
+			this.processing = false;
+		}
 	},
 
 	async startDownloadProcess() {
 		try {
-			// 1. 检查 comics.json 文件是否存在
 			const fileExists = await this.checkFileExists();
 
 			if (fileExists) {
-				// 2. 如果存在，读取并更新 comics.json
 				await this.readAndUpdateComicsJson();
 			} else {
-				// 3. 如果不存在，创建新的 comics.json 文件
 				await this.createComicsJson();
 			}
 
-			// 4. 创建文件夹并开始下载图片
 			await this.createFolderAndDownload();
 		} catch (error) {
 			console.log(`下载过程出错: ${error}`);
@@ -196,7 +313,6 @@ export default {
 				},
 				fail: (data, code) => {
 					if (code === 301) {
-						// 文件不存在
 						resolve(false);
 					} else {
 						reject(this.$t("download.checkFileFailed", { code: code }));
@@ -289,12 +405,14 @@ export default {
 			let folderUri;
 			let coverUri;
 
+			await this.DownloadImage();
+
 			if (this.is_serial) {
 				const mainFolderUri = `internal://files/${
 					global.API_SETTING.using + "_" + this.id
 				}`;
 				await this.createFolder(mainFolderUri);
-				const chapterName = sanitizeFolderName(this.name);
+				const chapterName = sanitizeFolderName(this.chapterName || this.name);
 				folderUri = `${mainFolderUri}/${this.chapter}　${chapterName}`;
 				coverUri = mainFolderUri;
 			} else {
@@ -305,29 +423,32 @@ export default {
 			}
 			await this.createFolder(folderUri);
 
-			await this.downloadCover(coverUri);
-
-			await this.DownloadImage();
+			if (this.currentChapterIndex === 0 || !this.is_serial) {
+				await this.downloadCover(coverUri);
+			}
 
 			for (let i = 1; i <= this.page_count; i++) {
 				this.page = i;
 				await this.downloadImage(i, folderUri);
 			}
 
-			this.processing = true;
-			prompt.showToast({
-				message: this.$t("download.complete"),
-				duration: 2000,
-			});
+			if (!this.is_serial) {
+				this.processing = true;
+				prompt.showToast({
+					message: this.$t("download.complete"),
+					duration: 2000,
+				});
 
-			await sleep(1000);
-			router.replace({
-				uri: "/pages/offline",
-			});
+				await sleep(1000);
+				router.replace({
+					uri: "/pages/offline",
+				});
+			}
 		} catch (error) {
 			console.error("下载过程出错:", error);
 			this.downloadError = error;
 			this.processing = false;
+			throw error;
 		}
 	},
 
@@ -365,7 +486,6 @@ export default {
 				},
 				success: (response) => {
 					const body = response.data;
-					// 检查响应格式并提取图片URL
 					if (body.images_data) {
 						ImageCache = [
 							...body.images_data.data.picture.map(
@@ -373,9 +493,16 @@ export default {
 									global.API_SETTING[global.API_SETTING.using].apiUrl + img.url
 							),
 						];
+						if (body.chapter_info && body.chapter_info.title) {
+							this.chapterName = body.chapter_info.title;
+						}
 					} else {
 						ImageCache = [...body.images.map((img) => img.url)];
+						if (body.title) {
+							this.chapterName = body.title;
+						}
 					}
+					this.page_count = ImageCache.length;
 					resolve();
 				},
 				fail: (data, code) => {
@@ -612,6 +739,69 @@ export default {
 	margin-right: 40px;
 }
 
+/* 章节选择界面样式 */
+.chapter-select {
+	width: 100%;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	padding: 20px;
+}
+
+.chapter-list {
+	width: 100%;
+	flex: 1;
+	flex-wrap: wrap;
+	justify-content: space-between;
+}
+
+.chapter-item {
+	width: 31%;
+	background-color: #262626;
+	border-radius: 12px;
+	justify-content: center;
+	align-items: center;
+	margin-bottom: 10px;
+	border: 3px solid rgba(255, 255, 255, 0.24);
+	flex-direction: column;
+}
+
+.selected {
+	background-color: #4caf50;
+	border-color: #4caf50;
+}
+
+.chapter-text {
+	font-size: 24px;
+	color: #ffffff;
+	font-weight: bold;
+	text-align: center;
+}
+
+.select-text {
+	font-size: 24px;
+	color: #ffffff;
+	font-weight: bold;
+	text-align: center;
+}
+
+.select-buttons {
+	margin-top: 20px;
+	width: 100%;
+	flex-direction: row;
+	justify-content: space-between;
+}
+
+.button {
+	min-width: 30%;
+	border: 3px solid rgba(255, 255, 255, 0.24);
+	background-color: #262626;
+	padding: 10px 6px;
+	border-radius: 100%;
+	justify-content: center;
+	align-items: center;
+}
+
 /* 方形手表适配 */
 @media (shape: rect) {
 	#process {
@@ -630,6 +820,10 @@ export default {
 		width: 100%;
 		flex: 1;
 		flex-direction: column;
+	}
+
+	.select-buttons {
+		width: 95%;
 	}
 }
 
@@ -650,17 +844,17 @@ export default {
 
 	.title {
 		position: absolute;
-		top: 35px;
+		top: 32px;
 	}
 
 	.time {
 		position: absolute;
-		top: 7px;
+		top: 10px;
 	}
 
 	#mask {
 		position: absolute;
-		top: 100px;
+		height: 100%;
 	}
 
 	.dl-text {
@@ -687,6 +881,21 @@ export default {
 		background-color: #262626;
 		border-radius: 100%;
 		justify-content: space-around;
+	}
+
+	.chapter-list {
+		margin-top: 72px;
+		width: 90%;
+	}
+
+	.select-buttons {
+		flex-direction: column;
+		width: 50%;
+	}
+
+	.button {
+		margin-bottom: 10px;
+		padding: 5px;
 	}
 }
 </style>
