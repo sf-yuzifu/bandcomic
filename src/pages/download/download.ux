@@ -45,8 +45,15 @@
 
 		<!-- 章节选择界面 -->
 		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
-			<div style="width: 100%; height: 100%;">
-				<scroll id="chapterScroll" scroll-y="true" class="chapter-list" bounces="true" onscrolltop="onScrollTop" onscrollbottom="onScrollBottom">
+			<div style="width: 100%; height: 100%">
+				<scroll
+					id="chapterScroll"
+					scroll-y="true"
+					class="chapter-list"
+					bounces="true"
+					onscrolltop="onScrollTop"
+					onscrollbottom="onScrollBottom"
+				>
 					<div
 						for="{{ chapter in chapterList.slice(displayStart, displayEnd) }}"
 						class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
@@ -218,10 +225,9 @@ export default {
 	},
 
 	async onInit() {
+		this.showChapterSelect = this.total_chapters > 1;
 		await this.initData();
-		if (this.is_serial && this.total_chapters > 1) {
-			this.showChapterSelect = true;
-		} else {
+		if (!(this.is_serial && this.total_chapters > 1)) {
 			this.startDownloadProcess();
 		}
 	},
