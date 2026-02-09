@@ -113,6 +113,7 @@
         "createFolderFailed": "创建文件夹失败，错误码：{code}",
         "selectChapters": "选择要下载的章节",
         "selectAll": "全选",
+        "deselectAll": "反选",
         "startDownload": "开始下载",
         "selectAtLeastOne": "请至少选择一个章节",
         "allComplete": "全部下载完成"

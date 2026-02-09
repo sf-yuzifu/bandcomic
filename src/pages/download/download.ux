@@ -57,7 +57,7 @@
 			</scroll>
 			<div class="select-buttons">
 				<div class="button" @click="selectAll">
-					<text class="select-text">{{ $t("download.selectAll") }}</text>
+					<text class="select-text">{{ selectedChapters.length == total_chapters ? $t("download.deselectAll") : $t("download.selectAll") }}</text>
 				</div>
 				<div class="button" @click="startBatchDownload">
 					<text class="select-text">
@@ -243,7 +243,7 @@ export default {
 	},
 
 	selectAll() {
-		if (this.selectedChapters.length === this.total_chapters) {
+		if (this.selectedChapters.length == this.total_chapters) {
 			this.selectedChapters = [];
 			for (let i = 0; i < this.chapterList.length; i++) {
 				this.chapterList[i].selected = false;
