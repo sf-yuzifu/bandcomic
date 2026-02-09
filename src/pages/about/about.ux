@@ -276,16 +276,6 @@ export default {
 	margin-top: 10px;
 }
 
-.title2 {
-	position: absolute;
-	top: 35px;
-}
-
-.time2 {
-	position: absolute;
-	top: 7px;
-}
-
 .setting-item {
 	margin-top: 10px;
 	height: 42px;
