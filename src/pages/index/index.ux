@@ -41,19 +41,7 @@
 		</text>
 
 		<div class="line" style="margin-bottom: 10px">
-			<text
-				if="{{ currentSourceName == 'JMComic' }}"
-				style="margin-bottom: 4px"
-			>
-				{{ $t("JMPlaceholder") }}
-			</text>
-			<text
-				elif="{{ currentSourceName == 'E-Hentai' }}"
-				style="margin-bottom: 4px"
-			>
-				{{ $t("EHPlaceholder") }}
-			</text>
-			<text else style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
+			<text style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
 			<div class="input-line" @click="changeState">
 				<scroll
 					style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
@@ -246,48 +234,15 @@ export default {
 				message: this.$t("loading"),
 				duration: 5000,
 			});
-			if (this.currentSourceName == "JMComic") {
-				if (/^\d{1,7}$/.test(this.context)) {
-					this.getAlbum();
-				} else {
-					router.push({
-						uri: "/pages/search",
-						params: {
-							keyword: this.context.trim(),
-						},
-					});
-				}
-			} else if (this.currentSourceName == "腾讯动漫") {
-				if (/^\d{1,20}$/.test(this.context)) {
-					this.getAlbum();
-				} else {
-					router.push({
-						uri: "/pages/search",
-						params: {
-							keyword: this.context.trim(),
-						},
-					});
-				}
-			} else if (this.currentSourceName == "E-Hentai") {
-				// E-Hentai 只支持关键词搜索，跳转到搜索页面
+			if (/^\d{1,20}$/.test(this.context)) {
+				this.getAlbum();
+			} else {
 				router.push({
 					uri: "/pages/search",
 					params: {
 						keyword: this.context.trim(),
 					},
 				});
-				return;
-			} else {
-				if (/^\d{1,20}$/.test(this.context)) {
-					this.getAlbum();
-				} else {
-					router.push({
-						uri: "/pages/search",
-						params: {
-							keyword: this.context.trim(),
-						},
-					});
-				}
 			}
 		}
 	},
@@ -317,20 +272,7 @@ export default {
 				"User-Agent": global.userAgent(),
 			},
 			success: (response) => {
-				if (global.API_SETTING.using === "QQComic") {
-					let data = {
-						item_id: this.context,
-						name: response.data.title,
-						page_count: response.data.page_count,
-						views: response.data.popularity,
-						rate: response.data.rating.score,
-						cover: response.data.cover_url,
-						total_chapters: response.data.total_chapters,
-					};
-					this.toAlbum(data);
-				} else {
-					this.toAlbum(response.data);
-				}
+				this.toAlbum(response.data);
 			},
 			fail: function (data, code) {
 				console.log(`handling fail, errMsg = ${data}`);

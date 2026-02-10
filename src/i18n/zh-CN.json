@@ -1,7 +1,5 @@
 {
     "appName": "腕上漫画",
-    "JMPlaceholder": "输入车号/关键词",
-    "EHPlaceholder": "输入关键词",
     "elsePlaceholder": "输入漫画ID/关键词",
     "tip": "请输入漫画ID或关键词",
     "loading": "正在请求漫画信息...",

@@ -1,7 +1,5 @@
 {
     "appName": "BandComic",
-    "JMPlaceholder": "Code/Keyword",
-    "EHPlaceholder": "Keyword",
     "elsePlaceholder": "ID/Keyword",
     "tip": "Enter ID or keyword",
     "loading": "Loading...",

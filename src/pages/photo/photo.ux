@@ -324,65 +324,11 @@ export default {
 	},
 
 	processData() {
-		if (global.API_SETTING[global.API_SETTING.using].type === "qqcomic") {
-			if (this.local) {
-				this.getImageForPage();
-			} else {
-				this.fetchAllQQImageUrls();
-			}
+		if (this.local) {
+			this.getImageForPage();
 		} else {
-			if (this.local) {
-				this.getImageForPage();
-			} else {
-				this.fetchAllImageUrls();
-			}
+			this.fetchAllImageUrls();
 		}
-	},
-
-	fetchAllQQImageUrls() {
-		this.loading = true;
-		this.images = "";
-		this.scale = 0;
-		this.size.width = screenSize.width / 2;
-		this.size.height = screenSize.height / 2;
-		const chapter = this.chapter;
-
-		fetch.fetch({
-			url:
-				global.API_SETTING[global.API_SETTING.using].apiUrl +
-				global.API_SETTING[global.API_SETTING.using].photoPath
-					.replace("<id>", this.id)
-					.replace("<chapter>", Math.floor(this.chapter)),
-			header: {
-				...(global.cookie && global.cookie[global.API_SETTING.using]
-					? { Cookie: global.cookie[global.API_SETTING.using] }
-					: {}),
-				"User-Agent": global.userAgent(),
-			},
-			success: (response) => {
-				if (chapter != this.chapter) {
-					return;
-				}
-				const body = response.data;
-				ImageCache = [
-					...body.images_data.data.picture.map(
-						(img) =>
-							global.API_SETTING[global.API_SETTING.using].apiUrl + img.url
-					),
-				];
-				this.title = body.chapter_info.title;
-				this.page_count = ImageCache.length;
-				this.getImageForPage();
-			},
-			fail: (data, code) => {
-				if (chapter != this.chapter) {
-					return;
-				}
-				this.images = "internal://files/error.png";
-				console.log(`handling fail, errMsg = ${data}`);
-				console.log(`handling fail, errCode = ${code}`);
-			},
-		});
 	},
 
 	fetchAllImageUrls() {

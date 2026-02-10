@@ -8,14 +8,6 @@ let deviceInfo = {};
 let screenSize = { width: 0, height: 0 };
 
 global.API_SETTING = {
-	QQComic: {
-		name: "腾讯动漫",
-		apiUrl: "https://example.invalid",
-		searchPath: "/search/<text>/<page>",
-		detailPath: "/comic/<id>",
-		photoPath: "/comic/<id>/chapter/<chapter>",
-		type: "qqcomic",
-	},
 	MangaDex: {
 		name: "MangaDex",
 		apiUrl: "https://example.invalid:443",
@@ -24,10 +16,10 @@ global.API_SETTING = {
 		searchPath: "/search/<text>/<page>",
 		type: "mangedex",
 	},
-	using: "QQComic",
+	using: "MangaDex",
 };
 
-global.buildin = ["QQComic", "MangaDex"];
+global.buildin = ["MangaDex"];
 global.display = true;
 
 device.getInfo({
