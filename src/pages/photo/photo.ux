@@ -627,7 +627,6 @@ export default {
 
 		for (let i = 0; i < digits; i++) {
 			const digit = parseInt(totalStr[i]);
-			const currentDigit = parseInt(chapterStr[i]);
 			const valueRange = [];
 
 			if (i === 0) {

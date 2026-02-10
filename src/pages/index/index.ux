@@ -177,7 +177,7 @@ export default {
 					global.cookie = {};
 				}
 			},
-			fail: (data) => {
+			fail: () => {
 				global.cookie = {};
 			},
 		});

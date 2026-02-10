@@ -114,7 +114,6 @@ import fetch from "@system.fetch";
 
 const { getTime, apiCall } = global;
 const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项
-const API_PAGE_SIZE = 20; // API每次请求20项
 
 export default {
 	protected: {
