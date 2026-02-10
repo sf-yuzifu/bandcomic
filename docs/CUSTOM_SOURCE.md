@@ -1,9 +1,5 @@
 # 自定义漫画源配置指南
 
-## 当前可用自定义漫画源
-- ~~**example.invalid**~~（额度满了不可用）
-- ~~**example.invalid**~~（额度满了不可用）
-
 ## 关于配置自定义漫画源要求
 
 ### 1. 基本要求
@@ -28,25 +24,31 @@
 
 #### detailPath
 
+获取漫画详情信息，用于在详情页显示漫画的基本信息。
+
 ```json5
 {
-  "item_id": 114514, // 漫画ID
-  "name": "comicName", // 漫画名称
-  "page_count": 24, // 漫画页数
+  "item_id": 114514, // 漫画ID（必需）
+  "name": "comicName", // 漫画名称（必需）
+  "page_count": 24, // 漫画页数（必需）
   "views": 1919810, // 漫画浏览量（可选）
   "rate": 9.0, // 漫画评分（可选）
-  "cover": "https://youapicover.domain", // 漫画封面
-  "tags": "", // 漫画标签（可选）
+  "cover": "https://youapicover.domain", // 漫画封面（必需）
+  "tags": ["tag1", "tag2"], // 漫画标签数组（可选）
+  "total_chapters": 10 // 总章节数（可选，用于章节漫画）
 }
 ```
 
 #### photoPath
 
+获取指定章节的图片列表，用于在阅读页面显示漫画内容。
+
+> 在1.6(50)版本中新增了调整图片尺寸大小和质量的功能，目前做法是在`images`的每个`url`中添加`width`和`quality`两个参数，所以你提供的URL地址最好是有这个功能的。
+
 ```json5
 {
-  "title": "comicName", // 漫画名称
-  // 漫画所有图片
-  "images": [
+  "title": "comicName", // 漫画名称（必需）
+  "images": [ // 图片数组（必需）
     {"url": "https://youapiphoto1.domain?width=600&quality=50"},
     {"url": "https://youapiphoto2.domain?width=600&quality=50"}
   ]
@@ -55,28 +57,53 @@
 
 #### searchPath
 
+搜索漫画，返回搜索结果列表。
+
 ```json5
 {
-  "page": 1, // 当前页数
-  "has_more": true, // 后面是否还有更多页数
-  // 搜索结果
-  "results": [
+  "page": 1, // 当前页数（必需）
+  "has_more": true, // 后面是否还有更多页数（必需）
+  "results": [ // 搜索结果数组（必需）
     {
-      "comic_id": 114514, // 漫画ID
-      "title": "comicName", // 漫画名称
-      "cover_url": "https://youapicover.domain" // 漫画封面（宽要控制200以内，不然手环会炸掉）
-    },
+      "comic_id": 114514, // 漫画ID（必需）
+      "title": "comicName", // 漫画名称（必需）
+      "cover_url": "https://youapicover.domain", // 漫画封面（必需，宽要控制在200以内，不然手环会炸掉）
+      "pages": 24 // 页数（可选，用于在搜索结果中显示）
+    }
   ]
 }
 ```
 
-### 3. 附加内容
+### 3. 请求头说明（1.8版本添加）
 
-> 在1.6(50)版本中新增了调整图片尺寸大小和质量的功能，目前做法是在`photoPath`-`images`的每个`url`中添加`width`和`quality`两个参数，所以你提供的URL地址最好是有这个功能的。
+所有API请求都会携带以下请求头：
 
-## 如何快速搭建可用的自定义漫画源
+```
+User-Agent: packageName(versionName(versionCode))/product/brand/osType/osVersionName/osVersionCode/language/region
+```
 
-> 鉴于大部分用户没有写代码的经历，由于个人原因无法保证所有的漫画源可用（不要让我倒贴钱维护服务器😭）
+例如：
+```
+User-Agent: moe.yzf.comic(1.8(114))/Xiaomi Smart Band 9 Pro/Vela/NuttX/10.3.0/656128/zh/CN
+```
+
+你可以根据这个请求头来判断用户使用的是哪个设备，从而根据设备的性能来调整图片的尺寸和质量。
+
+### 4. Cookie支持（1.8版本添加）
+
+如果漫画源需要Cookie认证，用户可以通过设备互联功能上传Cookie。Cookie会以JSON格式存储，格式如下：
+
+```json5
+{
+  "sourceName": "cookie_value"
+}
+```
+
+其中 `sourceName` 对应配置文件中的漫画源名称。请求时会自动添加 `Cookie` 请求头。
+
+## 部分可直接拿来部署的漫画源源代码
+
+> 鉴于大部分用户没有写代码的经历，以及个人原因无法保证所有的漫画源可用（不要让我倒贴钱维护服务器😭）
 > 
 > 在这里优先推荐各位用户搭建自己的自定义漫画源
 >
@@ -86,24 +113,8 @@
 
 ### jmcomic API
 
-<a href="https://github.com/sf-yuzifu/vercel-flask-jmcomic-api">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api&theme=radical" />
-    <source media="(prefers-color-scheme: light)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
-    <img alt="Repo Card" src="https://github-readme-stats.vercel.app/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
-  </picture>
-</a>
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/sf-yuzifu/vercel-flask-jmcomic-api)
+[![sf-yuzifu/vercel-flask-jmcomic-api - GitHub](https://gh-card.dev/repos/sf-yuzifu/vercel-flask-jmcomic-api.svg)](https://github.com/sf-yuzifu/vercel-flask-jmcomic-api)
 
 ### ehentai API
 
-<a href="https://github.com/OrPudding/vela-py-eh-api-server">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=OrPudding&repo=vela-py-eh-api-server&theme=radical" />
-    <source media="(prefers-color-scheme: light)" srcset="https://github-readme-stats.vercel.app/api/pin/?username=OrPudding&repo=vela-py-eh-api-server" />
-    <img alt="Repo Card" src="https://github-readme-stats.vercel.app/api/pin/?username=OrPudding&repo=vela-py-eh-api-server" />
-  </picture>
-</a>
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/import/project?template=https://github.com/OrPudding/vela-py-eh-api-server)
+[![OrPudding/vela-py-eh-api-server - GitHub](https://gh-card.dev/repos/OrPudding/vela-py-eh-api-server.svg)](https://github.com/OrPudding/vela-py-eh-api-server)
