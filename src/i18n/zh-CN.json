@@ -126,9 +126,15 @@
         "unknownWriteError": "无法写入漫画源，错误代码",
         "domainError": "请输入可用域名",
         "timeoutError": "未找到漫画源Config，请检查网络！",
+        "sslError": "SSL证书错误",
+        "connectionError": "连接被拒绝",
         "unknownRequestError":"无法请求漫画源，错误为",
         "del": "已删除",
         "unknownDelError": "无法删除当前已有漫画源，错误代码",
-        "unknownReadError": "无法读取当前已有漫画源，错误代码"
+        "unknownReadError": "无法读取当前已有漫画源，错误代码",
+        "validation": {
+            "empty": "API地址不能为空",
+            "invalidDomain": "API地址域名格式不正确"
+        }
     }
 }
