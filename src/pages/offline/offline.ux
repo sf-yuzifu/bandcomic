@@ -35,7 +35,7 @@
 							<text class="storage-list-value">{{ remaining }}</text>
 							<text class="storage-list-arrow">{{ storageListExpanded ? '&#xe686' : '&#xe685' }}</text>
 						</div>
-						<div if="{{ storageListExpanded }}" class="storage-list-item">
+						<div if="{{ storageListExpanded && systemReservedPercent }}" class="storage-list-item">
 							<div class="storage-list-color storage-list-color-reserved"></div>
 							<text class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
 							<text class="storage-list-value">{{ systemReserved }}</text>
@@ -135,6 +135,7 @@ export default {
 		storagePercent: 0,
 		storageUsed: "",
 		storageTotal: "",
+		totalStorage: 0,
 		systemReserved: "",
 		actualTotal: "",
 		systemReservedPercent: 25,
@@ -334,7 +335,8 @@ export default {
 		device.getTotalStorage({
 			success: (data) => {
 				totalStorage = data.totalStorage;
-				const systemReserved = Math.floor(totalStorage / 4);
+				this.totalStorage = totalStorage;
+				const systemReserved = global.getReservedSpace(totalStorage);
 				const actualTotal = totalStorage - systemReserved;
 
 				this.storageTotal = formatFileSize(totalStorage);
@@ -356,7 +358,7 @@ export default {
 				this.storage = formatFileSize(availableStorage);
 
 				if (totalStorage > 0) {
-					const systemReserved = Math.floor(totalStorage / 4);
+					const systemReserved = global.getReservedSpace(totalStorage);
 					const actualTotal = totalStorage - systemReserved;
 					this.updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize);
 				}
@@ -398,7 +400,7 @@ export default {
 
 					completedCount++;
 					if (completedCount === this.comicsList.length && totalStorage > 0) {
-						const systemReserved = Math.floor(totalStorage / 4);
+						const systemReserved = global.getReservedSpace();
 						const actualTotal = totalStorage - systemReserved;
 						this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
 					}
@@ -412,14 +414,17 @@ export default {
 	},
 
 	updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize) {
-		this.storageUsed = formatFileSize(actualTotal - availableStorage);
+		const systemReserved = global.getReservedSpace(this.totalStorage);
+		const actualAvailable = availableStorage - systemReserved;
+		this.storageUsed = formatFileSize(actualTotal - actualAvailable);
 		this.actualUsedPercent = Math.floor(
-			((actualTotal - availableStorage) / actualTotal) * 100
+			((actualTotal - actualAvailable) / actualTotal) * 100
 		);
 		this.comicsUsed = formatFileSize(comicsTotalSize);
 		this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
-		this.otherUsed = formatFileSize(actualTotal - availableStorage - comicsTotalSize);
-		this.remaining = formatFileSize(availableStorage);
+		this.otherUsed = formatFileSize(actualTotal - actualAvailable - comicsTotalSize);
+		this.remaining = formatFileSize(actualAvailable);
+		this.systemReservedPercent = Math.floor((systemReserved / this.totalStorage) * 100);
 		this.storageLoaded = true;
 	},
 

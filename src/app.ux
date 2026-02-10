@@ -22,6 +22,29 @@ global.API_SETTING = {
 global.buildin = ["MangaDex"];
 global.display = true;
 
+global.deviceReservedSpace = {
+	"Xiaomi Smart Band 9 Pro": 64 * 1024 * 1024,
+	"Xiaomi Watch S3": 1024 * 1024 * 1024,
+	"Xiaomi Watch S3 eSIM": 1024 * 1024 * 1024,
+	"Xiaomi Watch S4": 1024 * 1024 * 1024,
+	"Xiaomi Watch S4 eSIM": 1024 * 1024 * 1024,
+	"Xiaomi Watch S4 Sport": 1024 * 1024 * 1024,
+	"marconi_o62m_watch": 1024 * 1024 * 1024,
+	"Xiaomi Watch S4 41mm": 1024 * 1024 * 1024,
+	"REDMI Watch 5": 120 * 1024 * 1024,
+	"o65m": 1024 * 1024 * 1024,
+	"REDMI Watch 6": 120 * 1024 * 1024,
+};
+
+global.getReservedSpace = function (totalStorage) {
+	const product = deviceInfo.product;
+	const reserved = global.deviceReservedSpace[product];
+	if (typeof reserved === "number" && reserved < 1) {
+		return Math.floor(totalStorage * reserved);
+	}
+	return reserved || 0;
+};
+
 device.getInfo({
 	success: function (deviceRet) {
 		screenSize.width = deviceRet.screenWidth;
