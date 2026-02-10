@@ -125,9 +125,15 @@
         "unknownWriteError": "Write error, Code:",
         "domainError": "Invalid domain",
         "timeoutError": "Source not found",
+        "sslError": "SSL certificate error",
+        "connectionError": "Connection refused",
         "unknownRequestError": "Request error, Code:",
         "del": "Deleted",
         "unknownDelError": "Delete error, Code:",
-        "unknownReadError": "Read error, Code:"
+        "unknownReadError": "Read error, Code:",
+        "validation": {
+            "empty": "API URL cannot be empty",
+            "invalidDomain": "Invalid API domain format"
+        }
     }
 }

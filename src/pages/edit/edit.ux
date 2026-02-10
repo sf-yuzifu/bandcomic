@@ -126,6 +126,21 @@ function updateMultipleSources(sourceArray) {
 	});
 }
 
+function validateApiUrl(url) {
+	if (!url || url.trim() === "") {
+		return "empty";
+	}
+
+	const trimmedUrl = url.trim();
+
+	const domainRegex = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
+	if (!domainRegex.test(trimmedUrl)) {
+		return "invalidDomain";
+	}
+
+	return true;
+}
+
 export default {
 	private: {
 		context: "",
@@ -157,6 +172,11 @@ export default {
 	changeState() {
 		this.hide = !this.hide;
 		if (this.hide) {
+			const validation = validateApiUrl(this.context);
+			if (validation !== true) {
+				prompt.showToast({ message: this.$t("edit.validation." + validation) });
+				return;
+			}
 			file.access({
 				uri: "internal://files/sources.json",
 				success: () => {
@@ -166,7 +186,7 @@ export default {
 							let datas = JSON.parse(data.text);
 							this.writeSource(datas);
 						},
-						fail: function (code) {
+						fail: (code) => {
 							prompt.showToast({
 								message: this.$t("edit.unknownReadError") + code,
 							});
@@ -202,7 +222,7 @@ export default {
 						updateMultipleSources(data);
 						this.API_SETTING = global.API_SETTING;
 					},
-					fail: function (code) {
+					fail: (code) => {
 						if (code == 300) {
 							prompt.showToast({ message: this.$t("edit.storageError") });
 						} else {
@@ -213,14 +233,18 @@ export default {
 					},
 				});
 			},
-			fail: function (code) {
-				if (code == "Couldn't resolve host name") {
+			fail: (data, code) => {
+				if (code == 6) {
 					prompt.showToast({ message: this.$t("edit.domainError") });
-				} else if (code == "Timeout was reached") {
+				} else if (code == 28) {
 					prompt.showToast({ message: this.$t("edit.timeoutError") });
+				} else if (code == 60 || code == 35) {
+					prompt.showToast({ message: this.$t("edit.sslError") });
+				} else if (code == 7 || code == 52) {
+					prompt.showToast({ message: this.$t("edit.connectionError") });
 				} else {
 					prompt.showToast({
-						message: this.$t("edit.unknownRequestError") + code,
+						message: this.$t("edit.unknownRequestError") + data,
 					});
 				}
 			},
@@ -248,7 +272,7 @@ export default {
 					},
 				});
 			},
-			fail: function (code) {
+			fail: (code) => {
 				prompt.showToast({
 					message: this.$t("edit.unknownReadError") + code,
 				});
