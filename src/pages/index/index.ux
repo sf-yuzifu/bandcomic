@@ -338,7 +338,7 @@ export default {
 				const keepFiles = [
 					"comics.json",
 					"settings.json",
-					"cookie",
+					"cookie.json",
 					"sources.json",
 					"history.json",
 				];

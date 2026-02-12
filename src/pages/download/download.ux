@@ -556,6 +556,9 @@ export default {
 						.replace("<chapter>", this.chapter),
 				header: {
 					"User-Agent": global.userAgent(),
+					...(global.cookie && global.cookie[global.API_SETTING.using]
+					? { Cookie: global.cookie[global.API_SETTING.using] }
+					: {}),
 				},
 				success: (response) => {
 					const body = response.data;
@@ -640,6 +643,9 @@ export default {
 				responseType: "file",
 				header: {
 					"User-Agent": global.userAgent(),
+					...(global.cookie && global.cookie[global.API_SETTING.using]
+					? { Cookie: global.cookie[global.API_SETTING.using] }
+					: {}),
 				},
 				success: (response) => {
 					if (response.data) {
@@ -714,6 +720,9 @@ export default {
 				responseType: "file",
 				header: {
 					"User-Agent": global.userAgent(),
+					...(global.cookie && global.cookie[global.API_SETTING.using]
+					? { Cookie: global.cookie[global.API_SETTING.using] }
+					: {}),
 				},
 				success: (response) => {
 					if (response.data) {
