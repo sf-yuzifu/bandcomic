@@ -19,6 +19,7 @@
 			scroll-y="true"
 			bounces="true"
 			@scrollbottom="onScrollBottom"
+			@scroll="onScroll"
 		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 			<div
@@ -244,7 +245,10 @@ export default {
 		downloadChapter: "",
 		chapterList: [],
 		pickerValues: [],
-		hasReachedBottom: false,
+		hasReachedBottom: 0,
+		prevScrollX: 0,
+		prevScrollY: 0,
+		waitingConfirm: false,
 	},
 
 	onShow() {
@@ -447,7 +451,10 @@ export default {
 				}
 				break;
 		}
-		this.hasReachedBottom = false;
+		this.hasReachedBottom = 0;
+		this.prevScrollX = 0;
+		this.prevScrollY = 0;
+		this.waitingConfirm = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -470,7 +477,10 @@ export default {
 				}
 				break;
 		}
-		this.hasReachedBottom = false;
+		this.hasReachedBottom = 0;
+		this.prevScrollX = 0;
+		this.prevScrollY = 0;
+		this.waitingConfirm = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -604,7 +614,10 @@ export default {
 		} else {
 			this.title = `${this.$t("photo.chapter")} ${this.chapter}`;
 		}
-		this.hasReachedBottom = false;
+		this.hasReachedBottom = 0;
+		this.prevScrollX = 0;
+		this.prevScrollY = 0;
+		this.waitingConfirm = false;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
@@ -652,17 +665,46 @@ export default {
 
 	onSliderChange(e) {
 		this.scale = e.progress;
+		this.prevScrollX = 0;
+		this.prevScrollY = 0;
 		this.$element("scrollId").scrollTo({
 			top: 0,
 			left: 0,
 		});
 	},
 
+	onScroll(e) {
+		const deltaX = Math.abs(e.scrollX - this.prevScrollX);
+		const deltaY = Math.abs(e.scrollY - this.prevScrollY);
+		this.prevScrollX = e.scrollX;
+		this.prevScrollY = e.scrollY;
+
+		if (this.scale > 0 && this.waitingConfirm) {
+			if (deltaX > deltaY && deltaX > 3) {
+				// 横向滑动，取消待确认状态，不翻页
+				this.waitingConfirm = false;
+				this.hasReachedBottom = 0;
+			} else if (deltaY > deltaX && deltaY > 10) {
+				// 明确的纵向向下滑动，确认翻页
+				this.waitingConfirm = false;
+				this.toPage("+");
+			}
+		}
+	},
+
 	onScrollBottom() {
-		if (!this.hasReachedBottom) {
-			this.hasReachedBottom = true;
+		if (this.scale > 0) {
+			// 放大状态：进入待确认，等后续滑动方向决定是否翻页
+			this.hasReachedBottom++;
+			if (this.hasReachedBottom >= 2) {
+				this.waitingConfirm = true;
+			}
 		} else {
-			this.toPage("+");
+			// 未放大：原有逻辑，第2次触底直接翻页
+			this.hasReachedBottom++;
+			if (this.hasReachedBottom >= 2) {
+				this.toPage("+");
+			}
 		}
 	},
 };
