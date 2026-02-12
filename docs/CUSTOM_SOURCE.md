@@ -117,4 +117,4 @@ User-Agent: moe.yzf.comic(1.8(114))/Xiaomi Smart Band 9 Pro/Vela/NuttX/10.3.0/65
 
 ### ehentai API
 
-[![OrPudding/vela-py-eh-api-server - GitHub](https://gh-card.dev/repos/OrPudding/vela-py-eh-api-server.svg)](https://github.com/OrPudding/vela-py-eh-api-server)
+[![sf-yuzifu/vela-py-eh-api-server - GitHub](https://gh-card.dev/repos/sf-yuzifu/vela-py-eh-api-server.svg)](https://github.com/sf-yuzifu/vela-py-eh-api-server)

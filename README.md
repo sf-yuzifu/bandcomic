@@ -1,6 +1,6 @@
 <div align="center">
   <h1>腕上漫画</h1>
-  <img src="src\common\logo.png" alt="腕上漫画" width="128">
+  <img src="src/common/logo.png" alt="腕上漫画" width="128">
 </div>
 
 ## 项目简介
