@@ -18,7 +18,7 @@
 			scroll-x="true"
 			scroll-y="true"
 			bounces="true"
-			@scrollbottom="onScrollBottom"
+			@scroll="onScroll"
 		>
 			<div @click="showButton" if="{{ images }}" class="padding"></div>
 			<div
@@ -244,7 +244,9 @@ export default {
 		downloadChapter: "",
 		chapterList: [],
 		pickerValues: [],
-		hasReachedBottom: false,
+		hasReachedBottom: 0,
+		hasReachedTop: 0,
+		pos: [0, 0],
 	},
 
 	onShow() {
@@ -391,6 +393,9 @@ export default {
 			} else {
 				this.images = `internal://files/${this.id}/${this.page}`;
 			}
+			this.hasReachedBottom = 0;
+			this.hasReachedTop = 0;
+			this.pos = [0, 0];
 			return;
 		}
 
@@ -420,6 +425,9 @@ export default {
 					return;
 				}
 				this.images = response.data;
+				this.hasReachedBottom = 0;
+				this.hasReachedTop = 0;
+				this.pos = [0, 0];
 			},
 			fail: () => {
 				if (page != this.page) {
@@ -447,9 +455,8 @@ export default {
 				}
 				break;
 		}
-		this.hasReachedBottom = false;
 		this.$element("scrollId").scrollTo({
-			top: 0,
+			top: 1,
 			left: 0,
 		});
 		this.page = 1;
@@ -470,9 +477,8 @@ export default {
 				}
 				break;
 		}
-		this.hasReachedBottom = false;
 		this.$element("scrollId").scrollTo({
-			top: 0,
+			top: 1,
 			left: 0,
 		});
 		this.getImageForPage();
@@ -604,9 +610,8 @@ export default {
 		} else {
 			this.title = `${this.$t("photo.chapter")} ${this.chapter}`;
 		}
-		this.hasReachedBottom = false;
 		this.$element("scrollId").scrollTo({
-			top: 0,
+			top: 1,
 			left: 0,
 		});
 		this.page = 1;
@@ -653,17 +658,62 @@ export default {
 	onSliderChange(e) {
 		this.scale = e.progress;
 		this.$element("scrollId").scrollTo({
-			top: 0,
+			top: 1,
 			left: 0,
 		});
+		this.hasReachedBottom = 0;
+		this.hasReachedTop = 0;
+		this.pos = [0, 0];
 	},
 
-	onScrollBottom() {
-		if (!this.hasReachedBottom) {
-			this.hasReachedBottom = true;
-		} else {
-			this.toPage("+");
+	async onScroll(val) {
+		if (!this.images) {
+			// console.log(this.images);
+			return;
 		}
+		if (this.pos[1] == val.scrollY) {
+			// console.log(this.pos[1], val.scrollY);
+			this.pos[0] = val.scrollX;
+			return;
+		}
+		if (this.pos[0] != val.scrollX) {
+			// console.log(this.pos[0], val.scrollX);
+			this.pos[1] = val.scrollY;
+			return;
+		}
+		// if (val.scrollX < 0 && val.scrollY == 0) return;
+		this.pos = [val.scrollX, val.scrollY];
+		const self = this;
+		this.$element("scrollId").getScrollRect({
+			success({ width, height }) {
+				if (val.scrollX + global.screenSize.width > width) return;
+				if (val.scrollY + global.screenSize.height >= height) {
+					if (val.scrollY + global.screenSize.height == height) {
+						if (self.hasReachedBottom > 0) {
+							self.toPage("+");
+						} else {
+							self.hasReachedBottom++;
+							self.hasReachedTop = 0;
+							// console.log("到底部了1", self.hasReachedBottom);
+						}
+					} else {
+						// console.log("到底部了", self.hasReachedBottom);
+					}
+				} else if (val.scrollY <= 0) {
+					if (val.scrollY == 0) {
+						if (self.hasReachedTop > 0) {
+							self.toPage("-");
+						} else {
+							self.hasReachedTop++;
+							self.hasReachedBottom = 0;
+							// console.log("到顶部了1", self.hasReachedTop);
+						}
+					} else {
+						// console.log("到顶部了", self.hasReachedTop);
+					}
+				}
+			},
+		});
 	},
 };
 </script>
