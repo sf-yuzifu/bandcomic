@@ -231,6 +231,7 @@ export default {
 				total_chapters: item.total_chapters,
 				title: item.title,
 				cover: item.cover,
+				source: item.source,
 			},
 		});
 	},
