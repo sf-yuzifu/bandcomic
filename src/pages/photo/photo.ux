@@ -258,6 +258,11 @@ export default {
 	},
 
 	onInit() {
+		// 如果有传入的 source 参数，切换到对应的漫画源
+		if (this.source) {
+			global.API_SETTING.using = this.source;
+		}
+
 		// 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
 		const comicId = this.getComicId();
 		file.readText({
@@ -521,6 +526,7 @@ export default {
 			page_count: this.page_count,
 			is_serial: this.is_serial,
 			local: this.local,
+			source: this.local ? null : global.API_SETTING.using,
 			last_read_time: Date.now(),
 		};
 
