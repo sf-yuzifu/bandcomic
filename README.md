@@ -1,6 +1,13 @@
 <div align="center">
-  <h1>腕上漫画</h1>
-  <img src="src/common/logo.png" alt="腕上漫画" width="128">
+   <br>
+   <h1>腕上漫画</h1>
+   <img src="src/common/logo.png" alt="腕上漫画" width="128">
+   <br>
+   <br>
+   <a href='https://gitee.com/sf-yuzifu/bandcomic/stargazers'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/star.svg?theme=white' alt='Gitee stars' /></a>
+   <a href='https://gitee.com/sf-yuzifu/bandcomic/members'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/fork.svg?theme=white' alt='Gitee forks' /></a>
+   <a href='https://github.com/sf-yuzifu/bandcomic/stargazers'><img alt="GitHub stars" src="https://img.shields.io/github/stars/sf-yuzifu/bandcomic?style=social"></a>
+   <a href='https://github.com/sf-yuzifu/bandcomic/members'><img alt="GitHub forks" src="https://img.shields.io/github/forks/sf-yuzifu/bandcomic?style=social"></a>
 </div>
 
 ## 项目简介
