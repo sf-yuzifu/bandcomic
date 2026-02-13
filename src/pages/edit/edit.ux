@@ -206,6 +206,9 @@ export default {
 			responseType: "text",
 			header: {
 				"User-Agent": global.userAgent(),
+				...(global.cookie && global.cookie[global.API_SETTING.using]
+					? { Cookie: global.cookie[global.API_SETTING.using] }
+					: {}),
 			},
 			success: (response) => {
 				let data = JSON.parse(response.data);
