@@ -270,6 +270,9 @@ export default {
 			responseType: "json",
 			header: {
 				"User-Agent": global.userAgent(),
+				...(global.cookie && global.cookie[global.API_SETTING.using]
+					? { Cookie: global.cookie[global.API_SETTING.using] }
+					: {}),
 			},
 			success: (response) => {
 				this.toAlbum(response.data);

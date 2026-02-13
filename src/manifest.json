@@ -2,7 +2,7 @@
   "package": "moe.yzf.comic",
   "name": "腕上漫画",
   "versionName": "1.8",
-  "versionCode": 153,
+  "versionCode": 154,
   "minPlatformVersion": 1000,
   "icon": "/common/logo.png",
   "deviceTypeList": [
