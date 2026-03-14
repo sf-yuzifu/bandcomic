@@ -81,7 +81,7 @@ global.apiCall = function (apiKey, options) {
 			global.API_SETTING[global.API_SETTING.using].apiUrl +
 			global.API_SETTING[global.API_SETTING.using].searchPath
 				.replace("<text>", encodeURIComponent(apiKey.text))
-				.replace("<page>", apiKey.page || "");
+				.replace("<page>", apiKey.page || "1");
 
 		const headers = options.header || {};
 		headers["User-Agent"] = global.userAgent();
