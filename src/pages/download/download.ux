@@ -973,6 +973,7 @@ export default {
 	.select-buttons {
 		flex-direction: column;
 		width: 50%;
+		height: 160px;
 	}
 
 	.button {
