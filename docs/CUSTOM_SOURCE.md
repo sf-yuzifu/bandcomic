@@ -137,12 +137,40 @@ User-Agent: moe.yzf.comic(1.8(114))/Xiaomi Smart Band 9 Pro/Vela/NuttX/10.3.0/65
 >
 > 搭建方法非常简单，只需要一个Vercel账号以及一个自己的域名即可
 
-选择下面可用的仓库按照指引部署即可快速搭建好可用的漫画源，不过其中的域名是无法访问的，需要搜索Vercel如何绑定自定义域名才可以使用
+选择下面可用的仓库或者翻阅作者别的仓库，按照指引部署即可快速搭建好可用的漫画源，不过其中的域名是无法访问的，需要搜索Vercel如何绑定自定义域名才可以使用
 
 ### jmcomic API
 
-[![sf-yuzifu/vercel-flask-jmcomic-api - GitHub](https://gh-card.dev/repos/sf-yuzifu/vercel-flask-jmcomic-api.svg)](https://github.com/sf-yuzifu/vercel-flask-jmcomic-api)
+<a href="https://github.com/sf-yuzifu/vercel-flask-jmcomic-api">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api&theme=radical" />
+    <source media="(prefers-color-scheme: light)" srcset="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
+    <img alt="Repo Card" src="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
+  </picture>
+</a>
 
 ### ehentai API
 
-[![sf-yuzifu/vela-py-eh-api-server - GitHub](https://gh-card.dev/repos/sf-yuzifu/vela-py-eh-api-server.svg)](https://github.com/sf-yuzifu/vela-py-eh-api-server)
+<a href="https://github.com/sf-yuzifu/vela-py-eh-api-server">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=vela-py-eh-api-server&theme=radical" />
+    <source media="(prefers-color-scheme: light)" srcset="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=vela-py-eh-api-server" />
+    <img alt="Repo Card" src="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=vela-py-eh-api-server" />
+  </picture>
+</a>
+
+## （实验性功能）导入[Venera漫画源](https://github.com/venera-app/venera)
+
+> 由于[Venera的漫画源](https://github.com/venera-app/venera-configs)是通过导入JS通过解析HTML来获取的，不适用于腕上漫画
+> 
+> 但由于腕上漫画的漫画源及其稀少，因此，我们提供了一个实验性功能，允许用户导入Venera的漫画源
+
+这个方法暂时需要用户必须有一台服务器，以及自定义域名才能使用，可以通过下面的仓库来尝试部署
+
+<a href="https://github.com/sf-yuzifu/venera-source-converter">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=venera-source-converter&theme=radical" />
+    <source media="(prefers-color-scheme: light)" srcset="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=venera-source-converter" />
+    <img alt="Repo Card" src="https://stats.yuzifu.top/api/pin/?username=sf-yuzifu&repo=venera-source-converter" />
+  </picture>
+</a>
