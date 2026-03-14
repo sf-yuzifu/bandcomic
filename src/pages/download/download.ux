@@ -910,7 +910,7 @@ export default {
 }
 
 /* 圆形手表适配 */
-@media (min-width: 200) and (max-width: 235) and (shape: circle) {
+@media (device-type: watch) and (shape: circle) {
 	.container {
 		justify-content: center;
 	}
