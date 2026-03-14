@@ -17,31 +17,7 @@
 			src="/common/back.png"
 			@click="routeBack"
 		/>
-		<text class="time">{{ time }}</text>
 
-		<div class="title" style="justify-content: center">
-			<text
-				class="iconfont"
-				style="margin-right: 10px"
-				if="{{ global.screenShape == 'circle' }}"
-			>
-				&#xe685;
-			</text>
-			<marquee
-				scrollamount="{{ 20 }}"
-				text-offset="{{ 20 }}"
-				style="font-size: 32px; font-weight: bold"
-				@click="
-					() => {
-						if (global.screenShape == 'circle') {
-							routeBack();
-						}
-					}
-				"
-			>
-				{{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
-			</marquee>
-		</div>
 
 		<!-- 章节选择界面 -->
 		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
@@ -146,6 +122,31 @@
 			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
 		>
 			<text class="content">{{ downloadError }}</text>
+		</div>
+		<text class="time">{{ time }}</text>
+
+		<div class="title" style="justify-content: center">
+			<text
+				class="iconfont"
+				style="margin-right: 10px"
+				if="{{ global.screenShape == 'circle' }}"
+			>
+				&#xe685;
+			</text>
+			<marquee
+				scrollamount="{{ 20 }}"
+				text-offset="{{ 20 }}"
+				style="font-size: 32px; font-weight: bold"
+				@click="
+					() => {
+						if (global.screenShape == 'circle') {
+							routeBack();
+						}
+					}
+				"
+			>
+				{{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
+			</marquee>
 		</div>
 	</div>
 </template>
