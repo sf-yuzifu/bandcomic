@@ -102,19 +102,29 @@ import prompt from "@system.prompt";
 const { getTime } = global;
 
 function replaceIfDuplicate(configArray, newConfigObject) {
-	const newKey = Object.keys(newConfigObject)[0];
+	// 处理多个源的情况：如果传入的是对象，将其转换为数组
+	const keys = Object.keys(newConfigObject);
+	
+	keys.forEach((newKey) => {
+		const singleConfig = { [newKey]: newConfigObject[newKey] };
+		let found = false;
+		
+		for (let i = 0; i < configArray.length; i++) {
+			const existingConfig = configArray[i];
+			const existingKey = Object.keys(existingConfig)[0];
 
-	for (let i = 0; i < configArray.length; i++) {
-		const existingConfig = configArray[i];
-		const existingKey = Object.keys(existingConfig)[0];
-
-		if (existingKey === newKey) {
-			configArray[i] = newConfigObject;
-			return configArray;
+			if (existingKey === newKey) {
+				configArray[i] = singleConfig;
+				found = true;
+				break;
+			}
 		}
-	}
 
-	configArray.push(newConfigObject);
+		if (!found) {
+			configArray.push(singleConfig);
+		}
+	});
+	
 	return configArray;
 }
 
