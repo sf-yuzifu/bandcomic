@@ -8,7 +8,7 @@
   "scripts": {
     "start": "aiot start --watch --enable-custom-component",
     "build": "aiot build --enable-custom-component",
-    "release": "aiot release --enable-custom-component  --enable-custom-component --enable-protobuf --enable-jsc",
+    "release": "aiot release --enable-custom-component --enable-jsc",
     "lint": "eslint --format codeframe --fix --ext .ux,.js src/"
   },
   "devDependencies": {
