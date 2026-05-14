@@ -114,6 +114,9 @@ const { getTime } = global;
 let del;
 
 function formatFileSize(size) {
+	if (size < 0) {
+		return "0B";
+	}
 	if (size < 1024) {
 		return size + "B";
 	} else if (size < 1024 * 1024) {
@@ -412,12 +415,12 @@ export default {
 		if (totalStorage > 0) {
 			const systemReserved = global.getReservedSpace(totalStorage);
 			const actualTotal = totalStorage - systemReserved;
-			const actualAvailable = availableStorage - systemReserved;
+			const actualAvailable = Math.max(0, availableStorage - systemReserved);
 			this.comicsUsed = formatFileSize(comicsTotalSize);
 			this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
 			this.storageUsed = formatFileSize(actualTotal - actualAvailable);
 			this.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / actualTotal) * 100);
-			this.otherUsed = formatFileSize(actualTotal - actualAvailable - comicsTotalSize);
+			this.otherUsed = formatFileSize(Math.max(0, actualTotal - actualAvailable - comicsTotalSize));
 			this.remaining = formatFileSize(actualAvailable);
 			this.systemReservedPercent = Math.floor((systemReserved / totalStorage) * 100);
 		}
