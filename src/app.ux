@@ -28,6 +28,8 @@ global.deviceReservedSpace = {
 	"Xiaomi Watch S3 eSIM": 1024 * 1024 * 1024,
 	"Xiaomi Watch S4": 1024 * 1024 * 1024,
 	"Xiaomi Watch S4 eSIM": 1024 * 1024 * 1024,
+	"Xiaomi Watch S5 46mm": 1024 * 1024 * 1024,
+	"Xiaomi Watch S5 eSIM 46mm": 1024 * 1024 * 1024,
 	"Xiaomi Watch S4 Sport": 1024 * 1024 * 1024,
 	"marconi_o62m_watch": 1024 * 1024 * 1024,
 	"Xiaomi Watch S4 41mm": 1024 * 1024 * 1024,
