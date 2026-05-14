@@ -449,6 +449,7 @@ export default {
 				duration: 2000,
 			});
 		} else {
+			del = null;
 			prompt.showToast({
 				message: this.$t("offline.secondDel"),
 				duration: 1000,
@@ -466,11 +467,8 @@ export default {
 							this.updateComicsIndex(id);
 						},
 						fail: (data, code) => {
-							console.log(`删除文件夹失败, code = ${code}`);
-							prompt.showToast({
-								message: this.$t("offline.deleteFailed", { code: code }),
-								duration: 2000,
-							});
+							console.log(`递归删除失败(code=${code})，尝试逐文件删除`);
+							this.deleteFilesOneByOne(id, folderUri);
 						},
 					});
 				},
@@ -480,6 +478,60 @@ export default {
 				},
 			});
 		}
+	},
+
+	deleteFilesOneByOne(id, folderUri) {
+		file.get({
+			uri: folderUri,
+			recursive: true,
+			success: (data) => {
+				const allFiles = [];
+				const flatten = (entries) => {
+					for (const entry of entries) {
+						if (entry.type === "dir" && entry.subFiles && entry.subFiles.length) {
+							flatten(entry.subFiles);
+						} else if (entry.type !== "dir") {
+							allFiles.push(entry.uri);
+						}
+					}
+				};
+				flatten(data.subFiles || []);
+
+				const deleteNext = (index) => {
+					if (index >= allFiles.length) {
+						file.rmdir({
+							uri: folderUri,
+							recursive: true,
+							success: () => {
+								this.updateComicsIndex(id);
+							},
+							fail: () => {
+								console.log(`清理空目录失败，直接更新索引`);
+								this.updateComicsIndex(id);
+							},
+						});
+						return;
+					}
+
+					file.delete({
+						uri: allFiles[index],
+						success: () => {
+							deleteNext(index + 1);
+						},
+						fail: (data, code) => {
+							console.log(`删除文件失败: ${allFiles[index]}, code=${code}`);
+							deleteNext(index + 1);
+						},
+					});
+				};
+
+				deleteNext(0);
+			},
+			fail: (data, code) => {
+				console.log(`列出文件失败, code=${code}，直接更新索引`);
+				this.updateComicsIndex(id);
+			},
+		});
 	},
 
 	updateComicsIndex(id) {
