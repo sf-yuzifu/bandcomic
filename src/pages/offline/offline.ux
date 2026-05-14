@@ -284,29 +284,29 @@ export default {
 		const fileExists = await this.checkFileExists();
 
 		if (fileExists) {
-			file.readText({
-				uri: "internal://files/comics.json",
-				success: (data) => {
-					try {
-						let comicsData = [];
-						if (data.text) {
-							comicsData = JSON.parse(data.text);
-						}
-						this.comicsList = comicsData;
-						this.getStorage();
-					} catch (parseError) {
-						console.log(`解析comics.json失败: ${parseError}`);
+			try {
+				const data = await new Promise((resolve, reject) => {
+					file.readText({
+						uri: "internal://files/comics.json",
+						success: resolve,
+						fail: reject,
+					});
+				});
+				try {
+					let comicsData = [];
+					if (data.text) {
+						comicsData = JSON.parse(data.text);
 					}
-					this.isLoading = false;
-				},
-				fail: function (data, code) {
-					console.log(`读取comics.json失败, code = ${code}`);
-					this.isLoading = false;
-				},
-			});
-		} else {
-			this.isLoading = false;
+					this.comicsList = comicsData;
+				} catch (parseError) {
+					console.log(`解析comics.json失败: ${parseError}`);
+				}
+			} catch (err) {
+				console.log(`读取comics.json失败, code = ${err}`);
+			}
+			await this.getStorage();
 		}
+		this.isLoading = false;
 	},
 
 	checkFileExists() {
@@ -327,105 +327,101 @@ export default {
 		});
 	},
 
-	getStorage() {
+	async getStorage() {
 		let totalStorage = 0;
 		let availableStorage = 0;
-		let comicsTotalSize = 0;
-		let completedCount = 0;
 
-		device.getTotalStorage({
-			success: (data) => {
-				totalStorage = data.totalStorage;
-				this.totalStorage = totalStorage;
-				const systemReserved = global.getReservedSpace(totalStorage);
-				const actualTotal = totalStorage - systemReserved;
+		const [totalResult, availableResult] = await Promise.all([
+			new Promise((resolve) => {
+				device.getTotalStorage({
+					success: (data) => resolve(data),
+					fail: (data, code) => {
+						console.log(`获取总存储空间失败, code = ${code}`);
+						resolve(null);
+					},
+				});
+			}),
+			new Promise((resolve) => {
+				device.getAvailableStorage({
+					success: (data) => resolve(data),
+					fail: (data, code) => {
+						console.log(`获取可用存储空间失败, code = ${code}`);
+						resolve(null);
+					},
+				});
+			}),
+		]);
 
-				this.storageTotal = formatFileSize(totalStorage);
-				this.systemReserved = formatFileSize(systemReserved);
-				this.actualTotal = formatFileSize(actualTotal);
-
-				if (availableStorage > 0) {
-					this.updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize);
-				}
-			},
-			fail: (data, code) => {
-				console.log(`获取总存储空间失败, code = ${code}`);
-			},
-		});
-
-		device.getAvailableStorage({
-			success: (data) => {
-				availableStorage = data.availableStorage;
-				this.storage = formatFileSize(availableStorage);
-
-				if (totalStorage > 0) {
-					const systemReserved = global.getReservedSpace(totalStorage);
-					const actualTotal = totalStorage - systemReserved;
-					this.updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize);
-				}
-			},
-			fail: (data, code) => {
-				console.log(`获取可用存储空间失败, code = ${code}`);
-			},
-		});
-
-		for (let a = 0; a < this.comicsList.length; a++) {
-			file.get({
-				uri: `internal://files/${this.comicsList[a].id}`,
-				recursive: true,
-				success: (data) => {
-					let length = 0;
-					for (let i of data.subFiles) {
-						if (i.type === "dir" && i.subFiles.length != 0) {
-							if (!this.comicsList[a].totalChapter) {
-								this.comicsList[a].totalChapter = []
-							}
-							const folderName = i.uri.split("/").pop();
-							const parts = folderName.split("　");
-							const chapterNum = parts[0];
-							const chapterName = parts.slice(1).join("　");
-							this.comicsList[a].totalChapter.push([chapterName, i.subFiles.length, chapterNum])
-							for (let m of i.subFiles) {
-								length += m.length;
-							}
-						} else {
-							length += i.length;
-						}
-					}
-					if (this.comicsList[a].totalChapter) {
-						this.comicsList[a].totalChapter.sort((a, b) => a[2] - b[2]);
-					}
-					this.comicsList[a].size = formatFileSize(length);
-					comicsTotalSize += length;
-					this.comicsUsed = formatFileSize(comicsTotalSize);
-
-					completedCount++;
-					if (completedCount === this.comicsList.length && totalStorage > 0) {
-						const systemReserved = global.getReservedSpace();
-						const actualTotal = totalStorage - systemReserved;
-						this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
-					}
-				},
-				fail: function (data, code) {
-					console.log(`handling fail, code = ${code}`);
-					completedCount++;
-				},
-			});
+		if (totalResult) {
+			totalStorage = totalResult.totalStorage;
+			this.totalStorage = totalStorage;
+			const systemReserved = global.getReservedSpace(totalStorage);
+			const actualTotal = totalStorage - systemReserved;
+			this.storageTotal = formatFileSize(totalStorage);
+			this.systemReserved = formatFileSize(systemReserved);
+			this.actualTotal = formatFileSize(actualTotal);
 		}
-	},
 
-	updateStorageDisplay(actualTotal, availableStorage, comicsTotalSize) {
-		const systemReserved = global.getReservedSpace(this.totalStorage);
-		const actualAvailable = availableStorage - systemReserved;
-		this.storageUsed = formatFileSize(actualTotal - actualAvailable);
-		this.actualUsedPercent = Math.floor(
-			((actualTotal - actualAvailable) / actualTotal) * 100
+		if (availableResult) {
+			availableStorage = availableResult.availableStorage;
+			this.storage = formatFileSize(availableStorage);
+		}
+
+		const comicsSizeResults = await Promise.all(
+			this.comicsList.map((comic, index) => {
+				return new Promise((resolve) => {
+					file.get({
+						uri: `internal://files/${comic.id}`,
+						recursive: true,
+						success: (data) => {
+							let length = 0;
+							for (let i of data.subFiles) {
+								if (i.type === "dir" && i.subFiles.length != 0) {
+									if (!comic.totalChapter) {
+										comic.totalChapter = [];
+									}
+									const folderName = i.uri.split("/").pop();
+									const parts = folderName.split("　");
+									const chapterNum = parts[0];
+									const chapterName = parts.slice(1).join("　");
+									comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
+									for (let m of i.subFiles) {
+										length += m.length;
+									}
+								} else {
+									length += i.length;
+								}
+							}
+							if (comic.totalChapter) {
+								comic.totalChapter.sort((a, b) => a[2] - b[2]);
+							}
+							comic.size = formatFileSize(length);
+							resolve({ index, length });
+						},
+						fail: (data, code) => {
+							console.log(`获取漫画大小失败, code = ${code}`);
+							resolve({ index, length: 0 });
+						},
+					});
+				});
+			})
 		);
-		this.comicsUsed = formatFileSize(comicsTotalSize);
-		this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
-		this.otherUsed = formatFileSize(actualTotal - actualAvailable - comicsTotalSize);
-		this.remaining = formatFileSize(actualAvailable);
-		this.systemReservedPercent = Math.floor((systemReserved / this.totalStorage) * 100);
+
+		const comicsTotalSize = comicsSizeResults.reduce((sum, r) => sum + r.length, 0);
+
+		if (totalStorage > 0) {
+			const systemReserved = global.getReservedSpace(totalStorage);
+			const actualTotal = totalStorage - systemReserved;
+			const actualAvailable = availableStorage - systemReserved;
+			this.comicsUsed = formatFileSize(comicsTotalSize);
+			this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
+			this.storageUsed = formatFileSize(actualTotal - actualAvailable);
+			this.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / actualTotal) * 100);
+			this.otherUsed = formatFileSize(actualTotal - actualAvailable - comicsTotalSize);
+			this.remaining = formatFileSize(actualAvailable);
+			this.systemReservedPercent = Math.floor((systemReserved / totalStorage) * 100);
+		}
+
 		this.storageLoaded = true;
 	},
 
