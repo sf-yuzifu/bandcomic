@@ -11,13 +11,39 @@
 				src="/common/{{ processing ? 'success':'dling' }}_s4.png"
 			></image>
 		</scroll>
+
+		<text class="time">{{ time }}</text>
+
+		<div class="title" style="justify-content: center">
+			<text
+				class="iconfont"
+				style="margin-right: 10px"
+				if="{{ global.screenShape == 'circle' }}"
+			>
+				&#xe685;
+			</text>
+			<marquee
+				scrollamount="{{ 20 }}"
+				text-offset="{{ 20 }}"
+				style="font-size: 32px; font-weight: bold"
+				@click="
+					() => {
+						if (global.screenShape == 'circle') {
+							routeBack();
+						}
+					}
+				"
+			>
+				{{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
+			</marquee>
+		</div>
+
 		<img
 			if="{{ global.screenShape != 'circle' }}"
 			class="leftButton top"
 			src="/common/back.png"
 			@click="routeBack"
 		/>
-
 
 		<!-- 章节选择界面 -->
 		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
@@ -86,7 +112,6 @@
 		</div>
 
 		<!-- 圆形手表下载界面 -->
-
 		<div
 			class="downloading"
 			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
@@ -122,31 +147,6 @@
 			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
 		>
 			<text class="content">{{ downloadError }}</text>
-		</div>
-		<text class="time">{{ time }}</text>
-
-		<div class="title" style="justify-content: center">
-			<text
-				class="iconfont"
-				style="margin-right: 10px"
-				if="{{ global.screenShape == 'circle' }}"
-			>
-				&#xe685;
-			</text>
-			<marquee
-				scrollamount="{{ 20 }}"
-				text-offset="{{ 20 }}"
-				style="font-size: 32px; font-weight: bold"
-				@click="
-					() => {
-						if (global.screenShape == 'circle') {
-							routeBack();
-						}
-					}
-				"
-			>
-				{{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
-			</marquee>
 		</div>
 	</div>
 </template>
@@ -558,8 +558,8 @@ export default {
 				header: {
 					"User-Agent": global.userAgent(),
 					...(global.cookie && global.cookie[global.API_SETTING.using]
-					? { Cookie: global.cookie[global.API_SETTING.using] }
-					: {}),
+						? { Cookie: global.cookie[global.API_SETTING.using] }
+						: {}),
 				},
 				success: (response) => {
 					const body = response.data;
@@ -645,8 +645,8 @@ export default {
 				header: {
 					"User-Agent": global.userAgent(),
 					...(global.cookie && global.cookie[global.API_SETTING.using]
-					? { Cookie: global.cookie[global.API_SETTING.using] }
-					: {}),
+						? { Cookie: global.cookie[global.API_SETTING.using] }
+						: {}),
 				},
 				success: (response) => {
 					if (response.data) {
@@ -722,8 +722,8 @@ export default {
 				header: {
 					"User-Agent": global.userAgent(),
 					...(global.cookie && global.cookie[global.API_SETTING.using]
-					? { Cookie: global.cookie[global.API_SETTING.using] }
-					: {}),
+						? { Cookie: global.cookie[global.API_SETTING.using] }
+						: {}),
 				},
 				success: (response) => {
 					if (response.data) {
