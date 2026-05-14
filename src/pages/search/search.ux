@@ -98,12 +98,13 @@ global.APP_SETTING.showCoverInSearch === true }}"
 
 		<div
 			class="no-results"
-			if="{{ !loading && searchResults.length === 0 && searched }}"
+			if="{{ !loading && searchResults.length === 0 && searched && !error }}"
 		>
 			<text class="no-results-text">{{ $t("search.noFound") }}</text>
 		</div>
 		<div class="error-state" if="{{ error }}">
 			<text class="error-text">{{ $t("search.fail") }}{{ errorMsg }}</text>
+			<text class="no-results-subtext">{{ $t("search.noFound") }}</text>
 		</div>
 	</div>
 </template>
@@ -362,6 +363,21 @@ export default {
 .no-results-text,
 .error-text {
 	font-size: 24px;
+}
+
+.error-state {
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+}
+
+.error-text {
+	margin-bottom: 10px;
+}
+
+.no-results-subtext {
+	font-size: 24px;
+	color: rgb(255, 255, 255);
 }
 
 .pagination-wrapper {
