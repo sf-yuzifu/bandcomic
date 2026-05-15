@@ -16,7 +16,8 @@
         "imageQuality": "图片质量",
         "imageSize": "图片尺寸",
         "showCoverInSearch": "搜索显示封面",
-        "keepDefaultZoom": "保持图片缩放"
+        "keepDefaultZoom": "保持图片缩放",
+        "imagePreTranscode": "图片预解码"
     },
     "error": {
         "noComicFound": "未找到相关漫画，请检查输入是否正确",

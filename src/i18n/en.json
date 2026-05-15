@@ -16,7 +16,8 @@
         "imageQuality": "Quality",
         "imageSize": "Size",
         "showCoverInSearch": "Show cover",
-        "keepDefaultZoom": "Keep zoom"
+        "keepDefaultZoom": "Keep zoom",
+        "imagePreTranscode": "Pre-decode"
     },
     "error": {
         "noComicFound": "No comics found",
