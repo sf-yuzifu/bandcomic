@@ -183,35 +183,57 @@ export default {
 		});
 		const connect = interconnect.instance();
 		connect.onmessage = (data) => {
-			const Cookie = data.data;
-			if (Cookie) {
-				prompt.showToast({ message: this.$t("cookie.receive") });
-				if (!global.cookie) {
-					global.cookie = {};
-				}
-				try {
-					const cookieObj = JSON.parse(Cookie);
-					Object.assign(global.cookie, cookieObj);
-				} catch (e) {
-					const currentSource = global.API_SETTING.using;
-					global.cookie[currentSource] = Cookie;
-				}
-				file.writeText({
-					uri: "internal://files/cookie.json",
-					text: JSON.stringify(global.cookie),
-					success: () => {
-						prompt.showToast({ message: this.$t("cookie.success") });
-					},
-					fail: () => {
-						prompt.showToast({ message: this.$t("cookie.fail") });
-					},
-				});
-			} else {
+			const rawData = data.data;
+			if (!rawData) {
 				prompt.showToast({ message: this.$t("cookie.wrong") });
+				return;
+			}
+
+			let parsed;
+			try {
+				parsed = JSON.parse(rawData);
+			} catch (e) {
+				this.handleCookieMessage(rawData, null);
+				return;
+			}
+
+			const msgType = parsed.type;
+			if (msgType === "source_config" && parsed.configs) {
+				this.handleSourceConfig(parsed.configs);
+			} else if (msgType === "cookie") {
+				this.handleCookieMessage(null, parsed);
+			} else {
+				this.handleCookieMessage(null, parsed);
 			}
 		};
 		brightness.setKeepScreenOn({
 			keepScreenOn: true,
+		});
+	},
+
+	handleCookieMessage(rawString, parsedObj) {
+		prompt.showToast({ message: this.$t("cookie.receive") });
+		if (!global.cookie) {
+			global.cookie = {};
+		}
+
+		if (parsedObj) {
+			const { type, ...cookieData } = parsedObj;
+			Object.assign(global.cookie, cookieData);
+		} else {
+			const currentSource = global.API_SETTING.using;
+			global.cookie[currentSource] = rawString;
+		}
+
+		file.writeText({
+			uri: "internal://files/cookie.json",
+			text: JSON.stringify(global.cookie),
+			success: () => {
+				prompt.showToast({ message: this.$t("cookie.success") });
+			},
+			fail: () => {
+				prompt.showToast({ message: this.$t("cookie.fail") });
+			},
 		});
 	},
 
@@ -281,7 +303,10 @@ export default {
 				console.log(`handling fail, errMsg = ${data}`);
 				try {
 					const parsed = JSON.parse(data);
-					if (parsed.message && parsed.message.indexOf("请求的本子不存在") != -1) {
+					if (
+						parsed.message &&
+						parsed.message.indexOf("请求的本子不存在") != -1
+					) {
 						prompt.showToast({
 							message: this.$t("error.noComicFound"),
 							duration: 3000,
@@ -326,6 +351,77 @@ export default {
 		} else {
 			this.hide = !this.hide;
 		}
+	},
+
+	handleSourceConfig(configs) {
+		prompt.showToast({ message: "正在保存漫画源配置..." });
+		file.readText({
+			uri: "internal://files/sources.json",
+			success: (data) => {
+				let existingConfigs = JSON.parse(data.text);
+				configs.forEach((newConfig) => {
+					existingConfigs = this.replaceIfDuplicate(existingConfigs, newConfig);
+				});
+				file.writeText({
+					uri: "internal://files/sources.json",
+					text: JSON.stringify(existingConfigs),
+					success: () => {
+						configs.forEach((newConfig) => {
+							const key = Object.keys(newConfig)[0];
+							global.API_SETTING[key] = newConfig[key];
+						});
+						this.API_SETTING = global.API_SETTING;
+						this.currentSourceName =
+							global.API_SETTING[global.API_SETTING.using].name;
+						prompt.showToast({ message: "漫画源配置已保存！" });
+					},
+					fail: (code) => {
+						prompt.showToast({ message: "保存漫画源配置失败: " + code });
+					},
+				});
+			},
+			fail: () => {
+				const newConfigs = configs;
+				file.writeText({
+					uri: "internal://files/sources.json",
+					text: JSON.stringify(newConfigs),
+					success: () => {
+						configs.forEach((newConfig) => {
+							const key = Object.keys(newConfig)[0];
+							global.API_SETTING[key] = newConfig[key];
+						});
+						this.API_SETTING = global.API_SETTING;
+						this.currentSourceName =
+							global.API_SETTING[global.API_SETTING.using].name;
+						prompt.showToast({ message: "漫画源配置已保存！" });
+					},
+					fail: (code) => {
+						prompt.showToast({ message: "保存漫画源配置失败: " + code });
+					},
+				});
+			},
+		});
+	},
+
+	replaceIfDuplicate(configArray, newConfigObject) {
+		const newKey = Object.keys(newConfigObject)[0];
+		const singleConfig = { [newKey]: newConfigObject[newKey] };
+		let found = false;
+
+		for (let i = 0; i < configArray.length; i++) {
+			const existingKey = Object.keys(configArray[i])[0];
+			if (existingKey === newKey) {
+				configArray[i] = singleConfig;
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			configArray.push(singleConfig);
+		}
+
+		return configArray;
 	},
 
 	routeAbout() {
