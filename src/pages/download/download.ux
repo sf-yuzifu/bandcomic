@@ -637,10 +637,13 @@ export default {
 				parseInt(global.APP_SETTING.imageQuality) || 50
 			);
 
-			const fileUri = `${folderUri}/${page}`;
+			const fileUri = `${folderUri}/${page}${
+				global.APP_SETTING.imagePreTranscode ? ".bin" : ""
+			}`;
 
 			fetch.fetch({
-				url: imageUrl,
+				url:
+					imageUrl + (global.APP_SETTING.imagePreTranscode ? "&ifLVGL=1" : ""),
 				responseType: "file",
 				header: {
 					"User-Agent": global.userAgent(),

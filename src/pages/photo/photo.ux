@@ -394,18 +394,20 @@ export default {
 		const page = this.page;
 
 		if (this.local) {
-			if (this.is_serial) {
-				const chapterNum = this.downloadChapter[this.chapter - 1][2];
-				const chapterName = this.downloadChapter[this.chapter - 1][0];
-				this.images = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
-				this.title = chapterName;
-				this.page_count = this.downloadChapter[this.chapter - 1][1];
-			} else {
-				this.images = `internal://files/${this.id}/${this.page}`;
-			}
 			this.hasReachedBottom = 0;
 			this.hasReachedTop = 0;
 			this.pos = [0, 0];
+			if (this.is_serial) {
+				const chapterNum = this.downloadChapter[this.chapter - 1][2];
+				const chapterName = this.downloadChapter[this.chapter - 1][0];
+				this.title = chapterName;
+				this.page_count = this.downloadChapter[this.chapter - 1][1];
+				const baseUri = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
+				this.resolveLocalImage(baseUri);
+			} else {
+				const baseUri = `internal://files/${this.id}/${this.page}`;
+				this.resolveLocalImage(baseUri);
+			}
 			return;
 		}
 
@@ -422,7 +424,11 @@ export default {
 			return;
 		}
 
-		imageUrl += "#" + this.chapter;
+		imageUrl +=
+			(global.APP_SETTING.imagePreTranscode ? "&ifLVGL=1" : "") +
+			"#" +
+			this.chapter +
+			(global.APP_SETTING.imagePreTranscode ? ".bin" : "");
 
 		fetch.fetch({
 			url: imageUrl,
@@ -447,6 +453,20 @@ export default {
 					return;
 				}
 				this.images = "internal://files/error.png";
+			},
+		});
+	},
+
+	resolveLocalImage(baseUri) {
+		const binUri = baseUri + ".bin";
+		const self = this;
+		file.access({
+			uri: binUri,
+			success() {
+				self.images = binUri;
+			},
+			fail() {
+				self.images = baseUri;
 			},
 		});
 	},

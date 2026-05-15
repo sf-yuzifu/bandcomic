@@ -103,6 +103,7 @@ global.APP_SETTING = {
 	imageSize: "600",
 	showCoverInSearch: true,
 	keepDefaultZoom: false,
+	imagePreTranscode: false,
 };
 
 export default {};

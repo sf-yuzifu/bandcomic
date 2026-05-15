@@ -127,6 +127,20 @@
 							@change="onZoomSwitchChange"
 						></switch>
 					</div>
+					<div class="setting-item">
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							style="font-weight: bold; color: #fff"
+						>
+							{{ $t("settings.imagePreTranscode") }}
+						</marquee>
+						<switch
+							checked="{{ global.APP_SETTING.imagePreTranscode }}"
+							class="switch"
+							@change="onPreTranscodeSwitchChange"
+						></switch>
+					</div>
 				</div>
 				<text
 					class="bold"
@@ -210,6 +224,11 @@ export default {
 
 	onZoomSwitchChange(value) {
 		global.APP_SETTING.keepDefaultZoom = value.checked;
+		this.saveSetting();
+	},
+
+	onPreTranscodeSwitchChange(value) {
+		global.APP_SETTING.imagePreTranscode = value.checked;
 		this.saveSetting();
 	},
 
