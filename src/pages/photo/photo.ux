@@ -377,10 +377,12 @@ export default {
 		});
 	},
 
-	getImageForPage() {
+	getImageForPage(keepScale) {
 		this.loading = true;
 		this.images = "";
-		this.scale = 0;
+		if (!keepScale) {
+			this.scale = 0;
+		}
 		this.size.width = screenSize.width / 2;
 		this.size.height = screenSize.height / 2;
 
@@ -492,7 +494,7 @@ export default {
 			top: 1,
 			left: 0,
 		});
-		this.getImageForPage();
+		this.getImageForPage(global.APP_SETTING.keepDefaultZoom);
 		this.saveHistory();
 	},
 

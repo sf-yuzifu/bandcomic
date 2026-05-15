@@ -110,7 +110,21 @@
 						<switch
 							checked="{{ global.APP_SETTING.showCoverInSearch }}"
 							class="switch"
-							@change="onSwitchChange"
+							@change="onCoverSwitchChange"
+						></switch>
+					</div>
+					<div class="setting-item">
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							style="font-weight: bold; color: #fff"
+						>
+							{{ $t("settings.keepDefaultZoom") }}
+						</marquee>
+						<switch
+							checked="{{ global.APP_SETTING.keepDefaultZoom }}"
+							class="switch"
+							@change="onZoomSwitchChange"
 						></switch>
 					</div>
 				</div>
@@ -189,8 +203,13 @@ export default {
 		this.saveSetting();
 	},
 
-	onSwitchChange(value) {
+	onCoverSwitchChange(value) {
 		global.APP_SETTING.showCoverInSearch = value.checked;
+		this.saveSetting();
+	},
+
+	onZoomSwitchChange(value) {
+		global.APP_SETTING.keepDefaultZoom = value.checked;
 		this.saveSetting();
 	},
 
