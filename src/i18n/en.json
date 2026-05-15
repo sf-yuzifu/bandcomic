@@ -15,7 +15,8 @@
         "searchPageSize": "Items per page",
         "imageQuality": "Quality",
         "imageSize": "Size",
-        "showCoverInSearch": "Show cover"
+        "showCoverInSearch": "Show cover",
+        "keepDefaultZoom": "Keep zoom"
     },
     "error": {
         "noComicFound": "No comics found",
