@@ -117,6 +117,48 @@ import file from "@system.file";
 
 const { getTime } = global;
 
+function detectImageFormat(bytes) {
+	if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
+		return "image/jpeg";
+	if (
+		bytes[0] === 0x89 &&
+		bytes[1] === 0x50 &&
+		bytes[2] === 0x4e &&
+		bytes[3] === 0x47
+	)
+		return "image/png";
+	if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46)
+		return "image/gif";
+	if (
+		bytes[0] === 0x52 &&
+		bytes[1] === 0x49 &&
+		bytes[2] === 0x46 &&
+		bytes[3] === 0x46
+	)
+		return "image/webp";
+	if (bytes[0] === 0x42 && bytes[1] === 0x4d) return "image/bmp";
+	return "image/jpeg";
+}
+
+function base64Encode(input) {
+	var chars =
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	var bytes = new Uint8Array(input);
+	var len = bytes.length;
+	var result = "";
+	var i;
+	for (i = 0; i < len; i += 3) {
+		var b1 = bytes[i];
+		var b2 = i + 1 < len ? bytes[i + 1] : 0;
+		var b3 = i + 2 < len ? bytes[i + 2] : 0;
+		result += chars[b1 >> 2];
+		result += chars[((b1 & 3) << 4) | (b2 >> 4)];
+		result += i + 1 < len ? chars[((b2 & 15) << 2) | (b3 >> 6)] : "=";
+		result += i + 2 < len ? chars[b3 & 63] : "=";
+	}
+	return result;
+}
+
 export default {
 	private: {
 		context: "",
@@ -125,6 +167,13 @@ export default {
 		currentSourceName: global.API_SETTING[global.API_SETTING.using].name,
 		API_SETTING: global.API_SETTING,
 		display: global.display,
+		_coverQueue: [],
+		_coverIndex: 0,
+		_coverName: "",
+		_coverUri: "",
+		_coverTotalBytes: 0,
+		_coverMime: "image/jpeg",
+		_coverPos: 0,
 	},
 
 	onBackPress() {
@@ -182,10 +231,11 @@ export default {
 			},
 		});
 		const connect = interconnect.instance();
+		this.interConnect = connect;
 		connect.onmessage = (data) => {
 			const rawData = data.data;
 			if (!rawData) {
-				prompt.showToast({ message: this.$t("cookie.wrong") });
+				prompt.showToast({ message: "收到空消息" });
 				return;
 			}
 
@@ -193,22 +243,294 @@ export default {
 			try {
 				parsed = JSON.parse(rawData);
 			} catch (e) {
+				prompt.showToast({ message: "非JSON，按Cookie处理" });
 				this.handleCookieMessage(rawData, null);
 				return;
 			}
 
-			const msgType = parsed.type;
+			const msgType = parsed.type || "(无type)";
+			prompt.showToast({ message: "type=" + msgType, duration: 2000 });
+
 			if (msgType === "source_config" && parsed.configs) {
 				this.handleSourceConfig(parsed.configs);
 			} else if (msgType === "cookie") {
 				this.handleCookieMessage(null, parsed);
+			} else if (msgType === "request_data") {
+				this.sendAppData();
 			} else {
+				prompt.showToast({ message: "未知type，按Cookie处理" });
 				this.handleCookieMessage(null, parsed);
 			}
 		};
 		brightness.setKeepScreenOn({
 			keepScreenOn: true,
 		});
+	},
+
+	sendAppData() {
+		prompt.showToast({ message: "request_data，正在读取数据..." });
+		this._coverIndex = 0;
+		this._coverQueue = [];
+		file.readText({
+			uri: "internal://files/comics.json",
+			success: (data) => {
+				let comicsList = [];
+				try {
+					comicsList = JSON.parse(data.text);
+				} catch (e) {
+					comicsList = [];
+				}
+
+				if (!Array.isArray(comicsList)) {
+					comicsList = [];
+				}
+
+				this._coverQueue = comicsList;
+
+				if (comicsList.length === 0) {
+					this.readSourcesAndSend([]);
+					return;
+				}
+
+				const comics = [];
+				let pending = comicsList.length;
+
+				comicsList.forEach((c) => {
+					file.get({
+						uri: "internal://files/" + c.id,
+						recursive: true,
+						success: (fileData) => {
+							let pageCount = 0;
+							let chapterCount = 0;
+
+							if (fileData.subFiles) {
+								fileData.subFiles.forEach((f) => {
+									if (f.type === "dir" && f.subFiles && f.subFiles.length > 0) {
+										chapterCount++;
+									} else if (
+										f.type !== "dir" &&
+										f.uri.split("/").pop() !== "cover"
+									) {
+										pageCount++;
+									}
+								});
+							}
+
+							comics.push({
+								name: c.name || "",
+								page_count: pageCount,
+								chapters: chapterCount,
+							});
+
+							pending--;
+							if (pending === 0) {
+								this.readSourcesAndSend(comics);
+							}
+						},
+						fail: () => {
+							comics.push({
+								name: c.name || "",
+								page_count: 0,
+								chapters: 0,
+							});
+
+							pending--;
+							if (pending === 0) {
+								this.readSourcesAndSend(comics);
+							}
+						},
+					});
+				});
+			},
+			fail: () => {
+				this.readSourcesAndSend([]);
+			},
+		});
+	},
+
+	readSourcesAndSend(comics) {
+		file.readText({
+			uri: "internal://files/sources.json",
+			success: (srcData) => {
+				let sourceList = [];
+				try {
+					const rawSources = JSON.parse(srcData.text);
+					if (Array.isArray(rawSources)) {
+						sourceList = rawSources.map((s) => {
+							const key = Object.keys(s)[0];
+							const info = s[key];
+							return {
+								name: (info && info.name) || key,
+								apiUrl: (info && info.apiUrl) || "",
+							};
+						});
+					}
+				} catch (e) {}
+
+				this.sendAppDataBatched(comics, sourceList);
+			},
+			fail: () => {
+				this.sendAppDataBatched(comics, []);
+			},
+		});
+	},
+
+	sendCoversOneByOne() {
+		var queue = this._coverQueue;
+		if (!queue || queue.length === 0) return;
+
+		var idx = this._coverIndex;
+		if (idx >= queue.length) return;
+
+		var c = queue[idx];
+		var self = this;
+
+		file.get({
+			uri: "internal://files/" + c.id + "/cover",
+			success: function (info) {
+				self._coverName = c.name || "";
+				self._coverUri = "internal://files/" + c.id + "/cover";
+				self._coverTotalBytes = info.length || 0;
+				self._coverMime = "image/jpeg";
+				self._coverPos = 0;
+				self.readCoverSlice();
+			},
+			fail: function () {
+				self._coverIndex = idx + 1;
+				setTimeout(function () {
+					self.sendCoversOneByOne();
+				}, 30);
+			},
+		});
+	},
+
+	readCoverSlice() {
+		var READ = 6144;
+		var uri = this._coverUri;
+		var name = this._coverName;
+		var pos = this._coverPos;
+		var total = this._coverTotalBytes;
+		var len = Math.min(READ, total - pos);
+		var isFirst = pos === 0;
+		var self = this;
+
+		file.readArrayBuffer({
+			uri: uri,
+			position: pos,
+			length: len,
+			success: function (bufData) {
+				if (!bufData.buffer) {
+					self._coverIndex++;
+					setTimeout(function () {
+						self.sendCoversOneByOne();
+					}, 300);
+					return;
+				}
+
+				var bytes = new Uint8Array(bufData.buffer);
+				if (isFirst) {
+					self._coverMime = detectImageFormat(bytes);
+				}
+				var header = isFirst ? "data:" + self._coverMime + ";base64," : "";
+				var b64 = base64Encode(bufData.buffer);
+				var totalChunks = Math.ceil(total / READ);
+				var chunkIndex = Math.floor(pos / READ);
+
+				self.interConnect.send({
+					data: {
+						type: "cover_data_chunk",
+						name: name,
+						index: chunkIndex,
+						total: totalChunks,
+						data: header + b64,
+					},
+					success: function () {
+						self._coverPos = pos + len;
+						if (self._coverPos >= total) {
+							prompt.showToast({
+								message:
+									"封面 " +
+									(self._coverIndex + 1) +
+									"/" +
+									self._coverQueue.length +
+									" (" +
+									totalChunks +
+									"片)",
+							});
+							self._coverIndex++;
+							setTimeout(function () {
+								self.sendCoversOneByOne();
+							}, 100);
+						} else {
+							setTimeout(function () {
+								self.readCoverSlice();
+							}, 50);
+						}
+					},
+					fail: function () {
+						self._coverPos = pos + len;
+						if (self._coverPos >= total) {
+							self._coverIndex++;
+							setTimeout(function () {
+								self.sendCoversOneByOne();
+							}, 100);
+						} else {
+							setTimeout(function () {
+								self.readCoverSlice();
+							}, 50);
+						}
+					},
+				});
+			},
+			fail: function () {
+				self._coverIndex++;
+				setTimeout(function () {
+					self.sendCoversOneByOne();
+				}, 30);
+			},
+		});
+	},
+
+	sendAppDataBatched(comics, sourceList) {
+		var i;
+
+		this.interConnect.send({
+			data: {
+				type: "app_data_header",
+				comic_count: comics.length,
+				source_count: sourceList.length,
+			},
+			success: function () {},
+			fail: function () {},
+		});
+
+		for (i = 0; i < comics.length; i++) {
+			this.interConnect.send({
+				data: { type: "app_data_comic", index: i, comic: comics[i] },
+				success: function () {},
+				fail: function () {},
+			});
+		}
+
+		for (i = 0; i < sourceList.length; i++) {
+			this.interConnect.send({
+				data: { type: "app_data_source", index: i, source: sourceList[i] },
+				success: function () {},
+				fail: function () {},
+			});
+		}
+
+		prompt.showToast({
+			message: "发送: comic=" + comics.length + " source=" + sourceList.length,
+		});
+
+		this.interConnect.send({
+			data: { type: "app_data_done" },
+			success: function () {},
+			fail: function () {},
+		});
+
+		setTimeout(this.sendCoversOneByOne.bind(this), 100);
 	},
 
 	handleCookieMessage(rawString, parsedObj) {
