@@ -114,50 +114,9 @@ import prompt from "@system.prompt";
 import brightness from "@system.brightness";
 import interconnect from "@system.interconnect";
 import file from "@system.file";
+import { createDataBridge } from "../../common/dataBridge";
 
 const { getTime } = global;
-
-function detectImageFormat(bytes) {
-	if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
-		return "image/jpeg";
-	if (
-		bytes[0] === 0x89 &&
-		bytes[1] === 0x50 &&
-		bytes[2] === 0x4e &&
-		bytes[3] === 0x47
-	)
-		return "image/png";
-	if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46)
-		return "image/gif";
-	if (
-		bytes[0] === 0x52 &&
-		bytes[1] === 0x49 &&
-		bytes[2] === 0x46 &&
-		bytes[3] === 0x46
-	)
-		return "image/webp";
-	if (bytes[0] === 0x42 && bytes[1] === 0x4d) return "image/bmp";
-	return "image/jpeg";
-}
-
-function base64Encode(input) {
-	var chars =
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-	var bytes = new Uint8Array(input);
-	var len = bytes.length;
-	var result = "";
-	var i;
-	for (i = 0; i < len; i += 3) {
-		var b1 = bytes[i];
-		var b2 = i + 1 < len ? bytes[i + 1] : 0;
-		var b3 = i + 2 < len ? bytes[i + 2] : 0;
-		result += chars[b1 >> 2];
-		result += chars[((b1 & 3) << 4) | (b2 >> 4)];
-		result += i + 1 < len ? chars[((b2 & 15) << 2) | (b3 >> 6)] : "=";
-		result += i + 2 < len ? chars[b3 & 63] : "=";
-	}
-	return result;
-}
 
 export default {
 	private: {
@@ -167,13 +126,6 @@ export default {
 		currentSourceName: global.API_SETTING[global.API_SETTING.using].name,
 		API_SETTING: global.API_SETTING,
 		display: global.display,
-		_coverQueue: [],
-		_coverIndex: 0,
-		_coverName: "",
-		_coverUri: "",
-		_coverTotalBytes: 0,
-		_coverMime: "image/jpeg",
-		_coverPos: 0,
 	},
 
 	onBackPress() {
@@ -186,7 +138,6 @@ export default {
 	},
 
 	onShow() {
-		// 写入页面顶部时间
 		this.time = getTime();
 		file.readText({
 			uri: "internal://files/sources.json",
@@ -195,7 +146,6 @@ export default {
 				datas.forEach((newSourceConfig) => {
 					const newKey = Object.keys(newSourceConfig)[0];
 					global.API_SETTING[newKey] = newSourceConfig[newKey];
-					// console.log(`配置 ${newKey} 已加载`);
 				});
 			},
 			fail: function () {},
@@ -213,7 +163,9 @@ export default {
 			},
 			fail: function () {},
 		});
-		this.cleanTempFiles();
+		if (this._bridge) {
+			this._bridge.cleanTempFiles();
+		}
 	},
 
 	onInit() {
@@ -230,342 +182,26 @@ export default {
 				global.cookie = {};
 			},
 		});
+
 		const connect = interconnect.instance();
-		this.interConnect = connect;
-		connect.onmessage = (data) => {
-			const rawData = data.data;
-			if (!rawData) {
-				prompt.showToast({ message: "收到空消息" });
-				return;
-			}
+		const bridge = createDataBridge(connect);
 
-			let parsed;
-			try {
-				parsed = JSON.parse(rawData);
-			} catch (e) {
-				prompt.showToast({ message: "非JSON，按Cookie处理" });
-				this.handleCookieMessage(rawData, null);
-				return;
-			}
-
-			const msgType = parsed.type || "(无type)";
-			prompt.showToast({ message: "type=" + msgType, duration: 2000 });
-
-			if (msgType === "source_config" && parsed.configs) {
-				this.handleSourceConfig(parsed.configs);
-			} else if (msgType === "cookie") {
-				this.handleCookieMessage(null, parsed);
-			} else if (msgType === "request_data") {
-				this.sendAppData();
-			} else if (msgType === "delete_comic") {
-				this.handleDeleteComic(parsed);
-			} else if (msgType === "delete_source") {
-				this.handleDeleteSource(parsed);
-			} else {
-				prompt.showToast({ message: "未知type，按Cookie处理" });
-				this.handleCookieMessage(null, parsed);
-			}
+		bridge.onSourceConfigSaved = () => {
+			this.API_SETTING = global.API_SETTING;
+			this.currentSourceName =
+				global.API_SETTING[global.API_SETTING.using].name;
 		};
+
+		connect.onmessage = bridge.handleMessage;
+		this._bridge = bridge;
+
 		brightness.setKeepScreenOn({
 			keepScreenOn: true,
 		});
 	},
 
-	sendAppData() {
-		prompt.showToast({ message: "request_data，正在读取数据..." });
-		this._coverIndex = 0;
-		this._coverQueue = [];
-		file.readText({
-			uri: "internal://files/comics.json",
-			success: (data) => {
-				let comicsList = [];
-				try {
-					comicsList = JSON.parse(data.text);
-				} catch (e) {
-					comicsList = [];
-				}
-
-				if (!Array.isArray(comicsList)) {
-					comicsList = [];
-				}
-
-				this._coverQueue = comicsList;
-
-				if (comicsList.length === 0) {
-					this.readSourcesAndSend([]);
-					return;
-				}
-
-				const comics = [];
-				let pending = comicsList.length;
-
-				comicsList.forEach((c) => {
-					file.get({
-						uri: "internal://files/" + c.id,
-						recursive: true,
-						success: (fileData) => {
-							let pageCount = 0;
-							let chapterCount = 0;
-
-							if (fileData.subFiles) {
-								fileData.subFiles.forEach((f) => {
-									if (f.type === "dir" && f.subFiles && f.subFiles.length > 0) {
-										chapterCount++;
-									} else if (
-										f.type !== "dir" &&
-										f.uri.split("/").pop() !== "cover"
-									) {
-										pageCount++;
-									}
-								});
-							}
-
-							comics.push({
-								name: c.name || "",
-								page_count: pageCount,
-								chapters: chapterCount,
-							});
-
-							pending--;
-							if (pending === 0) {
-								this.readSourcesAndSend(comics);
-							}
-						},
-						fail: () => {
-							comics.push({
-								name: c.name || "",
-								page_count: 0,
-								chapters: 0,
-							});
-
-							pending--;
-							if (pending === 0) {
-								this.readSourcesAndSend(comics);
-							}
-						},
-					});
-				});
-			},
-			fail: () => {
-				this.readSourcesAndSend([]);
-			},
-		});
-	},
-
-	readSourcesAndSend(comics) {
-		file.readText({
-			uri: "internal://files/sources.json",
-			success: (srcData) => {
-				let sourceList = [];
-				try {
-					const rawSources = JSON.parse(srcData.text);
-					if (Array.isArray(rawSources)) {
-						sourceList = rawSources.map((s) => {
-							const key = Object.keys(s)[0];
-							const info = s[key];
-							return {
-								name: (info && info.name) || key,
-								apiUrl: (info && info.apiUrl) || "",
-							};
-						});
-					}
-				} catch (e) {}
-
-				this.sendAppDataBatched(comics, sourceList);
-			},
-			fail: () => {
-				this.sendAppDataBatched(comics, []);
-			},
-		});
-	},
-
-	sendCoversOneByOne() {
-		var queue = this._coverQueue;
-		if (!queue || queue.length === 0) return;
-
-		var idx = this._coverIndex;
-		if (idx >= queue.length) return;
-
-		var c = queue[idx];
-		var self = this;
-
-		file.get({
-			uri: "internal://files/" + c.id + "/cover",
-			success: function (info) {
-				self._coverName = c.name || "";
-				self._coverUri = "internal://files/" + c.id + "/cover";
-				self._coverTotalBytes = info.length || 0;
-				self._coverMime = "image/jpeg";
-				self._coverPos = 0;
-				self.readCoverSlice();
-			},
-			fail: function () {
-				self._coverIndex = idx + 1;
-				setTimeout(function () {
-					self.sendCoversOneByOne();
-				}, 30);
-			},
-		});
-	},
-
-	readCoverSlice() {
-		var READ = 6144;
-		var uri = this._coverUri;
-		var name = this._coverName;
-		var pos = this._coverPos;
-		var total = this._coverTotalBytes;
-		var len = Math.min(READ, total - pos);
-		var isFirst = pos === 0;
-		var self = this;
-
-		file.readArrayBuffer({
-			uri: uri,
-			position: pos,
-			length: len,
-			success: function (bufData) {
-				if (!bufData.buffer) {
-					self._coverIndex++;
-					setTimeout(function () {
-						self.sendCoversOneByOne();
-					}, 300);
-					return;
-				}
-
-				var bytes = new Uint8Array(bufData.buffer);
-				if (isFirst) {
-					self._coverMime = detectImageFormat(bytes);
-				}
-				var header = isFirst ? "data:" + self._coverMime + ";base64," : "";
-				var b64 = base64Encode(bufData.buffer);
-				var totalChunks = Math.ceil(total / READ);
-				var chunkIndex = Math.floor(pos / READ);
-
-				self.interConnect.send({
-					data: {
-						type: "cover_data_chunk",
-						name: name,
-						index: chunkIndex,
-						total: totalChunks,
-						data: header + b64,
-					},
-					success: function () {
-						self._coverPos = pos + len;
-						if (self._coverPos >= total) {
-							prompt.showToast({
-								message:
-									"封面 " +
-									(self._coverIndex + 1) +
-									"/" +
-									self._coverQueue.length +
-									" (" +
-									totalChunks +
-									"片)",
-							});
-							self._coverIndex++;
-							setTimeout(function () {
-								self.sendCoversOneByOne();
-							}, 100);
-						} else {
-							setTimeout(function () {
-								self.readCoverSlice();
-							}, 50);
-						}
-					},
-					fail: function () {
-						self._coverPos = pos + len;
-						if (self._coverPos >= total) {
-							self._coverIndex++;
-							setTimeout(function () {
-								self.sendCoversOneByOne();
-							}, 100);
-						} else {
-							setTimeout(function () {
-								self.readCoverSlice();
-							}, 50);
-						}
-					},
-				});
-			},
-			fail: function () {
-				self._coverIndex++;
-				setTimeout(function () {
-					self.sendCoversOneByOne();
-				}, 30);
-			},
-		});
-	},
-
-	sendAppDataBatched(comics, sourceList) {
-		var i;
-
-		this.interConnect.send({
-			data: {
-				type: "app_data_header",
-				comic_count: comics.length,
-				source_count: sourceList.length,
-			},
-			success: function () {},
-			fail: function () {},
-		});
-
-		for (i = 0; i < comics.length; i++) {
-			this.interConnect.send({
-				data: { type: "app_data_comic", index: i, comic: comics[i] },
-				success: function () {},
-				fail: function () {},
-			});
-		}
-
-		for (i = 0; i < sourceList.length; i++) {
-			this.interConnect.send({
-				data: { type: "app_data_source", index: i, source: sourceList[i] },
-				success: function () {},
-				fail: function () {},
-			});
-		}
-
-		prompt.showToast({
-			message: "发送: comic=" + comics.length + " source=" + sourceList.length,
-		});
-
-		this.interConnect.send({
-			data: { type: "app_data_done" },
-			success: function () {},
-			fail: function () {},
-		});
-
-		setTimeout(this.sendCoversOneByOne.bind(this), 100);
-	},
-
-	handleCookieMessage(rawString, parsedObj) {
-		prompt.showToast({ message: this.$t("cookie.receive") });
-		if (!global.cookie) {
-			global.cookie = {};
-		}
-
-		if (parsedObj) {
-			const { type, ...cookieData } = parsedObj;
-			Object.assign(global.cookie, cookieData);
-		} else {
-			const currentSource = global.API_SETTING.using;
-			global.cookie[currentSource] = rawString;
-		}
-
-		file.writeText({
-			uri: "internal://files/cookie.json",
-			text: JSON.stringify(global.cookie),
-			success: () => {
-				prompt.showToast({ message: this.$t("cookie.success") });
-			},
-			fail: () => {
-				prompt.showToast({ message: this.$t("cookie.fail") });
-			},
-		});
-	},
-
 	deleteit() {
 		this.context = this.context.slice(0, -1);
-		// console.log("删除字符");
 	},
 
 	changeState() {
@@ -597,7 +233,6 @@ export default {
 
 	complete(evt) {
 		this.context += evt.detail.content;
-		// console.log("onComplete:" + JSON.stringify(evt));
 	},
 
 	toAlbum(data) {
@@ -671,217 +306,12 @@ export default {
 		this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
 	},
 
-	handleDeleteComic(parsed) {
-		const comicName = parsed.name || "";
-		if (!comicName) {
-			prompt.showToast({ message: "删除失败：未提供漫画名称" });
-			return;
-		}
-
-		prompt.showToast({ message: "正在删除: " + comicName });
-
-		file.readText({
-			uri: "internal://files/comics.json",
-			success: (data) => {
-				let comicsList = [];
-				try {
-					comicsList = JSON.parse(data.text);
-				} catch (e) {
-					comicsList = [];
-				}
-
-				const target = comicsList.find((c) => c.name === comicName);
-				if (!target) {
-					prompt.showToast({ message: "未找到漫画: " + comicName });
-					return;
-				}
-
-				const folderUri = "internal://files/" + target.id + "/";
-
-				file.access({
-					uri: folderUri,
-					success: () => {
-						file.rmdir({
-							uri: folderUri,
-							recursive: true,
-							success: () => {
-								this.updateComicsIndexAfterDelete(
-									comicsList,
-									target.id,
-									comicName
-								);
-							},
-							fail: () => {
-								console.log("递归删除失败，直接更新索引");
-								this.updateComicsIndexAfterDelete(
-									comicsList,
-									target.id,
-									comicName
-								);
-							},
-						});
-					},
-					fail: () => {
-						console.log("文件夹不存在，直接更新索引");
-						this.updateComicsIndexAfterDelete(comicsList, target.id, comicName);
-					},
-				});
-			},
-			fail: () => {
-				prompt.showToast({ message: "读取漫画索引失败" });
-			},
-		});
-	},
-
-	updateComicsIndexAfterDelete(comicsList, deletedId, comicName) {
-		const newList = comicsList.filter((c) => c.id !== deletedId);
-
-		file.writeText({
-			uri: "internal://files/comics.json",
-			text: JSON.stringify(newList),
-			success: () => {
-				prompt.showToast({ message: "已删除: " + comicName });
-			},
-			fail: (data, code) => {
-				console.log("更新索引失败, code=" + code);
-				prompt.showToast({ message: "文件已删除，但索引更新失败" });
-			},
-		});
-	},
-
-	handleDeleteSource(parsed) {
-		const sourceName = parsed.name || "";
-		if (!sourceName) {
-			prompt.showToast({ message: "删除失败：未提供漫画源名称" });
-			return;
-		}
-
-		prompt.showToast({ message: "正在删除漫画源: " + sourceName });
-
-		file.readText({
-			uri: "internal://files/sources.json",
-			success: (data) => {
-				let sourceList = [];
-				try {
-					sourceList = JSON.parse(data.text);
-				} catch (e) {
-					sourceList = [];
-				}
-
-				const newList = sourceList.filter((s) => {
-					const key = Object.keys(s)[0];
-					const info = s[key] || {};
-					return key !== sourceName && info.name !== sourceName;
-				});
-
-				file.writeText({
-					uri: "internal://files/sources.json",
-					text: JSON.stringify(newList),
-					success: () => {
-						if (global.API_SETTING[sourceName]) {
-							delete global.API_SETTING[sourceName];
-							this.API_SETTING = global.API_SETTING;
-							if (global.API_SETTING.using === sourceName) {
-								const keys = Object.keys(global.API_SETTING).filter(
-									(k) => k !== "using"
-								);
-								global.API_SETTING.using = keys[0] || "MangaDex";
-							}
-							this.currentSourceName =
-								global.API_SETTING[global.API_SETTING.using].name;
-						}
-
-						prompt.showToast({ message: "已删除漫画源: " + sourceName });
-					},
-					fail: (data, code) => {
-						console.log("更新sources.json失败, code=" + code);
-						prompt.showToast({ message: "删除失败，请重试" });
-					},
-				});
-			},
-			fail: () => {
-				prompt.showToast({ message: "读取漫画源配置失败" });
-			},
-		});
-	},
-
 	routeBack() {
 		if (this.hide) {
 			router.back();
 		} else {
 			this.hide = !this.hide;
 		}
-	},
-
-	handleSourceConfig(configs) {
-		prompt.showToast({ message: "正在保存漫画源配置..." });
-		file.readText({
-			uri: "internal://files/sources.json",
-			success: (data) => {
-				let existingConfigs = JSON.parse(data.text);
-				configs.forEach((newConfig) => {
-					existingConfigs = this.replaceIfDuplicate(existingConfigs, newConfig);
-				});
-				file.writeText({
-					uri: "internal://files/sources.json",
-					text: JSON.stringify(existingConfigs),
-					success: () => {
-						configs.forEach((newConfig) => {
-							const key = Object.keys(newConfig)[0];
-							global.API_SETTING[key] = newConfig[key];
-						});
-						this.API_SETTING = global.API_SETTING;
-						this.currentSourceName =
-							global.API_SETTING[global.API_SETTING.using].name;
-						prompt.showToast({ message: "漫画源配置已保存！" });
-					},
-					fail: (code) => {
-						prompt.showToast({ message: "保存漫画源配置失败: " + code });
-					},
-				});
-			},
-			fail: () => {
-				const newConfigs = configs;
-				file.writeText({
-					uri: "internal://files/sources.json",
-					text: JSON.stringify(newConfigs),
-					success: () => {
-						configs.forEach((newConfig) => {
-							const key = Object.keys(newConfig)[0];
-							global.API_SETTING[key] = newConfig[key];
-						});
-						this.API_SETTING = global.API_SETTING;
-						this.currentSourceName =
-							global.API_SETTING[global.API_SETTING.using].name;
-						prompt.showToast({ message: "漫画源配置已保存！" });
-					},
-					fail: (code) => {
-						prompt.showToast({ message: "保存漫画源配置失败: " + code });
-					},
-				});
-			},
-		});
-	},
-
-	replaceIfDuplicate(configArray, newConfigObject) {
-		const newKey = Object.keys(newConfigObject)[0];
-		const singleConfig = { [newKey]: newConfigObject[newKey] };
-		let found = false;
-
-		for (let i = 0; i < configArray.length; i++) {
-			const existingKey = Object.keys(configArray[i])[0];
-			if (existingKey === newKey) {
-				configArray[i] = singleConfig;
-				found = true;
-				break;
-			}
-		}
-
-		if (!found) {
-			configArray.push(singleConfig);
-		}
-
-		return configArray;
 	},
 
 	routeAbout() {
@@ -893,39 +323,6 @@ export default {
 	routeEdit() {
 		router.push({
 			uri: "/pages/edit",
-		});
-	},
-
-	cleanTempFiles() {
-		file.list({
-			uri: "internal://files",
-			success: (data) => {
-				const files = data.fileList || [];
-				const keepFiles = [
-					"comics.json",
-					"settings.json",
-					"cookie.json",
-					"sources.json",
-					"history.json",
-				];
-
-				const filesToDelete = files.filter((file) => {
-					const fileName = file.uri.split("/").pop();
-					return !keepFiles.includes(fileName);
-				});
-
-				if (filesToDelete.length > 0) {
-					filesToDelete.forEach((files) => {
-						file.delete({
-							uri: files.uri,
-						});
-					});
-					prompt.showToast({
-						message: this.$t("cleanTempFiles", { count: filesToDelete.length }),
-						duration: 2000,
-					});
-				}
-			},
 		});
 	},
 
