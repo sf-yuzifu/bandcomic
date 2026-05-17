@@ -257,6 +257,8 @@ export default {
 				this.handleCookieMessage(null, parsed);
 			} else if (msgType === "request_data") {
 				this.sendAppData();
+			} else if (msgType === "delete_comic") {
+				this.handleDeleteComic(parsed);
 			} else {
 				prompt.showToast({ message: "未知type，按Cookie处理" });
 				this.handleCookieMessage(null, parsed);
@@ -665,6 +667,84 @@ export default {
 			return;
 		}
 		this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
+	},
+
+	handleDeleteComic(parsed) {
+		const comicName = parsed.name || "";
+		if (!comicName) {
+			prompt.showToast({ message: "删除失败：未提供漫画名称" });
+			return;
+		}
+
+		prompt.showToast({ message: "正在删除: " + comicName });
+
+		file.readText({
+			uri: "internal://files/comics.json",
+			success: (data) => {
+				let comicsList = [];
+				try {
+					comicsList = JSON.parse(data.text);
+				} catch (e) {
+					comicsList = [];
+				}
+
+				const target = comicsList.find((c) => c.name === comicName);
+				if (!target) {
+					prompt.showToast({ message: "未找到漫画: " + comicName });
+					return;
+				}
+
+				const folderUri = "internal://files/" + target.id + "/";
+
+				file.access({
+					uri: folderUri,
+					success: () => {
+						file.rmdir({
+							uri: folderUri,
+							recursive: true,
+							success: () => {
+								this.updateComicsIndexAfterDelete(
+									comicsList,
+									target.id,
+									comicName
+								);
+							},
+							fail: () => {
+								console.log("递归删除失败，直接更新索引");
+								this.updateComicsIndexAfterDelete(
+									comicsList,
+									target.id,
+									comicName
+								);
+							},
+						});
+					},
+					fail: () => {
+						console.log("文件夹不存在，直接更新索引");
+						this.updateComicsIndexAfterDelete(comicsList, target.id, comicName);
+					},
+				});
+			},
+			fail: () => {
+				prompt.showToast({ message: "读取漫画索引失败" });
+			},
+		});
+	},
+
+	updateComicsIndexAfterDelete(comicsList, deletedId, comicName) {
+		const newList = comicsList.filter((c) => c.id !== deletedId);
+
+		file.writeText({
+			uri: "internal://files/comics.json",
+			text: JSON.stringify(newList),
+			success: () => {
+				prompt.showToast({ message: "已删除: " + comicName });
+			},
+			fail: (data, code) => {
+				console.log("更新索引失败, code=" + code);
+				prompt.showToast({ message: "文件已删除，但索引更新失败" });
+			},
+		});
 	},
 
 	routeBack() {
