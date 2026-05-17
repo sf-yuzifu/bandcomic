@@ -259,6 +259,8 @@ export default {
 				this.sendAppData();
 			} else if (msgType === "delete_comic") {
 				this.handleDeleteComic(parsed);
+			} else if (msgType === "delete_source") {
+				this.handleDeleteSource(parsed);
 			} else {
 				prompt.showToast({ message: "未知type，按Cookie处理" });
 				this.handleCookieMessage(null, parsed);
@@ -743,6 +745,62 @@ export default {
 			fail: (data, code) => {
 				console.log("更新索引失败, code=" + code);
 				prompt.showToast({ message: "文件已删除，但索引更新失败" });
+			},
+		});
+	},
+
+	handleDeleteSource(parsed) {
+		const sourceName = parsed.name || "";
+		if (!sourceName) {
+			prompt.showToast({ message: "删除失败：未提供漫画源名称" });
+			return;
+		}
+
+		prompt.showToast({ message: "正在删除漫画源: " + sourceName });
+
+		file.readText({
+			uri: "internal://files/sources.json",
+			success: (data) => {
+				let sourceList = [];
+				try {
+					sourceList = JSON.parse(data.text);
+				} catch (e) {
+					sourceList = [];
+				}
+
+				const newList = sourceList.filter((s) => {
+					const key = Object.keys(s)[0];
+					const info = s[key] || {};
+					return key !== sourceName && info.name !== sourceName;
+				});
+
+				file.writeText({
+					uri: "internal://files/sources.json",
+					text: JSON.stringify(newList),
+					success: () => {
+						if (global.API_SETTING[sourceName]) {
+							delete global.API_SETTING[sourceName];
+							this.API_SETTING = global.API_SETTING;
+							if (global.API_SETTING.using === sourceName) {
+								const keys = Object.keys(global.API_SETTING).filter(
+									(k) => k !== "using"
+								);
+								global.API_SETTING.using = keys[0] || "MangaDex";
+							}
+							this.currentSourceName =
+								global.API_SETTING[global.API_SETTING.using].name;
+						}
+
+						prompt.showToast({ message: "已删除漫画源: " + sourceName });
+					},
+					fail: (data, code) => {
+						console.log("更新sources.json失败, code=" + code);
+						prompt.showToast({ message: "删除失败，请重试" });
+					},
+				});
+			},
+			fail: () => {
+				prompt.showToast({ message: "读取漫画源配置失败" });
 			},
 		});
 	},
