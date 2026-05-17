@@ -240,13 +240,13 @@ export function createDataBridge(interConnect) {
 
 		interConnect.send({
 			data: { type: "app_data_done" },
-			success: function () {},
-			fail: function () {},
+			success: function () {
+				sendCoversOneByOne();
+			},
+			fail: function () {
+				sendCoversOneByOne();
+			},
 		});
-
-		setTimeout(function () {
-			sendCoversOneByOne();
-		}, 100);
 	}
 
 	function readSourcesAndSend(comics) {
