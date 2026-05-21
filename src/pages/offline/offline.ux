@@ -27,6 +27,7 @@
 						<div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
 						<div class="storage-bar-segment-comics" style="width: {{ comicsUsedPercent }}%"></div>
 						<div class="storage-bar-segment-other" style="width: {{ actualUsedPercent - comicsUsedPercent }}%"></div>
+						<div class="storage-bar-segment-remaining" style="width: {{ 100 - actualUsedPercent - systemReservedPercent }}%"></div>
 					</div>
 					<div class="storage-list">
 						<div class="storage-list-item" @click="toggleStorageList">
@@ -417,9 +418,10 @@ export default {
 			const actualTotal = totalStorage - systemReserved;
 			const actualAvailable = Math.max(0, availableStorage - systemReserved);
 			this.comicsUsed = formatFileSize(comicsTotalSize);
-			this.comicsUsedPercent = Math.floor((comicsTotalSize / actualTotal) * 100);
+			// 统一基于 totalStorage 计算百分比，确保进度条显示正确
+			this.comicsUsedPercent = Math.floor((comicsTotalSize / totalStorage) * 100);
 			this.storageUsed = formatFileSize(actualTotal - actualAvailable);
-			this.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / actualTotal) * 100);
+			this.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / totalStorage) * 100);
 			this.otherUsed = formatFileSize(Math.max(0, actualTotal - actualAvailable - comicsTotalSize));
 			this.remaining = formatFileSize(actualAvailable);
 			this.systemReservedPercent = Math.floor((systemReserved / totalStorage) * 100);
@@ -653,16 +655,18 @@ export default {
 
 .storage-bar-segment-reserved {
 	background-color: rgba(255, 255, 255, 0.3);
-	border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .storage-bar-segment-comics {
 	background-color: #4CAF50;
-	border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .storage-bar-segment-other {
 	background-color: rgba(76, 175, 80, 0.3);
+}
+
+.storage-bar-segment-remaining {
+	background-color: rgba(255, 255, 255, 0.1);
 }
 
 .storage-list {
