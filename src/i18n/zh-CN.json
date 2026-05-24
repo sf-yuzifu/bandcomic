@@ -17,7 +17,15 @@
         "imageSize": "图片尺寸",
         "showCoverInSearch": "搜索显示封面",
         "keepDefaultZoom": "保持图片缩放",
-        "imagePreTranscode": "图片预解码"
+        "imagePreTranscode": "图片预解码",
+        "info": {
+            "searchPageSize": "每页显示的漫画数量",
+            "imageQuality": "图片的清晰度百分比",
+            "imageSize": "图片显示宽度像素值",
+            "showCoverInSearch": "搜索结果显示封面图",
+            "keepDefaultZoom": "切换章节保持缩放比例",
+            "imagePreTranscode": "预解码图片以提升低配置设备浏览流畅度"
+        }
     },
     "error": {
         "noComicFound": "未找到相关漫画，请检查输入是否正确",
