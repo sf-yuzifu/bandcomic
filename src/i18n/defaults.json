@@ -17,7 +17,15 @@
         "imageSize": "Size",
         "showCoverInSearch": "Show cover",
         "keepDefaultZoom": "Keep zoom",
-        "imagePreTranscode": "Pre-decode"
+        "imagePreTranscode": "Pre-decode",
+        "info": {
+            "searchPageSize": "Number of search results per page",
+            "imageQuality": "Image quality percentage",
+            "imageSize": "Image display width in pixels",
+            "showCoverInSearch": "Show cover in search results",
+            "keepDefaultZoom": "Keep current zoom when switching chapters",
+            "imagePreTranscode": "Pre-decode images for smoother browsing"
+        }
     },
     "error": {
         "noComicFound": "No comics found",

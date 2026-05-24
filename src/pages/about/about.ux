@@ -50,15 +50,26 @@
 					<text class="bold" style="color: #fff">无源流沙</text>
 				</div>
 				<div class="settings">
-					<text class="re bold">{{ $t("setting") }}</text>
+					<text class="re bold setting-title">
+						{{ $t("setting") }}
+					</text>
 					<div class="setting-item">
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							style="font-weight: bold; color: #fff"
-						>
-							{{ $t("settings.searchPageSize") }}
-						</marquee>
+						<div class="setting-item-content">
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-title"
+							>
+								{{ $t("settings.searchPageSize") }}
+							</marquee>
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-info"
+							>
+								{{ $t("settings.info.searchPageSize") }}
+							</marquee>
+						</div>
 						<picker
 							class="picker"
 							type="text"
@@ -68,13 +79,22 @@
 						></picker>
 					</div>
 					<div class="setting-item">
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							style="font-weight: bold; color: #fff"
-						>
-							{{ $t("settings.imageQuality") }}
-						</marquee>
+						<div class="setting-item-content">
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-title"
+							>
+								{{ $t("settings.imageQuality") }}
+							</marquee>
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-info"
+							>
+								{{ $t("settings.info.imageQuality") }}
+							</marquee>
+						</div>
 						<picker
 							class="picker"
 							type="text"
@@ -84,13 +104,22 @@
 						></picker>
 					</div>
 					<div class="setting-item">
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							style="font-weight: bold; color: #fff"
-						>
-							{{ $t("settings.imageSize") }}
-						</marquee>
+						<div class="setting-item-content">
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-title"
+							>
+								{{ $t("settings.imageSize") }}
+							</marquee>
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-info"
+							>
+								{{ $t("settings.info.imageSize") }}
+							</marquee>
+						</div>
 						<picker
 							class="picker"
 							type="text"
@@ -100,13 +129,22 @@
 						></picker>
 					</div>
 					<div class="setting-item">
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							style="font-weight: bold; color: #fff"
-						>
-							{{ $t("settings.showCoverInSearch") }}
-						</marquee>
+						<div class="setting-item-content">
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-title"
+							>
+								{{ $t("settings.showCoverInSearch") }}
+							</marquee>
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-info"
+							>
+								{{ $t("settings.info.showCoverInSearch") }}
+							</marquee>
+						</div>
 						<switch
 							checked="{{ global.APP_SETTING.showCoverInSearch }}"
 							class="switch"
@@ -114,13 +152,22 @@
 						></switch>
 					</div>
 					<div class="setting-item">
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							style="font-weight: bold; color: #fff"
-						>
-							{{ $t("settings.keepDefaultZoom") }}
-						</marquee>
+						<div class="setting-item-content">
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-title"
+							>
+								{{ $t("settings.keepDefaultZoom") }}
+							</marquee>
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-info"
+							>
+								{{ $t("settings.info.keepDefaultZoom") }}
+							</marquee>
+						</div>
 						<switch
 							checked="{{ global.APP_SETTING.keepDefaultZoom }}"
 							class="switch"
@@ -128,13 +175,22 @@
 						></switch>
 					</div>
 					<div class="setting-item">
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							style="font-weight: bold; color: #fff"
-						>
-							{{ $t("settings.imagePreTranscode") }}
-						</marquee>
+						<div class="setting-item-content">
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-title"
+							>
+								{{ $t("settings.imagePreTranscode") }}
+							</marquee>
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-info"
+							>
+								{{ $t("settings.info.imagePreTranscode") }}
+							</marquee>
+						</div>
 						<switch
 							checked="{{ global.APP_SETTING.imagePreTranscode }}"
 							class="switch"
@@ -308,19 +364,43 @@ export default {
 }
 
 .settings {
-	width: 100%;
 	flex-direction: column;
-	width: 276px;
+	width: 324px;
 	margin-top: 10px;
 }
 
 .setting-item {
 	margin-top: 10px;
-	height: 42px;
+	border-radius: 36px;
+	padding: 14px 20px;
+	height: 112px;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	justify-content: space-between;
+	background-color: #262626;
+}
+
+.setting-title {
+	margin-left: 24px;
+}
+
+.setting-item-content {
+	display: flex;
+	flex-direction: column;
+}
+
+.setting-item-title {
+	font-size: 32px;
+	color: #fff;
+	font-weight: bold;
+}
+
+.setting-item-info {
+	font-size: 28px;
+	font-weight: bold;
+	margin-top: 5px;
+	color: rgba(255, 255, 255, 0.6);
 }
 
 .padding {
@@ -328,20 +408,43 @@ export default {
 }
 
 .picker {
-	width: 80px;
+	width: 72px;
+	margin-left: 10px;
 	selected-font-size: 32px;
 	selected-color: #fff;
 }
 
 .switch {
 	height: 36px;
-	flex-basis: 80px;
+	margin-left: 10px;
+	flex-basis: 72px;
 }
 
 /* 看看是不是小米手表 */
 @media (device-type: watch) and (shape: circle) {
 	.padding {
 		height: 50px;
+	}
+
+	.settings {
+		width: 380px;
+	}
+
+	#copyright,
+	#info {
+		width: 332px;
+	}
+}
+
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+	.settings {
+		width: 380px;
+	}
+
+	#copyright,
+	#info {
+		width: 332px;
 	}
 }
 </style>
