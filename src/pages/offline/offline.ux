@@ -199,6 +199,7 @@ export default {
 	},
 
 	onScroll(scrollLeft, index) {
+		if (scrollLeft === 0) return;
 		this.comicsList[index].scrollLeft = scrollLeft;
 		// 如果有其他已滑出的卡片，回滚它
 		if (this.openedComicsIndex !== -1 && this.openedComicsIndex !== index) {
@@ -213,6 +214,7 @@ export default {
 	},
 
 	onHistoryScroll(scrollLeft, index) {
+		if (scrollLeft === 0) return;
 		this.historyList[index].scrollLeft = scrollLeft;
 		// 如果有其他已滑出的历史记录卡片，回滚它
 		if (this.openedHistoryIndex !== -1 && this.openedHistoryIndex !== index) {
