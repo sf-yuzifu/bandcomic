@@ -60,12 +60,21 @@
 
 				<list if="{{ comicsList.length != 0 }}" class="box" bounces="true">
 					<list-item for="{{ comicsList }}" class="item" type="list-item">
-						<image @click="toPhoto($item)" class="cover" src="internal://files/{{ $item.id }}/cover"></image>
-						<div @click="toPhoto($item)" class="text-content">
-							<text class="itemText">{{ $item.name }}</text>
-							<text class="meta">{{ $t("offline.size") }} {{ $item.size }}</text>
-						</div>
-						<image src="/common/del.png" @click="del($item.id)"></image>
+						<scroll class="swipe-item" scroll-x="true" id="scroll_{{ $idx }}" @scroll="(event) => onScroll(event.scrollX, $idx)">
+							<div class="swipe-content" @click="toPhoto($item)">
+								<div class="cover-mask">
+									<image class="cover" src="internal://files/{{ $item.id }}/cover"></image>
+								    <image class="corner-mask" src="/common/coverMask.png"></image>
+								</div>
+								<div class="text-content">
+									<text class="itemText">{{ $item.name }}</text>
+									<text class="meta">{{ $t("offline.size") }} {{ $item.size }}</text>
+								</div>
+							</div>
+							<div class="delete-btn" @click="del($item.id)">
+								<image src="/common/del.png" class="delete-icon"></image>
+							</div>
+						</scroll>
 					</list-item>
 					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
 				</list>
@@ -81,16 +90,24 @@
 				<div style="height: 10px"></div>
 				<list if="{{ historyList.length != 0 }}" class="box" bounces="true">
 					<list-item for="{{ historyList }}" class="item" type="list-item">
-						<image @click="toHistoryPhoto($item)" class="cover" src="{{ $item.cover }}"></image>
-						<div @click="toHistoryPhoto($item)" class="text-content">
-							<text class="itemText">{{ $item.title }}</text>
-							<text class="meta" if="{{ $item.is_serial }}">
-								{{ $t("offline.chapter", { chapter: $item.chapter }) }} - {{ $t("offline.page", { page: $item.page }) }}
-							</text>
-							<text class="meta" else>{{ $t("offline.page", { page: $item.page }) }}</text>
-							<text class="time-text">{{ formatTime($item.last_read_time) }}</text>
-						</div>
-						<image src="/common/del.png" @click="delHistory($item.id)"></image>
+						<scroll class="swipe-item" scroll-x="true" id="history_scroll_{{ $idx }}" @scroll="(event) => onHistoryScroll(event.scrollX, $idx)">
+							<div class="swipe-content" @click="toHistoryPhoto($item)">
+								<div class="cover-mask">
+									<image class="cover" src="{{ $item.cover }}"></image>
+								    <image class="corner-mask" src="/common/coverMask.png"></image>
+								</div>
+								<div class="text-content">
+									<text class="itemText">{{ $item.title }}</text>
+									<text class="meta" if="{{ $item.is_serial }}">
+										{{ $t("offline.chapter", { chapter: $item.chapter }) }} {{ formatTime($item.last_read_time) }}
+									</text>
+									<text class="meta" else>{{ $t("offline.page", { page: $item.page }) }} {{ formatTime($item.last_read_time) }}</text>
+								</div>
+							</div>
+							<div class="delete-btn" @click="delHistory($item.id)">
+								<image src="/common/del.png" class="delete-icon"></image>
+							</div>
+						</scroll>
 					</list-item>
 					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
 				</list>
@@ -154,6 +171,8 @@ export default {
 		currentTab: "offline",
 		historyList: [],
 		isLoadingHistory: false,
+		openedComicsIndex: -1,
+		openedHistoryIndex: -1,
 	},
 
 	onShow() {
@@ -171,6 +190,34 @@ export default {
 
 	changeTab() {
 		this.currentTab = this.currentTab === 'offline' ? 'history' : 'offline';
+	},
+
+	onScroll(scrollLeft, index) {
+		this.comicsList[index].scrollLeft = scrollLeft;
+		// 如果有其他已滑出的卡片，回滚它
+		if (this.openedComicsIndex !== -1 && this.openedComicsIndex !== index) {
+			const scrollEl = this.$element('scroll_' + this.openedComicsIndex);
+			if (scrollEl) {
+				scrollEl.scrollBy({ left: -100 });
+			}
+			this.comicsList[this.openedComicsIndex].scrollLeft = 0;
+		}
+		// 更新当前滑出的卡片索引
+		this.openedComicsIndex = scrollLeft > 0 ? index : -1;
+	},
+
+	onHistoryScroll(scrollLeft, index) {
+		this.historyList[index].scrollLeft = scrollLeft;
+		// 如果有其他已滑出的历史记录卡片，回滚它
+		if (this.openedHistoryIndex !== -1 && this.openedHistoryIndex !== index) {
+			const scrollEl = this.$element('history_scroll_' + this.openedHistoryIndex);
+			if (scrollEl) {
+				scrollEl.scrollBy({ left: -100 });
+			}
+			this.historyList[this.openedHistoryIndex].scrollLeft = 0;
+		}
+		// 更新当前滑出的卡片索引
+		this.openedHistoryIndex = scrollLeft > 0 ? index : -1;
 	},
 
 	loadHistory() {
@@ -732,21 +779,6 @@ export default {
 	font-weight: bold;
 }
 
-.text-content {
-	width: 186px;
-	height: 100%;
-	display: flex;
-	flex-direction: column;
-	justify-content: space-between;
-	margin-left: 10px;
-}
-
-.meta {
-	font-size: 18px;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 0.7);
-}
-
 .time-text {
 	font-size: 16px;
 	color: rgba(255, 255, 255, 0.4);
@@ -791,26 +823,82 @@ export default {
 .item {
 	height: 120px;
 	width: 100%;
-	background-color: #262626;
+	background-color: transparent;
 	border-radius: 24px;
-	padding: 10px;
+	padding: 0;
 	align-items: center;
 	justify-content: space-around;
 	margin-bottom: 10px;
 }
 
-.itemText {
+.swipe-item {
 	width: 100%;
 	height: 100%;
-	font-size: 20px;
+	indicator-size: 0;
+}
+
+.swipe-content {
+	width: 100%;
+	height: 100%;
+	background-color: #262626;
+	border-radius: 24px;
+	padding: 12px 20px;
+	flex-direction: row;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.delete-btn {
+	margin-left: 12px;
+	width: 72px;
+	height: 100%;
+	justify-content: center;
+	align-items: center;
+}
+
+.delete-icon {
+	width: 72px;
+	height: 72px;
+}
+
+.cover-mask {
+	width: 60px;
+	height: 80px;
+	position: relative;
+}
+
+.cover {
+	width: 60px;
+	height: 80px;
+}
+
+.corner-mask {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+}
+
+.text-content {
+	flex: 1;
+	height: 100%;
+	flex-direction: column;
+	justify-content: space-between;
+	margin-left: 10px;
+}
+
+.itemText {
+	width: 100%;
+	font-size: 24px;
 	color: #ffffff;
 	lines: 2;
 	font-weight: bold;
 }
 
-.cover {
-	height: 96px;
-	width: 92px;
+.meta {
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.6);
 }
 
 /* 圆形手表适配 */
