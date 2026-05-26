@@ -54,18 +54,25 @@
 				class="result-item"
 				@click="selectResult($item)"
 			>
-				<image
-					if="{{ global.APP_SETTING.showCoverInSearch == 'true' ||
+				<div class="result-content">
+					<div
+						class="cover-mask"
+						if="{{ global.APP_SETTING.showCoverInSearch == 'true' ||
 global.APP_SETTING.showCoverInSearch === true }}"
-					class="result-image"
-					src="{{ $item.thumb || '/common/loading.png' }}"
-					alt="/common/empty.png"
-				></image>
-				<div class="result-text-content">
-					<text class="result-title">{{ $item.title }}</text>
-					<text if="{{ $item.pages }}" class="result-meta">
-						{{ $t("search.totalPage", { page: $item.pages }) }}
-					</text>
+					>
+						<image
+							class="result-image"
+							src="{{ $item.thumb || '/common/loading.png' }}"
+							alt="/common/empty.png"
+						></image>
+						<image class="corner-mask" src="/common/coverMask.png"></image>
+					</div>
+					<div class="result-text-content">
+						<text class="result-title">{{ $item.title }}</text>
+						<text if="{{ $item.pages }}" class="result-meta">
+							{{ $t("search.totalPage", { page: $item.pages }) }}
+						</text>
+					</div>
 				</div>
 			</list-item>
 
@@ -318,45 +325,68 @@ export default {
 }
 
 .result-item {
-	margin-bottom: 15px;
+	margin-bottom: 10px;
 	height: 120px;
-	background-color: rgba(38, 38, 38, 0.8);
-	padding: 12px;
-	border-radius: 12px;
-	display: flex;
+	width: 100%;
+	background-color: transparent;
+	border-radius: 24px;
+	padding: 0;
+	align-items: center;
+	justify-content: space-around;
+}
+
+.result-content {
+	width: 100%;
+	height: 100%;
+	background-color: #262626;
+	border-radius: 24px;
+	padding: 12px 20px;
 	flex-direction: row;
 	align-items: center;
+	justify-content: space-between;
 }
 
 .result-image {
-	width: 75px;
-	height: 100px;
-	margin-right: 12px;
+	width: 60px;
+	height: 80px;
 	background-color: #1a1a1a;
 	flex-shrink: 0;
 	object-fit: cover;
 }
 
-.result-text-content {
-	flex-grow: 1;
+.cover-mask {
+	width: 60px;
+	height: 80px;
+	position: relative;
+}
+
+.corner-mask {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
 	height: 100%;
-	display: flex;
+}
+
+.result-text-content {
+	flex: 1;
+	height: 100%;
 	flex-direction: column;
-	justify-content: flex-start;
+	justify-content: space-between;
+	margin-left: 10px;
 }
 
 .result-title {
+	width: 100%;
 	font-size: 24px;
 	color: #ffffff;
 	lines: 3;
-	text-overflow: ellipsis;
 	font-weight: bold;
-	margin-bottom: 6px;
 }
 
 .result-meta {
-	font-size: 18px;
-	color: rgba(255, 255, 255, 0.7);
+	font-size: 20px;
+	color: rgba(255, 255, 255, 0.6);
 }
 
 .loading-text,
@@ -428,21 +458,6 @@ export default {
 @media (shape: circle) {
 	.search-results {
 		width: 80%;
-	}
-	.result-item {
-		height: 110px;
-		padding: 10px;
-		border-radius: 16px;
-	}
-	.result-image {
-		width: 66px;
-		height: 88px;
-	}
-	.result-title {
-		font-size: 20px;
-	}
-	.result-meta {
-		font-size: 16px;
 	}
 	.pagination-controls {
 		justify-content: center;
