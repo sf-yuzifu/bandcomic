@@ -18,7 +18,7 @@
 			<span>{{ currentTab === 'offline' ? $t("offline.offline") : $t("offline.historyTitle") }}</span>
 		</text>
 
-		<swiper index="{{currentTab === 'offline' ? 0 : 1}}" class="swiper" @change="switchTab">
+		<swiper index="{{currentTab === 'offline' ? 0 : 1}}" class="swiper" @change="switchTab" enableswipe="{{enableSwipe}}">
 			<!-- 本地漫画标签页 -->
 			<div class="tab-switcher">
 				<div if="{{ storageLoaded }}" class="storage-container">
@@ -173,6 +173,7 @@ export default {
 		isLoadingHistory: false,
 		openedComicsIndex: -1,
 		openedHistoryIndex: -1,
+		enableSwipe: true,
 	},
 
 	onShow() {
@@ -180,6 +181,11 @@ export default {
 	},
 
 	onInit() {
+		device.getInfo({
+			success: (data) => {
+				this.enableSwipe = data.product !== 'Xiaomi Smart Band 9 Pro';
+			}
+		});
 		this.loadingComic();
 		this.loadHistory();
 	},
