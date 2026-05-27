@@ -109,7 +109,7 @@
 
 <script>
 import router from "@system.router";
-import fetch from "@system.fetch";
+import fetch from "../../common/interconnfetch";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
 import interconnect from "@system.interconnect";

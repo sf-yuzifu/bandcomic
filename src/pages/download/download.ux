@@ -154,7 +154,7 @@
 <script>
 import router from "@system.router";
 import file from "@system.file";
-import fetch from "@system.fetch";
+import fetch from "../../common/interconnfetch";
 import prompt from "@system.prompt";
 
 const { getTime } = global;

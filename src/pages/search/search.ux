@@ -118,7 +118,7 @@ global.APP_SETTING.showCoverInSearch === true }}"
 
 <script>
 import router from "@system.router";
-import fetch from "@system.fetch";
+import fetch from "../../common/interconnfetch";
 
 const { getTime } = global;
 const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项

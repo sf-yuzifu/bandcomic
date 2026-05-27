@@ -183,7 +183,7 @@
 
 <script>
 import router from "@system.router";
-import fetch from "@system.fetch";
+import fetch from "../../common/interconnfetch";
 import file from "@system.file";
 
 const { screenSize, getTime } = global;
