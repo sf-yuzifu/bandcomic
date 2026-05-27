@@ -109,7 +109,7 @@ global.APP_SETTING.showCoverInSearch === true }}"
 		>
 			<text class="no-results-text">{{ $t("search.noFound") }}</text>
 		</div>
-		<div class="error-state" if="{{ error }}">
+		<div class="error-state" if="{{ error && searchResults.length === 0 }}">
 			<text class="error-text">{{ $t("search.fail") }}{{ errorMsg }}</text>
 			<text class="no-results-subtext">{{ $t("search.noFound") }}</text>
 		</div>
