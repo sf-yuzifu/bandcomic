@@ -1,8 +1,7 @@
 <div align="center">
    <br>
-   <h1>腕上漫画</h1>
-   <img src="src/common/logo.png" alt="腕上漫画" width="128">
-   <br>
+   <img src="docs/preview.png" alt="腕上漫画" >
+
    <br>
    <a href='https://gitee.com/sf-yuzifu/bandcomic/stargazers'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/star.svg?theme=white' alt='Gitee stars' /></a>
    <a href='https://gitee.com/sf-yuzifu/bandcomic/members'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/fork.svg?theme=white' alt='Gitee forks' /></a>
@@ -16,7 +15,7 @@
 
 ## 主要特性
 
-- **基于Vela OS开发**：适配小米手环9 Pro、Watch S3/S4/S5、Redmi Watch 5/6等设备
+- **基于Vela OS开发**：适配小米手环9/10 Pro、小米 Watch S3/S4/S5、Redmi Watch 5/6等设备
 - **智能图片处理**：自动压缩和切割图片，大幅减少本地存储占用
 - **双重阅读模式**：支持在线阅读和离线下载，适配不同设备需求
 - **自定义漫画源**：支持配置自定义API，提供更开放的阅读选择
@@ -24,10 +23,13 @@
 
 ## 社区支持
 
-本项目由 [米坛社区开源项目支持计划](https://www.bandbbs.cn/resources/4859/) 提供支持。
+本项目由 [`米坛社区开源项目支持计划`](https://www.bandbbs.cn/resources/4859/) 提供支持。
 
-<a href="https://www.bandbbs.cn/resources/4859/"><img src="docs/badge.png"></a>
+<a href="https://www.bandbbs.cn/resources/4859/"><img src="docs/badge.png" height="46"></a>
 
+本项目由 [`AstroBox`](https://astrobox.online/open?source=resv2&id=moe.yzf.comic&provider=OfficialV2) 提供技术支持。
+
+<a href="https://astrobox.online/open?source=resv2&id=moe.yzf.comic&provider=OfficialV2"><img height="46" src="https://astrobox.online/goab/zhcn/rounded/white.svg"></a>
 
 ## 数据说明
 
@@ -107,7 +109,7 @@ AGPL-3.0协议意味着：
 
 ### ✅ 完全适配
 
-以下设备已完全适配，可正常使用所有功能：
+以下设备已完全适配，可连接 `小米运动健康` 正常使用绝大部分功能，并可以与 `AstroBox` 连接使用更多插件扩展功能：
 
 | 设备 | 版本说明 |
 |------|----------|
@@ -125,11 +127,13 @@ AGPL-3.0协议意味着：
 
 | 设备 | 说明 |
 |------|------|
-| **小米手环 10 Pro** | 因设备自身原因，联网功能暂不可用 |
+| **小米手环 10 Pro** | 因设备不支持 `fetch` 功能，任何在线功能均需要通过 `AstroBox` 中的插件连接使用。 |
+
+注： 需要安装 `AstroBox` 中的 `网桥 FetchBridge` 插件，并监听 `moe.yzf.comic` ，才能正常使用。
 
 ### ❌ 不支持
 
-以下设备不支持且暂无适配计划（因设备自身屏幕分辨率限制或 `AstroBox` 不支持连接）：
+以下设备不支持且暂无适配计划（因设备自身屏幕分辨率太小或 `AstroBox` 不支持连接）：
 
 - 小米手环 9 / 小米手环 10
 - 小米手环 8 Pro
