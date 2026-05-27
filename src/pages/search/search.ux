@@ -123,7 +123,6 @@ import fetch from "@system.fetch";
 const { getTime } = global;
 const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项
 
-
 export default {
 	protected: {
 		keyword: "",
@@ -177,24 +176,26 @@ export default {
 
 			fetch.fetch({
 				url: url,
-			responseType: "json",
+				responseType: "json",
 				header: headers,
-			success: (response) => {
-				this.ComicHandleSearchSuccess(response);
-			},
-			fail: (data, code) => {
-				this.error = true;
-				this.errorMsg =
-					code == 28
-						? this.$t("search.networkError")
-						: this.$t("search.requestError");
-			},
-			complete: () => {
-				this.loading = false;
-				this.loadingMore = false;
-				this.searched = true;
-			},
-		});
+				success: (response) => {
+					this.ComicHandleSearchSuccess(response);
+					this.error = false;
+					this.errorMsg = "";
+				},
+				fail: (data, code) => {
+					this.error = true;
+					this.errorMsg =
+						code == 28
+							? this.$t("search.networkError")
+							: this.$t("search.requestError");
+				},
+				complete: () => {
+					this.loading = false;
+					this.loadingMore = false;
+					this.searched = true;
+				},
+			});
 		}
 	},
 
