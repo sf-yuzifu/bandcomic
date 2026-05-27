@@ -1,7 +1,6 @@
 <script>
 import device from "@system.device";
 import app from "@system.app";
-import fetch from "@system.fetch";
 
 let appInfo = app.getInfo();
 let deviceInfo = {};
@@ -74,27 +73,6 @@ global.getTime = function () {
 	const hour = date.getHours().toString().padStart(2, "0");
 	const minute = date.getMinutes().toString().padStart(2, "0");
 	return hour + ":" + minute;
-};
-
-// 统一的API调用函数
-global.apiCall = function (apiKey, options) {
-	if (apiKey.search) {
-		const url =
-			global.API_SETTING[global.API_SETTING.using].apiUrl +
-			global.API_SETTING[global.API_SETTING.using].searchPath
-				.replace("<text>", encodeURIComponent(apiKey.text))
-				.replace("<page>", apiKey.page || "1");
-
-		const headers = options.header || {};
-		headers["User-Agent"] = global.userAgent();
-		headers["Cookie"] = global.cookie[global.API_SETTING.using] || ""
-
-		return fetch.fetch({
-			url: url,
-			...options,
-			header: headers,
-		});
-	}
 };
 
 global.APP_SETTING = {
