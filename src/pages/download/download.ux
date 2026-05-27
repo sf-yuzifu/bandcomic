@@ -555,6 +555,7 @@ export default {
 					global.API_SETTING[global.API_SETTING.using].photoPath
 						.replace("<id>", this.id)
 						.replace("<chapter>", this.chapter),
+				responseType: "json",
 				header: {
 					"User-Agent": global.userAgent(),
 					...(global.cookie && global.cookie[global.API_SETTING.using]
