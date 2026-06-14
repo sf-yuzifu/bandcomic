@@ -118,8 +118,8 @@ global.APP_SETTING.showCoverInSearch === true }}"
 
 <script>
 import router from "@system.router";
-import fetch from "../../common/interconnfetch";
-import { addCoverParams } from "../../common/imageUrl";
+import fetch from "../../components/interconnfetch";
+import { addCoverParams } from "../../components/imageUrl";
 
 const { getTime } = global;
 const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项

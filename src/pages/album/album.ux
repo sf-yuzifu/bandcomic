@@ -105,7 +105,7 @@
 
 <script>
 import router from "@system.router";
-import { addCoverParams } from "../../common/imageUrl";
+import { addCoverParams } from "../../components/imageUrl";
 
 const { screenSize, getTime } = global;
 
