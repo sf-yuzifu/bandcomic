@@ -181,6 +181,29 @@
 								text-offset="{{ 20 }}"
 								class="setting-item-title"
 							>
+								{{ $t("settings.imageUsePng") }}
+							</marquee>
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-info"
+							>
+								{{ $t("settings.info.imageUsePng") }}
+							</marquee>
+						</div>
+						<switch
+							checked="{{ global.APP_SETTING.imageUsePng }}"
+							class="switch"
+							@change="onPngSwitchChange"
+						></switch>
+					</div>
+					<div class="setting-item">
+						<div class="setting-item-content">
+							<marquee
+								scrollamount="{{ 20 }}"
+								text-offset="{{ 20 }}"
+								class="setting-item-title"
+							>
 								{{ $t("settings.imagePreTranscode") }}
 							</marquee>
 							<marquee
@@ -280,6 +303,11 @@ export default {
 
 	onZoomSwitchChange(value) {
 		global.APP_SETTING.keepDefaultZoom = value.checked;
+		this.saveSetting();
+	},
+
+	onPngSwitchChange(value) {
+		global.APP_SETTING.imageUsePng = value.checked;
 		this.saveSetting();
 	},
 

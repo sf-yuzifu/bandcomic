@@ -81,6 +81,7 @@ global.APP_SETTING = {
 	imageSize: "600",
 	showCoverInSearch: true,
 	keepDefaultZoom: false,
+	imageUsePng: false,
 	imagePreTranscode: false,
 };
 

@@ -17,6 +17,7 @@
         "imageSize": "Size",
         "showCoverInSearch": "Show cover",
         "keepDefaultZoom": "Keep zoom",
+        "imageUsePng": "PNG image mode",
         "imagePreTranscode": "Pre-decode",
         "info": {
             "searchPageSize": "Number of search results per page",
@@ -24,6 +25,7 @@
             "imageSize": "Image display width in pixels",
             "showCoverInSearch": "Show cover in search results",
             "keepDefaultZoom": "Keep current zoom when switching chapters",
+            "imageUsePng": "Request PNG images from the API",
             "imagePreTranscode": "Pre-decode images for smoother browsing"
         }
     },

@@ -157,6 +157,8 @@ import file from "@system.file";
 import fetch from "../../common/interconnfetch";
 import prompt from "@system.prompt";
 
+import { addImageParams, addCoverParams, appendLvglSuffix } from "../../common/imageUrl";
+
 const { getTime } = global;
 
 let ImageCache = [];
@@ -169,30 +171,6 @@ function sanitizeFolderName(name) {
 	if (!name) return name;
 	const invalidChars = /[\\/:*?"<>|]/g;
 	return name.replace(invalidChars, "_");
-}
-
-function addImageParams(
-	url,
-	width = 600,
-	quality = 50,
-	params = ["width", "quality"]
-) {
-	try {
-		const urlObj = new URL(url);
-		urlObj.searchParams.set(params[0], width.toString());
-		urlObj.searchParams.set(params[1], quality.toString());
-		return urlObj.toString();
-	} catch (error) {
-		const separator = url.includes("?") ? "&" : "?";
-		let result = url;
-		if (!url.includes(params[0] + "=")) {
-			result += `${separator}${params[0]}=${width}`;
-		}
-		if (!url.includes(params[1] + "=")) {
-			result += "&" + params[1] + "=" + quality;
-		}
-		return result;
-	}
 }
 
 export default {
@@ -643,8 +621,7 @@ export default {
 			}`;
 
 			fetch.fetch({
-				url:
-					imageUrl + (global.APP_SETTING.imagePreTranscode ? "&ifLVGL=1" : ""),
+				url: appendLvglSuffix(imageUrl, "#" + page),
 				responseType: "file",
 				header: {
 					"User-Agent": global.userAgent(),
@@ -716,7 +693,7 @@ export default {
 		const MAX_RETRY = 3;
 		return new Promise((resolve, reject) => {
 			let imageUrl;
-			imageUrl = this.cover;
+			imageUrl = addCoverParams(this.cover);
 
 			const fileUri = `${folderUri}/cover`;
 

@@ -159,7 +159,7 @@ export default {
 			uri: "internal://files/settings.json",
 			success: (data) => {
 				let datas = JSON.parse(data.text);
-				global.APP_SETTING = datas;
+				global.APP_SETTING = Object.assign(global.APP_SETTING, datas);
 			},
 			fail: function () {},
 		});
