@@ -25,7 +25,7 @@
             "imageSize": "Image display width in pixels",
             "showCoverInSearch": "Show cover in search results",
             "keepDefaultZoom": "Keep current zoom when switching chapters",
-            "imageUsePng": "Request PNG images from the API",
+            "imageUsePng": "Request PNG images from the API. Recommended for Xiaomi Smart Band 10 Pro users",
             "imagePreTranscode": "Pre-decode images for smoother browsing"
         }
     },
