@@ -144,9 +144,9 @@ function readBinaryFile(uri) {
 
 function checkFetchAvailable() {
   return new Promise((resolve) => {
-    fetchAvailable = false;
-    resolve(false);
-    return;
+    // fetchAvailable = false;
+    // resolve(false);
+    // return;
     if (!systemFetch) {
       resolve(false);
       return;
