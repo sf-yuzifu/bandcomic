@@ -25,7 +25,7 @@
             "imageSize": "图片显示宽度像素值",
             "showCoverInSearch": "搜索结果显示封面图",
             "keepDefaultZoom": "切换章节保持缩放比例",
-            "imageUsePng": "请求图片时让接口返回PNG格式",
+            "imageUsePng": "请求图片时让接口返回PNG格式，推荐小米手环10 Pro用户开启",
             "imagePreTranscode": "预解码图片以提升低配置设备浏览流畅度"
         }
     },

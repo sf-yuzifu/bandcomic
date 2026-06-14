@@ -46,6 +46,16 @@ global.getReservedSpace = function (totalStorage) {
 	return reserved || 0;
 };
 
+global.isXiaomiSmartBand10Pro = function () {
+	return deviceInfo.product === "Xiaomi Smart Band 10 Pro";
+};
+
+global.applyDeviceRecommendedSettings = function () {
+	if (global.APP_SETTING && global.isXiaomiSmartBand10Pro()) {
+		global.APP_SETTING.imageUsePng = true;
+	}
+};
+
 device.getInfo({
 	success: function (deviceRet) {
 		screenSize.width = deviceRet.screenWidth;
@@ -61,6 +71,7 @@ device.getInfo({
 			language: deviceRet.language,
 			region: deviceRet.region,
 		};
+		global.applyDeviceRecommendedSettings();
 	},
 });
 
