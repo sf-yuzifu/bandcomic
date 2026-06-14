@@ -185,43 +185,12 @@
 import router from "@system.router";
 import fetch from "../../common/interconnfetch";
 import file from "@system.file";
+import { addImageParams, appendLvglSuffix } from "../../common/imageUrl";
 
 const { screenSize, getTime } = global;
 
 let ImageCache = [];
 let originalName;
-
-function addImageParams(
-	url,
-	width = 600,
-	quality = 50,
-	params = ["width", "quality"]
-) {
-	try {
-		// 解析URL
-		const urlObj = new URL(url);
-
-		// 直接在主URL中添加参数
-		urlObj.searchParams.set(params[0], width.toString());
-		urlObj.searchParams.set(params[1], quality.toString());
-
-		return urlObj.toString();
-	} catch (error) {
-		// URL解析失败，手动处理
-		const separator = url.includes("?") ? "&" : "?";
-		let result = url;
-
-		// 确保不重复添加参数
-		if (!url.includes(params[0] + "=")) {
-			result += `${separator}${params[0]}=${width}`;
-		}
-		if (!url.includes(params[1] + "=")) {
-			result += "&" + params[1] + "=" + quality;
-		}
-
-		return result;
-	}
-}
 
 export default {
 	private: {
@@ -425,11 +394,7 @@ export default {
 			return;
 		}
 
-		imageUrl +=
-			(global.APP_SETTING.imagePreTranscode ? "&ifLVGL=1" : "") +
-			"#" +
-			this.chapter +
-			(global.APP_SETTING.imagePreTranscode ? ".bin" : "");
+		imageUrl = appendLvglSuffix(imageUrl, "#" + this.chapter);
 
 		fetch.fetch({
 			url: imageUrl,

@@ -119,6 +119,7 @@ global.APP_SETTING.showCoverInSearch === true }}"
 <script>
 import router from "@system.router";
 import fetch from "../../common/interconnfetch";
+import { addCoverParams } from "../../common/imageUrl";
 
 const { getTime } = global;
 const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项
@@ -207,7 +208,7 @@ export default {
 				return {
 					gid: result.comic_id,
 					title: result.title,
-					thumb: result.cover_url,
+					thumb: addCoverParams(result.cover_url),
 				};
 			});
 

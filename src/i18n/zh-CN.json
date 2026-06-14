@@ -17,6 +17,7 @@
         "imageSize": "图片尺寸",
         "showCoverInSearch": "搜索显示封面",
         "keepDefaultZoom": "保持图片缩放",
+        "imageUsePng": "PNG图片解析",
         "imagePreTranscode": "图片预解码",
         "info": {
             "searchPageSize": "每页显示的漫画数量",
@@ -24,6 +25,7 @@
             "imageSize": "图片显示宽度像素值",
             "showCoverInSearch": "搜索结果显示封面图",
             "keepDefaultZoom": "切换章节保持缩放比例",
+            "imageUsePng": "请求图片时让接口返回PNG格式",
             "imagePreTranscode": "预解码图片以提升低配置设备浏览流畅度"
         }
     },
