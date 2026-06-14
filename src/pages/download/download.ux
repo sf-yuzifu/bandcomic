@@ -154,10 +154,10 @@
 <script>
 import router from "@system.router";
 import file from "@system.file";
-import fetch from "../../common/interconnfetch";
+import fetch from "../../components/interconnfetch";
 import prompt from "@system.prompt";
 
-import { addImageParams, addCoverParams, appendLvglSuffix } from "../../common/imageUrl";
+import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
 
 const { getTime } = global;
 

@@ -183,9 +183,9 @@
 
 <script>
 import router from "@system.router";
-import fetch from "../../common/interconnfetch";
+import fetch from "../../components/interconnfetch";
 import file from "@system.file";
-import { addImageParams, appendLvglSuffix } from "../../common/imageUrl";
+import { addImageParams, appendLvglSuffix } from "../../components/imageUrl";
 
 const { screenSize, getTime } = global;
 

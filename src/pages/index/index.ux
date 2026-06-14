@@ -109,12 +109,12 @@
 
 <script>
 import router from "@system.router";
-import fetch from "../../common/interconnfetch";
+import fetch from "../../components/interconnfetch";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
 import interconnect from "@system.interconnect";
 import file from "@system.file";
-import { createDataBridge } from "../../common/dataBridge";
+import { createDataBridge } from "../../components/dataBridge";
 
 const { getTime } = global;
 
