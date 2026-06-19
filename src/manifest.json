@@ -67,6 +67,9 @@
       },
       "pages/edit": {
         "component": "edit"
+      },
+      "pages/update": {
+        "component": "update"
       }
     }
   },

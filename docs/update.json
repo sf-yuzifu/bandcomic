@@ -1,0 +1,14 @@
+{
+  "latestVersionCode": 204,
+  "latestVersionName": "2.0",
+  "minSupportedVersionCode": 204,
+  "force": true,
+  "title": "发现新版本",
+  "message": "当前版本已不再兼容最新接口，请更新后继续使用。",
+  "changelog": [
+    "新增功能 A",
+    "修复图片加载问题",
+    "优化漫画源兼容性"
+  ],
+  "downloadUrl": "https://example.com/bandcomic"
+}

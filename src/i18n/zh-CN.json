@@ -146,5 +146,21 @@
             "empty": "API地址不能为空",
             "invalidDomain": "API地址域名格式不正确"
         }
+    },
+    "update": {
+        "title": "应用更新",
+        "found": "发现新版本",
+        "currentVersion": "当前版本：",
+        "latestVersion": "最新版本：",
+        "force": "当前版本已不再支持，请更新后继续使用",
+        "changelog": "更新内容",
+        "noChangelog": "暂无更新说明",
+        "download": "下载地址",
+        "scanTip": "请使用手机扫码打开下载地址",
+        "retry": "重新检查",
+        "later": "稍后再说",
+        "checking": "正在检查更新...",
+        "hasUpdate": "发现新版本",
+        "noUpdate": "当前已是最新版本"
     }
 }
