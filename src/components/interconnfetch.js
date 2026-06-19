@@ -380,11 +380,8 @@ class InterconnFetchClient {
   }
 
   async _ensureHandshake() {
-    if (this.open && this.promise) {
-      await this.promise;
-      return;
-    }
-    // 连接已超时或从未握手，重置旧状态并重新发起握手
+    // 每次请求都重新协商 caps，避免插件端 caps 过期后退回 legacy 单包
+    this.open = false;
     this.promise = null;
     this.resolve = null;
 
@@ -404,6 +401,13 @@ class InterconnFetchClient {
       });
     });
     await this.promise;
+  }
+
+  _resetSession() {
+    clearTimeout(this.timeout);
+    this.promise = null;
+    this.resolve = null;
+    this.open = false;
   }
 
   async _sendFetch(id, url, options, onChunk) {
@@ -521,7 +525,6 @@ export default {
       };
       try {
         var chunkFiles = [];
-        var chunkSizes = [];
         var finalUri = (responseType === "file") ? getTempUri(url) : null;
         var onChunk = null;
         if (responseType === "file") {
@@ -531,7 +534,6 @@ export default {
             var idx = chunkFiles.indexOf(partUri);
             if (idx === -1) {
               chunkFiles.push(partUri);
-              chunkSizes.push(bytes.length);
             }
           };
         }
@@ -586,6 +588,8 @@ export default {
         if (complete && typeof complete === "function") {
           complete();
         }
+      } finally {
+        interconnClient._resetSession();
       }
     };
     return doFetch();
