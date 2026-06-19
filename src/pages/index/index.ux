@@ -170,12 +170,12 @@ export default {
 		if (this._bridge) {
 			this._bridge.cleanTempFiles();
 		}
-	},
-
-	onInit() {
 		if (global.update) {
 			this.checkAppUpdate();
 		}
+	},
+
+	onInit() {
 		file.readText({
 			uri: "internal://files/cookie.json",
 			success: (data) => {
