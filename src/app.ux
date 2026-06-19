@@ -9,7 +9,7 @@ let screenSize = { width: 0, height: 0 };
 global.API_SETTING = {
 	MangaDex: {
 		name: "MangaDex",
-		apiUrl: "https://mangadex.yzf.moe:443",
+		apiUrl: "https://mangadex.yzf.moe",
 		detailPath: "/comic/<id>",
 		photoPath: "/photo/<id>/ch/<chapter>",
 		searchPath: "/search/<text>/<page>",
@@ -20,6 +20,11 @@ global.API_SETTING = {
 
 global.buildin = ["MangaDex"];
 global.display = true;
+global.update = true;
+global.UPDATE_CHECK_URL = "https://bandcomic.yuzifu.top/update.json";
+global.updateChecking = false;
+global.updatePageShowing = false;
+global.pendingUpdateInfo = null;
 
 global.deviceReservedSpace = {
 	"Xiaomi Smart Band 9 Pro": 64 * 1024 * 1024,

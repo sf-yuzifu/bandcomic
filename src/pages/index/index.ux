@@ -115,6 +115,7 @@ import brightness from "@system.brightness";
 import interconnect from "@system.interconnect";
 import file from "@system.file";
 import { createDataBridge } from "../../components/dataBridge";
+import { checkUpdate } from "../../components/updateChecker";
 
 const { getTime } = global;
 
@@ -172,6 +173,9 @@ export default {
 	},
 
 	onInit() {
+		if (global.update) {
+			this.checkAppUpdate();
+		}
 		file.readText({
 			uri: "internal://files/cookie.json",
 			success: (data) => {
@@ -200,6 +204,26 @@ export default {
 
 		brightness.setKeepScreenOn({
 			keepScreenOn: true,
+		});
+	},
+
+	checkAppUpdate() {
+		if (global.updateChecking || global.updatePageShowing) return;
+		global.updateChecking = true;
+		checkUpdate().then((info) => {
+			global.updateChecking = false;
+			if (!info || global.updatePageShowing) return;
+			global.updatePageShowing = true;
+			global.update = false;
+			if (info.forceUpdate) {
+				router.replace({
+					uri: "/pages/update",
+				});
+			} else {
+				router.push({
+					uri: "/pages/update",
+				});
+			}
 		});
 	},
 

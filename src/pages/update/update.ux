@@ -1,0 +1,274 @@
+<template>
+	<div class="container">
+		<img
+			if="{{ global.screenShape != 'circle' && !forceUpdate }}"
+			class="leftButton top"
+			src="/common/back.png"
+			@click="routeBack"
+		/>
+		<text class="time">{{ time }}</text>
+		<text
+			class="title"
+			@click="
+				() => {
+					if (global.screenShape == 'circle' && !forceUpdate) {
+						routeBack();
+					}
+				}
+			"
+		>
+			<span
+				class="iconfont"
+				if="{{ global.screenShape == 'circle' && !forceUpdate }}"
+			>
+				&#xe685;
+			</span>
+			<span>{{ $t("update.title") }}</span>
+		</text>
+
+		<div class="box">
+			<scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+				<div class="card">
+					<image class="logo" src="/common/logo.png"></image>
+					<text class="main-title">{{ updateTitle }}</text>
+					<text class="version">
+						{{ $t("update.currentVersion") }}{{ currentVersionName }}({{
+							currentVersionCode
+						}})
+					</text>
+					<text class="version">
+						{{ $t("update.latestVersion") }}{{ latestVersionName }}({{
+							latestVersionCode
+						}})
+					</text>
+					<text class="force" if="{{ forceUpdate }}">
+						{{ $t("update.force") }}
+					</text>
+					<text class="message" if="{{ message }}">{{ message }}</text>
+				</div>
+
+				<div class="content-card">
+					<text class="section-title">{{ $t("update.changelog") }}</text>
+					<text class="content" for="{{ item in changelogList }}">
+						{{ item }}
+					</text>
+					<text class="content" if="{{ changelogList.length == 0 }}">
+						{{ $t("update.noChangelog") }}
+					</text>
+				</div>
+
+				<div class="content-card" if="{{ downloadUrl }}">
+					<text class="section-title">{{ $t("update.download") }}</text>
+					<div class="qrcode-box">
+						<qrcode class="download-qrcode" value="{{ downloadUrl }}"></qrcode>
+					</div>
+					<text class="qrcode-tip">{{ $t("update.scanTip") }}</text>
+				</div>
+				<div class="padding"></div>
+			</scroll>
+		</div>
+	</div>
+</template>
+
+<script>
+import router from "@system.router";
+import prompt from "@system.prompt";
+import { checkUpdate } from "../../components/updateChecker";
+
+const { getTime } = global;
+
+export default {
+	private: {
+		time: "",
+		currentVersionCode: "",
+		currentVersionName: "",
+		latestVersionCode: "",
+		latestVersionName: "",
+		forceUpdate: false,
+		updateTitle: "",
+		message: "",
+		changelogList: [],
+		downloadUrl: "",
+	},
+
+	onInit() {
+		this.applyUpdateInfo(global.pendingUpdateInfo || {});
+	},
+
+	onShow() {
+		this.time = getTime();
+	},
+
+	applyUpdateInfo(info) {
+		this.currentVersionCode = info.currentVersionCode || "";
+		this.currentVersionName = info.currentVersionName || "";
+		this.latestVersionCode = info.latestVersionCode || "";
+		this.latestVersionName = info.latestVersionName || "";
+		this.forceUpdate = info.forceUpdate;
+		this.updateTitle = info.title || this.$t("update.found");
+		this.message = info.message || "";
+		this.downloadUrl = info.downloadUrl || "";
+
+		if (Array.isArray(info.changelog)) {
+			this.changelogList = info.changelog;
+		} else if (typeof info.changelog === "string") {
+			this.changelogList = info.changelog.split("\n").filter(function (item) {
+				return item.trim() !== "";
+			});
+		} else {
+			this.changelogList = [];
+		}
+	},
+
+	checkAgain() {
+		prompt.showToast({ message: this.$t("update.checking") });
+		checkUpdate().then((info) => {
+			if (info) {
+				this.applyUpdateInfo(info);
+				prompt.showToast({ message: this.$t("update.hasUpdate") });
+			} else {
+				prompt.showToast({ message: this.$t("update.noUpdate") });
+				if (!this.forceUpdate) {
+					global.updatePageShowing = false;
+					router.back();
+				}
+			}
+		});
+	},
+
+	routeBack() {
+		if (this.forceUpdate) return;
+		global.updatePageShowing = false;
+		router.back();
+	},
+};
+</script>
+
+<style>
+@import "../../common/base.css";
+
+.container {
+	flex-direction: column;
+	align-items: center;
+	color: #ffffff;
+}
+
+.box {
+	position: relative;
+	width: 100%;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+}
+
+.card,
+.content-card {
+	width: 324px;
+	margin-top: 10px;
+	padding: 20px;
+	border-radius: 40px;
+	background-color: #262626;
+	flex-direction: column;
+	align-items: center;
+}
+
+.logo {
+	width: 76px;
+	height: 76px;
+	margin-bottom: 10px;
+}
+
+.main-title {
+	font-size: 32px;
+	font-weight: bold;
+	color: #ffffff;
+	text-align: center;
+}
+
+.version,
+.message,
+.content,
+.qrcode-tip {
+	font-size: 24px;
+	color: rgba(255, 255, 255, 0.72);
+	margin-top: 8px;
+	width: 100%;
+}
+
+.qrcode-box {
+	width: 240px;
+	height: 240px;
+	margin-top: 14px;
+	padding: 20px;
+	border-radius: 16px;
+	background-color: #ffffff;
+	align-items: center;
+	justify-content: center;
+}
+
+.download-qrcode {
+	width: 200px;
+	height: 200px;
+	color: #000000;
+	background-color: #ffffff;
+}
+
+.qrcode-tip {
+	text-align: center;
+}
+
+.force {
+	font-size: 24px;
+	font-weight: bold;
+	color: #ff6b6b;
+	margin-top: 10px;
+}
+
+.section-title {
+	font-size: 28px;
+	font-weight: bold;
+	color: #ffffff;
+	width: 100%;
+}
+
+.primary {
+	background-color: #3d7eff;
+}
+
+.padding {
+	height: 10px;
+}
+
+@media (device-type: watch) and (shape: circle) {
+	.card,
+	.content-card {
+		width: 332px;
+	}
+
+	.padding {
+		height: 60px;
+	}
+}
+
+@media (device-type: watch) and (shape: rect) {
+	.card,
+	.content-card {
+		width: 420px;
+	}
+
+	.padding {
+		height: 40px;
+	}
+
+	.qrcode-box {
+		width: 300px;
+		height: 300px;
+		padding: 12px;
+	}
+
+	.download-qrcode {
+		width: 276px;
+		height: 276px;
+	}
+}
+</style>

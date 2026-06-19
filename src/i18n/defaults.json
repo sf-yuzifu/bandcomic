@@ -145,5 +145,21 @@
             "empty": "API URL cannot be empty",
             "invalidDomain": "Invalid API domain format"
         }
+    },
+    "update": {
+        "title": "Update",
+        "found": "New version found",
+        "currentVersion": "Current: ",
+        "latestVersion": "Latest: ",
+        "force": "This version is no longer supported. Please update to continue.",
+        "changelog": "What's new",
+        "noChangelog": "No changelog",
+        "download": "Download",
+        "scanTip": "Scan with your phone to open the download link",
+        "retry": "Check again",
+        "later": "Later",
+        "checking": "Checking updates...",
+        "hasUpdate": "New version found",
+        "noUpdate": "Already up to date"
     }
 }
