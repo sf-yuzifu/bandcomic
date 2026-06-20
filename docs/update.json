@@ -1,14 +1,23 @@
 {
-  "latestVersionCode": 204,
+  "latestVersionCode": 205,
   "latestVersionName": "2.0",
-  "minSupportedVersionCode": 204,
+  "minSupportedVersionCode": 205,
   "force": true,
-  "title": "发现新版本",
-  "message": "当前版本已不再兼容最新接口，请更新后继续使用。",
+  "title": "v2.0 正式版更新",
+  "message": "本次更新包含大量新功能与稳定性修复，建议尽快更新。",
   "changelog": [
-    "新增功能 A",
-    "修复图片加载问题",
-    "优化漫画源兼容性"
+    "发布v2.0正式版，版本号升级至205",
+    "新增应用自动更新检测功能，启动时自动检查新版本",
+    "离线页面新增侧滑删除历史记录功能",
+    "新增PNG图片格式设置项，适配不同设备显示",
+    "设置页新增详细说明文案，优化UI布局",
+    "实现分块传输与文件流式下载，优化大数据传输稳定性",
+    "替换为自定义网络请求模块interconnfetch，提升连接兼容性",
+    "适配小米手环10 Pro，推荐开启PNG图片请求",
+    "修复互联握手和会话重置逻辑，避免caps过期问题",
+    "修复小米手环9 Pro上离线页面swiper滑动异常",
+    "修复搜索页错误状态显示与请求配置问题",
+    "重构搜索结果布局并优化整体页面样式"
   ],
-  "downloadUrl": "https://example.com/bandcomic"
+  "downloadUrl": "https://1835303205.share.123pan.cn/123pan/RmlmTd-zjEGd"
 }
