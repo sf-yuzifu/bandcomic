@@ -287,7 +287,7 @@ export default {
 			success: (response) => {
 				this.toAlbum(response.data);
 			},
-			fail: function (data, code) {
+			fail: (data, code) => {
 				console.log(`handling fail, errMsg = ${data}`);
 				try {
 					const parsed = JSON.parse(data);

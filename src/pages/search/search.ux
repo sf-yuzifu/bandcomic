@@ -119,6 +119,7 @@ global.APP_SETTING.showCoverInSearch === true }}"
 <script>
 import router from "@system.router";
 import fetch from "../../components/interconnfetch";
+import prompt from "@system.prompt";
 import { addCoverParams } from "../../components/imageUrl";
 
 const { getTime } = global;
@@ -283,7 +284,8 @@ export default {
 					params: { data: response.data },
 				});
 			},
-			fail: function (data, code) {
+			fail: (data, code) => {
+				console.log(data, code);
 				if (code == 28) {
 					prompt.showToast({
 						message: this.$t("error.noComicFound"),
