@@ -196,9 +196,9 @@ export default {
 							let datas = JSON.parse(data.text);
 							this.writeSource(datas);
 						},
-						fail: (code) => {
+						fail: (data, code) => {
 							prompt.showToast({
-								message: this.$t("edit.unknownReadError") + code,
+								message: this.$t("edit.unknownReadError") + data,
 							});
 						},
 					});
@@ -235,12 +235,12 @@ export default {
 						updateMultipleSources(data);
 						this.API_SETTING = global.API_SETTING;
 					},
-					fail: (code) => {
+					fail: (data, code) => {
 						if (code == 300) {
 							prompt.showToast({ message: this.$t("edit.storageError") });
 						} else {
 							prompt.showToast({
-								message: this.$t("edit.unknownWriteError") + code,
+								message: this.$t("edit.unknownWriteError") + data,
 							});
 						}
 					},
@@ -278,16 +278,16 @@ export default {
 						delete global.API_SETTING[source];
 						this.API_SETTING = global.API_SETTING;
 					},
-					fail: (code) => {
+					fail: (data, code) => {
 						prompt.showToast({
-							message: this.$t("edit.unknownDelError") + code,
+							message: this.$t("edit.unknownDelError") + data,
 						});
 					},
 				});
 			},
-			fail: (code) => {
+			fail: (data, code) => {
 				prompt.showToast({
-					message: this.$t("edit.unknownReadError") + code,
+					message: this.$t("edit.unknownReadError") + data,
 				});
 			},
 		});
