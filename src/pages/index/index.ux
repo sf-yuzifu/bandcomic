@@ -167,9 +167,7 @@ export default {
 				global.applyDeviceRecommendedSettings();
 			},
 		});
-		if (this._bridge) {
-			this._bridge.cleanTempFiles();
-		}
+		this.cleanTempFiles();
 		if (global.update) {
 			this.checkAppUpdate();
 		}
@@ -191,19 +189,64 @@ export default {
 		});
 
 		const connect = interconnect.instance();
-		const bridge = createDataBridge(connect);
+		if (connect) {
+			const bridge = createDataBridge(connect);
 
-		bridge.onSourceConfigSaved = () => {
-			this.API_SETTING = global.API_SETTING;
-			this.currentSourceName =
-				global.API_SETTING[global.API_SETTING.using].name;
-		};
+			bridge.onSourceConfigSaved = () => {
+				this.API_SETTING = global.API_SETTING;
+				this.currentSourceName =
+					global.API_SETTING[global.API_SETTING.using].name;
+			};
 
-		connect.onmessage = bridge.handleMessage;
-		this._bridge = bridge;
+			connect.onmessage = bridge.handleMessage;
+			this._bridge = bridge;
+		}
 
 		brightness.setKeepScreenOn({
 			keepScreenOn: true,
+		});
+	},
+
+	cleanTempFiles() {
+		file.list({
+			uri: "internal://files",
+			success: (data) => {
+				const files = data.fileList || [];
+				const keepFiles = [
+					"comics.json",
+					"settings.json",
+					"cookie.json",
+					"sources.json",
+					"history.json",
+				];
+
+				const filesToDelete = files.filter(function (item) {
+					const fileName = item.uri.split("/").pop();
+					return !keepFiles.includes(fileName);
+				});
+
+				if (filesToDelete.length > 0) {
+					filesToDelete.forEach(function (item) {
+						file.delete({
+							uri: item.uri,
+							fail: function (errData, code) {
+								console.log(
+									"删除临时文件失败: " + item.uri + ", code=" + code
+								);
+							},
+						});
+					});
+					prompt.showToast({
+						message: this.$t("cleanTempFiles", {
+							count: filesToDelete.length,
+						}),
+						duration: 2000,
+					});
+				}
+			},
+			fail: function (errData, code) {
+				console.log("列出临时文件失败, code=" + code);
+			},
 		});
 	},
 
