@@ -1011,38 +1011,5 @@ export function createDataBridge(interConnect) {
 
   bridge.onSourceConfigSaved = function () {};
 
-  bridge.cleanTempFiles = function () {
-    file.list({
-      uri: "internal://files",
-      success: function (data) {
-        const files = data.fileList || [];
-        const keepFiles = [
-          "comics.json",
-          "settings.json",
-          "cookie.json",
-          "sources.json",
-          "history.json",
-        ];
-
-        const filesToDelete = files.filter(function (file) {
-          const fileName = file.uri.split("/").pop();
-          return !keepFiles.includes(fileName);
-        });
-
-        if (filesToDelete.length > 0) {
-          filesToDelete.forEach(function (files) {
-            file.delete({
-              uri: files.uri,
-            });
-          });
-          prompt.showToast({
-            message: "已清理 " + filesToDelete.length + " 个临时文件",
-            duration: 2000,
-          });
-        }
-      },
-    });
-  };
-
   return bridge;
 }
