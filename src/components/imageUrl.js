@@ -43,5 +43,13 @@ export function appendLvglSuffix(url, suffix) {
 	if (global.APP_SETTING.imagePreTranscode) {
 		result = addUrlParam(result, "ifLVGL", 1);
 	}
-	return result + suffix + (global.APP_SETTING.imagePreTranscode ? ".bin" : "");
+	// 通过 "#/文件名" 让固件按斜杠分段取临时文件名时拿到干净的名字，
+	// 避免 query 里的 ? & = 等字符进入临时文件名导致系统异常
+	const ext = global.APP_SETTING.imagePreTranscode
+		? ".bin"
+		: global.APP_SETTING.imageUsePng
+			? ".png"
+			: ".jpg";
+	const safeName = String(suffix).replace(/[^\w.-]+/g, "_");
+	return result + "#/" + safeName + ext;
 }

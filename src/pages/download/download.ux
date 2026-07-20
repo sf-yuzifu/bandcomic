@@ -621,7 +621,10 @@ export default {
 			}`;
 
 			fetch.fetch({
-				url: appendLvglSuffix(imageUrl, "#" + page),
+				url: appendLvglSuffix(
+					imageUrl,
+					`${global.API_SETTING.using}_${this.id}${this.chapter ? "_ch" + this.chapter : ""}_p${page}`
+				),
 				responseType: "file",
 				header: {
 					"User-Agent": global.userAgent(),
@@ -698,21 +701,24 @@ export default {
 			const fileUri = `${folderUri}/cover`;
 
 			fetch.fetch({
-				url: imageUrl,
-				responseType: "file",
-				header: {
-					"User-Agent": global.userAgent(),
-					...(global.cookie && global.cookie[global.API_SETTING.using]
-						? { Cookie: global.cookie[global.API_SETTING.using] }
-						: {}),
-				},
-				success: (response) => {
-					if (response.data) {
-						file.move({
-							srcUri: response.data,
-							dstUri: fileUri,
-							success: () => {
-								console.log(`封面保存成功: ${fileUri}`);
+			url: appendLvglSuffix(
+				imageUrl,
+				`${global.API_SETTING.using}_${this.id}_cover`
+			),
+			responseType: "file",
+			header: {
+				"User-Agent": global.userAgent(),
+				...(global.cookie && global.cookie[global.API_SETTING.using]
+					? { Cookie: global.cookie[global.API_SETTING.using] }
+					: {}),
+			},
+			success: (response) => {
+				if (response.data) {
+					file.move({
+						srcUri: response.data,
+						dstUri: fileUri,
+						success: () => {
+							console.log(`封面保存成功: ${fileUri}`);
 								resolve();
 							},
 							fail: (data, code) => {
