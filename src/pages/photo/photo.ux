@@ -394,7 +394,10 @@ export default {
 			return;
 		}
 
-		imageUrl = appendLvglSuffix(imageUrl, "#" + this.chapter);
+		imageUrl = appendLvglSuffix(
+			imageUrl,
+			`${global.API_SETTING.using}_${this.id}_ch${this.chapter}_p${page}`
+		);
 
 		fetch.fetch({
 			url: imageUrl,
