@@ -206,47 +206,97 @@ export function createDataBridge(interConnect) {
   }
 
   function sendAppDataBatched(comics, sourceList) {
+    // 请求-确认模式：每发一个消息等插件端 ACK 后才发下一个，确保严格顺序
+    // 解决安卓端 QAIC 消息乱序问题
+    var messages = [];
     var i;
 
-    interConnect.send({
-      data: {
-        type: "app_data_header",
-        comic_count: comics.length,
-        source_count: sourceList.length,
-      },
-      success: function () {},
-      fail: function () {},
+    messages.push({
+      type: "app_data_header",
+      comic_count: comics.length,
+      source_count: sourceList.length,
     });
 
     for (i = 0; i < comics.length; i++) {
-      interConnect.send({
-        data: { type: "app_data_comic", index: i, comic: comics[i] },
-        success: function () {},
-        fail: function () {},
-      });
+      messages.push({ type: "app_data_comic", index: i, comic: comics[i] });
     }
 
     for (i = 0; i < sourceList.length; i++) {
-      interConnect.send({
-        data: { type: "app_data_source", index: i, source: sourceList[i] },
-        success: function () {},
-        fail: function () {},
-      });
+      messages.push({ type: "app_data_source", index: i, source: sourceList[i] });
     }
+
+    messages.push({ type: "app_data_done" });
 
     prompt.showToast({
       message: "发送: comic=" + comics.length + " source=" + sourceList.length,
     });
 
-    interConnect.send({
-      data: { type: "app_data_done" },
-      success: function () {
-        sendCoversOneByOne();
-      },
-      fail: function () {
-        sendCoversOneByOne();
-      },
-    });
+    // 当前等待 ACK 的消息序号；-1 表示无等待
+    var pendingAckIndex = -1;
+    // 当前正在发送的消息序号
+    var msgIndex = 0;
+    // 超时定时器 id
+    var ackTimer = null;
+
+    // 监听插件端返回的 ACK（每个消息对应一个序号）
+    // 这个函数会作为 bridge 的扩展挂载，由 handleMessage 调用
+    function onAppDataAck(ackIndex) {
+      if (ackIndex === pendingAckIndex) {
+        clearTimeout(ackTimer);
+        pendingAckIndex = -1;
+        msgIndex++;
+
+        if (msgIndex >= messages.length) {
+          // 所有列表消息（header + comic + source + done）都确认完成
+          // 现在可以安全开始发封面了
+          setTimeout(function () {
+            sendCoversOneByOne();
+          }, 100);
+        } else {
+          // 继续发下一个消息
+          sendNextMessage();
+        }
+      }
+    }
+
+    // 挂载 ACK 回调，handleMessage 里收到 app_data_ack 时调用
+    bridge.onAppDataAck = onAppDataAck;
+
+    function sendNextMessage() {
+      if (msgIndex >= messages.length) {
+        // 所有列表消息发送完毕，等待插件处理完成后发 ACK 才开始发封面
+        // done 消息的 ACK 收到后才能开始发封面，保证插件处理完所有列表数据
+        bridge.onAppDataAck = null;
+        return;
+      }
+
+      var msg = messages[msgIndex];
+      var isDone = msg.type === "app_data_done";
+
+      pendingAckIndex = msgIndex;
+
+      // 超时保护：5秒未收到 ACK 则继续发下一个（避免死锁）
+      ackTimer = setTimeout(function () {
+        console.log("消息 " + msgIndex + " ACK 超时，继续发送");
+        pendingAckIndex = -1;
+        msgIndex++;
+        sendNextMessage();
+      }, 5000);
+
+      interConnect.send({
+        data: msg,
+        success: function () {},
+        fail: function () {
+          // 发送失败也继续，避免卡住
+          clearTimeout(ackTimer);
+          pendingAckIndex = -1;
+          msgIndex++;
+          sendNextMessage();
+        },
+      });
+    }
+
+    sendNextMessage();
   }
 
   function readSourcesAndSend(comics) {
@@ -582,6 +632,16 @@ export function createDataBridge(interConnect) {
         });
       });
     }
+
+    // 头部就绪确认：插件收到后才开始发分片。
+    // 部分平台（如安卓）消息可能乱序，分片先于头部到达会被丢弃
+    interConnect.send({
+      data: { type: "import_header_ack", name: comicName },
+      success: function () {},
+      fail: function (data, code) {
+        console.log("import_header_ack 发送失败:", code);
+      },
+    });
   }
 
   function handleImportComicChunk(parsed) {
@@ -612,7 +672,18 @@ export function createDataBridge(interConnect) {
     }
 
     var buf = _importState.buffers[fileKey];
-    if (buf.chunks[index]) return;
+    if (buf.chunks[index]) {
+      // 重复分片：数据忽略，但仍需重发 ACK，否则插件端超时重传会死循环
+      interConnect.send({
+        data: {
+          type: "import_chunk_ack",
+          name: comicName,
+          file: fileKey,
+          index: index,
+        },
+      });
+      return;
+    }
 
     buf.chunks[index] = data;
     buf.received++;
@@ -966,6 +1037,23 @@ export function createDataBridge(interConnect) {
     });
   }
 
+  // 握手应答：新会话建立时清理残缺的导入状态，并回传快应用设置
+  function handleHandshakePing(parsed) {
+    if (_importState) {
+      console.log("新握手会话，清理未完成的导入状态");
+      _importState = null;
+    }
+    interConnect.send({
+      data: {
+        type: "hs_pong",
+        session: parsed.session || "",
+        settings: global.APP_SETTING || {},
+      },
+      success: function () {},
+      fail: function () {},
+    });
+  }
+
   function handleMessage(data) {
     const rawData = data.data;
     if (!rawData) {
@@ -985,7 +1073,15 @@ export function createDataBridge(interConnect) {
     const msgType = parsed.type || "(无type)";
     // prompt.showToast({ message: "type=" + msgType, duration: 2000 });
 
-    if (msgType === "source_config" && parsed.configs) {
+    if (msgType === "hs_ping") {
+      handleHandshakePing(parsed);
+    } else if (msgType === "app_data_ack") {
+      // 插件端确认收到 app_data 消息，继续发送下一个
+      var ackIndex = parsed.index || 0;
+      if (typeof bridge.onAppDataAck === "function") {
+        bridge.onAppDataAck(ackIndex);
+      }
+    } else if (msgType === "source_config" && parsed.configs) {
       handleSourceConfig(parsed.configs);
     } else if (msgType === "cookie") {
       handleCookieMessage(null, parsed);
