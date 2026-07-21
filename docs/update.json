@@ -1,13 +1,12 @@
 {
-  "latestVersionCode": 206,
-  "latestVersionName": "2.0.1",
-  "minSupportedVersionCode": 205,
+  "latestVersionCode": 212,
+  "latestVersionName": "2.0",
+  "minSupportedVersionCode": 212,
   "force": true,
-  "title": "v2.0.1 稳定性更新",
+  "title": "v2.0 稳定性更新",
   "message": "本次更新主要修复安卓端 AstroBox 同步时握手错位和消息乱序问题，提升大文件传输稳定性。建议尽快更新。",
   "changelog": [
     "修复 AstroBox 插件握手容易错位问题，参考 interconnfetch 协议重构握手状态管理",
-    "修复安卓端消息乱序问题，实现严格请求-确认串行发送，保证传输顺序",
     "改进封面传输乱序处理，添加超时缓存自动清理",
     "优化快应用启动等待逻辑，动态探测适配不同启动速度",
     "修复编辑页失败回调参数错误",
