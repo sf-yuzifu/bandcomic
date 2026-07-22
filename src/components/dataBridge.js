@@ -1,5 +1,12 @@
 import prompt from "@system.prompt";
 import file from "@system.file";
+import {
+  readComics,
+  writeComics,
+  readSources,
+  writeSources,
+  writeCookie,
+} from "./storage";
 
 function detectImageFormat(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
@@ -66,17 +73,15 @@ function replaceIfDuplicate(configArray, newConfigObject) {
 function updateComicsIndexAfterDelete(comicsList, deletedId, comicName) {
   const newList = comicsList.filter((c) => c.id !== deletedId);
 
-  file.writeText({
-    uri: "internal://files/comics.json",
-    text: JSON.stringify(newList),
-    success: () => {
+  writeComics(newList).then(
+    () => {
       prompt.showToast({ message: "已删除: " + comicName });
     },
-    fail: (data, code) => {
+    ({ code }) => {
       console.log("更新索引失败, code=" + code);
       prompt.showToast({ message: "文件已删除，但索引更新失败" });
     },
-  });
+  );
 }
 
 export function createDataBridge(interConnect) {
@@ -297,46 +302,34 @@ export function createDataBridge(interConnect) {
   }
 
   function readSourcesAndSend(comics) {
-    file.readText({
-      uri: "internal://files/sources.json",
-      success: function (srcData) {
+    readSources().then(
+      function (rawSources) {
         let sourceList = [];
-        try {
-          const rawSources = JSON.parse(srcData.text);
-          if (Array.isArray(rawSources)) {
-            sourceList = rawSources.map(function (s) {
-              const key = Object.keys(s)[0];
-              const info = s[key];
-              return {
-                name: (info && info.name) || key,
-                apiUrl: (info && info.apiUrl) || "",
-              };
-            });
-          }
-        } catch (e) {}
+        if (Array.isArray(rawSources)) {
+          sourceList = rawSources.map(function (s) {
+            const key = Object.keys(s)[0];
+            const info = s[key];
+            return {
+              name: (info && info.name) || key,
+              apiUrl: (info && info.apiUrl) || "",
+            };
+          });
+        }
 
         sendAppDataBatched(comics, sourceList);
       },
-      fail: function () {
+      function () {
         sendAppDataBatched(comics, []);
       },
-    });
+    );
   }
 
   function sendAppData() {
     prompt.showToast({ message: "request_data，正在读取数据..." });
     _coverIndex = 0;
     _coverQueue = [];
-    file.readText({
-      uri: "internal://files/comics.json",
-      success: function (data) {
-        let comicsList = [];
-        try {
-          comicsList = JSON.parse(data.text);
-        } catch (e) {
-          comicsList = [];
-        }
-
+    readComics().then(
+      function (comicsList) {
         if (!Array.isArray(comicsList)) {
           comicsList = [];
         }
@@ -398,10 +391,10 @@ export function createDataBridge(interConnect) {
           });
         });
       },
-      fail: function () {
+      function () {
         readSourcesAndSend([]);
       },
-    });
+    );
   }
 
   function handleCookieMessage(rawString, parsedObj) {
@@ -418,62 +411,46 @@ export function createDataBridge(interConnect) {
       global.cookie[currentSource] = rawString;
     }
 
-    file.writeText({
-      uri: "internal://files/cookie.json",
-      text: JSON.stringify(global.cookie),
-      success: () => {
+    writeCookie(global.cookie).then(
+      () => {
         prompt.showToast({ message: "Cookie保存成功！" });
       },
-      fail: () => {
+      () => {
         prompt.showToast({ message: "Cookie保存失败" });
       },
-    });
+    );
   }
 
   function handleSourceConfig(configs) {
     prompt.showToast({ message: "正在保存漫画源配置..." });
-    file.readText({
-      uri: "internal://files/sources.json",
-      success: function (data) {
-        let existingConfigs = JSON.parse(data.text);
+
+    function applyAndSave(configsToSave) {
+      writeSources(configsToSave).then(
+        function () {
+          configs.forEach(function (newConfig) {
+            const key = Object.keys(newConfig)[0];
+            global.API_SETTING[key] = newConfig[key];
+          });
+          bridge.onSourceConfigSaved();
+          prompt.showToast({ message: "漫画源配置已保存！" });
+        },
+        function ({ code }) {
+          prompt.showToast({ message: "保存漫画源配置失败: " + code });
+        },
+      );
+    }
+
+    readSources().then(
+      function (existingConfigs) {
         configs.forEach(function (newConfig) {
           existingConfigs = replaceIfDuplicate(existingConfigs, newConfig);
         });
-        file.writeText({
-          uri: "internal://files/sources.json",
-          text: JSON.stringify(existingConfigs),
-          success: function () {
-            configs.forEach(function (newConfig) {
-              const key = Object.keys(newConfig)[0];
-              global.API_SETTING[key] = newConfig[key];
-            });
-            bridge.onSourceConfigSaved();
-            prompt.showToast({ message: "漫画源配置已保存！" });
-          },
-          fail: function (code) {
-            prompt.showToast({ message: "保存漫画源配置失败: " + code });
-          },
-        });
+        applyAndSave(existingConfigs);
       },
-      fail: function () {
-        const newConfigs = configs;
-        file.writeText({
-          uri: "internal://files/sources.json",
-          text: JSON.stringify(newConfigs),
-          success: function () {
-            configs.forEach(function (newConfig) {
-              const key = Object.keys(newConfig)[0];
-              global.API_SETTING[key] = newConfig[key];
-            });
-            bridge.onSourceConfigSaved();
-            prompt.showToast({ message: "漫画源配置已保存！" });
-          },
-          fail: function (code) {
-            prompt.showToast({ message: "保存漫画源配置失败: " + code });
-          },
-        });
+      function () {
+        applyAndSave(configs);
       },
-    });
+    );
   }
 
   let _importState = null;
@@ -863,13 +840,9 @@ export function createDataBridge(interConnect) {
       is_serial: !!isSerial,
     };
 
-    file.readText({
-      uri: "internal://files/comics.json",
-      success: function (data) {
-        let comicsList = [];
-        try {
-          comicsList = JSON.parse(data.text);
-        } catch (e) {
+    readComics().then(
+      function (comicsList) {
+        if (!Array.isArray(comicsList)) {
           comicsList = [];
         }
 
@@ -885,10 +858,8 @@ export function createDataBridge(interConnect) {
           comicsList.push(entry);
         }
 
-        file.writeText({
-          uri: "internal://files/comics.json",
-          text: JSON.stringify(comicsList),
-          success: function () {
+        writeComics(comicsList).then(
+          function () {
             console.log(
               "comics.json 更新成功: " +
                 comicName +
@@ -899,27 +870,23 @@ export function createDataBridge(interConnect) {
                 ")",
             );
           },
-          fail: function (data, code) {
+          function ({ code }) {
             console.log("更新 comics.json 失败, code=" + code);
             prompt.showToast({ message: "索引更新失败，但文件已保存" });
           },
-        });
+        );
       },
-      fail: function () {
-        const comicsList = [entry];
-
-        file.writeText({
-          uri: "internal://files/comics.json",
-          text: JSON.stringify(comicsList),
-          success: function () {
+      function () {
+        writeComics([entry]).then(
+          function () {
             console.log("comics.json 创建成功");
           },
-          fail: function (data, code) {
+          function ({ code }) {
             console.log("创建 comics.json 失败, code=" + code);
           },
-        });
+        );
       },
-    });
+    );
   }
 
   function handleDeleteComic(parsed) {
@@ -931,13 +898,9 @@ export function createDataBridge(interConnect) {
 
     prompt.showToast({ message: "正在删除: " + comicName });
 
-    file.readText({
-      uri: "internal://files/comics.json",
-      success: function (data) {
-        let comicsList = [];
-        try {
-          comicsList = JSON.parse(data.text);
-        } catch (e) {
+    readComics().then(
+      function (comicsList) {
+        if (!Array.isArray(comicsList)) {
           comicsList = [];
         }
 
@@ -972,10 +935,10 @@ export function createDataBridge(interConnect) {
           },
         });
       },
-      fail: function () {
+      function () {
         prompt.showToast({ message: "读取漫画索引失败" });
       },
-    });
+    );
   }
 
   function handleDeleteSource(parsed) {
@@ -987,13 +950,9 @@ export function createDataBridge(interConnect) {
 
     prompt.showToast({ message: "正在删除漫画源: " + sourceName });
 
-    file.readText({
-      uri: "internal://files/sources.json",
-      success: function (data) {
-        let sourceList = [];
-        try {
-          sourceList = JSON.parse(data.text);
-        } catch (e) {
+    readSources().then(
+      function (sourceList) {
+        if (!Array.isArray(sourceList)) {
           sourceList = [];
         }
 
@@ -1003,10 +962,8 @@ export function createDataBridge(interConnect) {
           return key !== sourceName && info.name !== sourceName;
         });
 
-        file.writeText({
-          uri: "internal://files/sources.json",
-          text: JSON.stringify(newList),
-          success: function () {
+        writeSources(newList).then(
+          function () {
             if (global.API_SETTING[sourceName]) {
               delete global.API_SETTING[sourceName];
               if (global.API_SETTING.using === sourceName) {
@@ -1022,16 +979,16 @@ export function createDataBridge(interConnect) {
 
             prompt.showToast({ message: "已删除漫画源: " + sourceName });
           },
-          fail: function (data, code) {
+          function ({ code }) {
             console.log("更新sources.json失败, code=" + code);
             prompt.showToast({ message: "删除失败，请重试" });
           },
-        });
+        );
       },
-      fail: function () {
+      function () {
         prompt.showToast({ message: "读取漫画源配置失败" });
       },
-    });
+    );
   }
 
   // 握手应答：新会话建立时清理残缺的导入状态，并回传快应用设置

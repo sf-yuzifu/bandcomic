@@ -187,6 +187,7 @@ import fetch from "../../components/interconnfetch";
 import file from "@system.file";
 import { addImageParams, appendLvglSuffix } from "../../components/imageUrl";
 import { parseParam } from "../../components/routerParams";
+import { readHistory, writeHistory } from "../../components/storage";
 
 const { screenSize, getTime } = global;
 
@@ -235,30 +236,27 @@ export default {
 
 		// 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
 		const comicId = this.getComicId();
-		file.readText({
-			uri: "internal://files/history.json",
-			success: (data) => {
-				try {
-					const historyList = JSON.parse(data.text);
-					const historyItem = historyList.find((item) => item.id === comicId);
-					if (historyItem) {
-						// 恢复上次阅读的章节和页码
-						this.chapter = historyItem.chapter || 1;
-						this.page = historyItem.page || 1;
-						console.log(
-							`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`
-						);
-					}
-				} catch (e) {
-					console.error("读取历史记录失败:", e);
-				}
+		const restorePosition = (historyList) => {
+			const historyItem = historyList.find((item) => item.id === comicId);
+			if (historyItem) {
+				// 恢复上次阅读的章节和页码
+				this.chapter = historyItem.chapter || 1;
+				this.page = historyItem.page || 1;
+				console.log(
+					`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`
+				);
+			}
+		};
+		readHistory().then(
+			(historyList) => {
+				restorePosition(historyList);
 				this.initData();
 			},
-			fail: () => {
+			() => {
 				// 没有历史记录，正常初始化
 				this.initData();
-			},
-		});
+			}
+		);
 	},
 
 	initData() {
@@ -523,16 +521,9 @@ export default {
 		};
 
 		// 读取现有历史记录
-		file.readText({
-			uri: "internal://files/history.json",
-			success: (data) => {
-				let historyList = [];
-				try {
-					historyList = JSON.parse(data.text);
-					if (!Array.isArray(historyList)) {
-						historyList = [];
-					}
-				} catch (e) {
+		readHistory().then(
+			(historyList) => {
+				if (!Array.isArray(historyList)) {
 					historyList = [];
 				}
 
@@ -558,32 +549,28 @@ export default {
 				}
 
 				// 保存回文件
-				file.writeText({
-					uri: "internal://files/history.json",
-					text: JSON.stringify(historyList, null, 2),
-					success: () => {
+				writeHistory(historyList).then(
+					() => {
 						console.log("历史记录保存成功");
 					},
-					fail: (data, code) => {
+					({ code }) => {
 						console.error("保存历史记录失败:", code);
-					},
-				});
+					}
+				);
 			},
-			fail: () => {
+			() => {
 				// 文件不存在，创建新文件
 				const historyList = [historyData];
-				file.writeText({
-					uri: "internal://files/history.json",
-					text: JSON.stringify(historyList, null, 2),
-					success: () => {
+				writeHistory(historyList).then(
+					() => {
 						console.log("历史记录创建成功");
 					},
-					fail: (data, code) => {
+					({ code }) => {
 						console.error("创建历史记录失败:", code);
-					},
-				});
-			},
-		});
+					}
+				);
+			}
+		);
 	},
 
 	showButton() {

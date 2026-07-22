@@ -95,9 +95,9 @@
 
 <script>
 import router from "@system.router";
-import file from "@system.file";
 import fetch from "../../components/interconnfetch";
 import prompt from "@system.prompt";
+import { readSources, writeSources } from "../../components/storage";
 
 const { getTime } = global;
 
@@ -187,26 +187,20 @@ export default {
 				prompt.showToast({ message: this.$t("edit.validation." + validation) });
 				return;
 			}
-			file.access({
-				uri: "internal://files/sources.json",
-				success: () => {
-					file.readText({
-						uri: "internal://files/sources.json",
-						success: (data) => {
-							const datas = JSON.parse(data.text);
-							this.writeSource(datas);
-						},
-						fail: (data, code) => {
-							prompt.showToast({
-								message: this.$t("edit.unknownReadError") + data,
-							});
-						},
-					});
+			readSources().then(
+				(datas) => {
+					this.writeSource(datas);
 				},
-				fail: () => {
-					this.writeSource();
-				},
-			});
+				({ data, code }) => {
+					if (code === 301) {
+						this.writeSource();
+					} else {
+						prompt.showToast({
+							message: this.$t("edit.unknownReadError") + data,
+						});
+					}
+				}
+			);
 		}
 	},
 
@@ -227,15 +221,13 @@ export default {
 				} else {
 					data = [].concat(data);
 				}
-				file.writeText({
-					uri: "internal://files/sources.json",
-					text: JSON.stringify(data),
-					success: () => {
+				writeSources(data).then(
+					() => {
 						prompt.showToast({ message: this.$t("edit.complete") });
 						updateMultipleSources(data);
 						this.API_SETTING = global.API_SETTING;
 					},
-					fail: (data, code) => {
+					({ data, code }) => {
 						if (code == 300) {
 							prompt.showToast({ message: this.$t("edit.storageError") });
 						} else {
@@ -243,8 +235,8 @@ export default {
 								message: this.$t("edit.unknownWriteError") + data,
 							});
 						}
-					},
-				});
+					}
+				);
 			},
 			fail: (data, code) => {
 				if (code == 6) {
@@ -265,32 +257,28 @@ export default {
 	},
 
 	del(source) {
-		file.readText({
-			uri: "internal://files/sources.json",
-			success: (data) => {
-				let datas = JSON.parse(data.text);
+		readSources().then(
+			(datas) => {
 				datas = datas.filter((item) => Object.keys(item)[0] !== source);
-				file.writeText({
-					uri: "internal://files/sources.json",
-					text: JSON.stringify(datas),
-					success: () => {
+				writeSources(datas).then(
+					() => {
 						prompt.showToast({ message: this.$t("edit.del") });
 						delete global.API_SETTING[source];
 						this.API_SETTING = global.API_SETTING;
 					},
-					fail: (data, code) => {
+					({ data }) => {
 						prompt.showToast({
 							message: this.$t("edit.unknownDelError") + data,
 						});
-					},
-				});
+					}
+				);
 			},
-			fail: (data, code) => {
+			({ data }) => {
 				prompt.showToast({
 					message: this.$t("edit.unknownReadError") + data,
 				});
-			},
-		});
+			}
+		);
 	},
 
 	complete(evt) {

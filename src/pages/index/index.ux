@@ -117,6 +117,7 @@ import file from "@system.file";
 import { createDataBridge } from "../../components/dataBridge";
 import { checkUpdate } from "../../components/updateChecker";
 import { flattenParams } from "../../components/routerParams";
+import { readSources, readSettings, readCookie } from "../../components/storage";
 
 const { getTime } = global;
 
@@ -141,33 +142,27 @@ export default {
 
 	onShow() {
 		this.time = getTime();
-		file.readText({
-			uri: "internal://files/sources.json",
-			success: (data) => {
-				const datas = JSON.parse(data.text);
+		readSources()
+			.then((datas) => {
 				datas.forEach((newSourceConfig) => {
 					const newKey = Object.keys(newSourceConfig)[0];
 					global.API_SETTING[newKey] = newSourceConfig[newKey];
 				});
-			},
-			fail: function () {},
-			complete: () => {
+			})
+			.catch(() => {})
+			.then(() => {
 				this.API_SETTING = global.API_SETTING;
 				this.currentSourceName =
 					global.API_SETTING[global.API_SETTING.using].name;
-			},
-		});
-		file.readText({
-			uri: "internal://files/settings.json",
-			success: (data) => {
-				const datas = JSON.parse(data.text);
+			});
+		readSettings()
+			.then((datas) => {
 				global.APP_SETTING = Object.assign(global.APP_SETTING, datas);
 				global.applyDeviceRecommendedSettings();
-			},
-			fail: function () {
+			})
+			.catch(() => {
 				global.applyDeviceRecommendedSettings();
-			},
-		});
+			});
 		this.cleanTempFiles();
 		if (global.update) {
 			this.checkAppUpdate();
@@ -175,19 +170,13 @@ export default {
 	},
 
 	onInit() {
-		file.readText({
-			uri: "internal://files/cookie.json",
-			success: (data) => {
-				try {
-					global.cookie = JSON.parse(data.text);
-				} catch (e) {
-					global.cookie = {};
-				}
-			},
-			fail: () => {
+		readCookie()
+			.then((cookie) => {
+				global.cookie = cookie;
+			})
+			.catch(() => {
 				global.cookie = {};
-			},
-		});
+			});
 
 		const connect = interconnect.instance();
 		if (connect) {

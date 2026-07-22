@@ -127,6 +127,7 @@ import file from "@system.file";
 import prompt from "@system.prompt";
 import device from "@system.device";
 import { serializeParams } from "../../components/routerParams";
+import { readComics, writeComics, readHistory, writeHistory } from "../../components/storage";
 
 const { getTime } = global;
 
@@ -231,26 +232,19 @@ export default {
 
 	loadHistory() {
 		this.isLoadingHistory = true;
-		file.readText({
-			uri: "internal://files/history.json",
-			success: (data) => {
-				let historyList = [];
-				try {
-					historyList = JSON.parse(data.text);
-					if (!Array.isArray(historyList)) {
-						historyList = [];
-					}
-				} catch (e) {
+		readHistory().then(
+			(historyList) => {
+				if (!Array.isArray(historyList)) {
 					historyList = [];
 				}
 				this.historyList = historyList.filter(item => !item.local);
 				this.isLoadingHistory = false;
 			},
-			fail: () => {
+			() => {
 				this.historyList = [];
 				this.isLoadingHistory = false;
 			}
-		});
+		);
 	},
 
 	formatTime(timestamp) {
@@ -308,20 +302,18 @@ export default {
 			this.historyList = newList;
 
 			// 保存到文件
-			file.writeText({
-				uri: "internal://files/history.json",
-				text: JSON.stringify(newList, null, 2),
-				success: () => {
+			writeHistory(newList).then(
+				() => {
 					prompt.showToast({
 						message: this.$t("offline.historyDelComplete"),
 					});
 				},
-				fail: (data, code) => {
+				({ code }) => {
 					prompt.showToast({
 						message: this.$t("offline.historyDeleteFailed", { code }),
 					});
 				}
-			});
+			);
 
 			delHistoryId = null;
 		} else {
@@ -345,24 +337,9 @@ export default {
 
 		if (fileExists) {
 			try {
-				const data = await new Promise((resolve, reject) => {
-					file.readText({
-						uri: "internal://files/comics.json",
-						success: resolve,
-						fail: reject,
-					});
-				});
-				try {
-					let comicsData = [];
-					if (data.text) {
-						comicsData = JSON.parse(data.text);
-					}
-					this.comicsList = comicsData;
-				} catch (parseError) {
-					console.log(`解析comics.json失败: ${parseError}`);
-				}
+				this.comicsList = await readComics();
 			} catch (err) {
-				console.log(`读取comics.json失败, code = ${err}`);
+				console.log(`读取comics.json失败, code = ${err.code}`);
 			}
 			await this.getStorage();
 		}
@@ -370,21 +347,10 @@ export default {
 	},
 
 	checkFileExists() {
-		return new Promise((resolve) => {
-			file.readText({
-				uri: "internal://files/comics.json",
-				success: function () {
-					resolve(true);
-				},
-				fail: function (data, code) {
-					if (code === 301) {
-						resolve(false);
-					} else {
-						resolve(false);
-					}
-				},
-			});
-		});
+		return readComics().then(
+			() => true,
+			() => false
+		);
 	},
 
 	async getStorage() {
@@ -593,61 +559,54 @@ export default {
 	},
 
 	updateComicsIndex(id) {
-		file.readText({
-			uri: "internal://files/comics.json",
-			success: (data) => {
-				try {
-					let comicsData = [];
-					if (data.text) {
-						comicsData = JSON.parse(data.text);
-					}
-
-					const existingIndex = comicsData.findIndex(
-						(comic) => comic.id === id
-					);
-
-					if (existingIndex !== -1) {
-						comicsData.splice(existingIndex, 1);
-					}
-
-					file.writeText({
-						uri: "internal://files/comics.json",
-						text: JSON.stringify(comicsData),
-						success: () => {
-							console.log("comics.json更新成功");
-							prompt.showToast({
-								message: this.$t("offline.delComplete"),
-								duration: 1000,
-							});
-							this.loadingComic();
-						},
-						fail: (data, code) => {
-							console.log(`写入comics.json失败, code = ${code}`);
-							prompt.showToast({
-								message: this.$t("offline.indexUpdateFailed"),
-								duration: 2000,
-							});
-							this.loadingComic();
-						},
-					});
-				} catch (parseError) {
-					console.log(`解析comics.json失败: ${parseError}`);
-					prompt.showToast({
-						message: this.$t("offline.indexReadFailed"),
-						duration: 2000,
-					});
-					this.loadingComic();
-				}
-			},
-			fail: (data, code) => {
-				console.log(`读取comics.json失败, code = ${code}`);
+		const onError = (err) => {
+			if (err.parseError) {
+				console.log(`解析comics.json失败: ${err.parseError}`);
+				prompt.showToast({
+					message: this.$t("offline.indexReadFailed"),
+					duration: 2000,
+				});
+			} else {
+				console.log(`读取comics.json失败, code = ${err.code}`);
 				prompt.showToast({
 					message: this.$t("offline.indexNotExist"),
 					duration: 2000,
 				});
-				this.loadingComic();
+			}
+			this.loadingComic();
+		};
+
+		readComics(true).then(
+			(comicsData) => {
+				const existingIndex = comicsData.findIndex(
+					(comic) => comic.id === id
+				);
+
+				if (existingIndex !== -1) {
+					comicsData.splice(existingIndex, 1);
+				}
+
+				writeComics(comicsData).then(
+					() => {
+						console.log("comics.json更新成功");
+						prompt.showToast({
+							message: this.$t("offline.delComplete"),
+							duration: 1000,
+						});
+						this.loadingComic();
+					},
+					({ code }) => {
+						console.log(`写入comics.json失败, code = ${code}`);
+						prompt.showToast({
+							message: this.$t("offline.indexUpdateFailed"),
+							duration: 2000,
+						});
+						this.loadingComic();
+					}
+				);
 			},
-		});
+			onError
+		);
 	},
 
 	toggleStorageList() {
