@@ -269,7 +269,6 @@ export function createDataBridge(interConnect) {
       }
 
       const msg = messages[msgIndex];
-      const isDone = msg.type === "app_data_done";
 
       pendingAckIndex = msgIndex;
 

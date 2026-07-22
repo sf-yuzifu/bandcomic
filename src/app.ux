@@ -2,9 +2,9 @@
 import device from "@system.device";
 import app from "@system.app";
 
-let appInfo = app.getInfo();
+const appInfo = app.getInfo();
 let deviceInfo = {};
-let screenSize = { width: 0, height: 0 };
+const screenSize = { width: 0, height: 0 };
 
 global.API_SETTING = {
 	MangaDex: {

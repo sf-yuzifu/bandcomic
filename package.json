@@ -13,6 +13,8 @@
   },
   "devDependencies": {
     "@aiot-toolkit/jsc": "^1.0.3",
-    "aiot-toolkit": "^2.0.4"
+    "aiot-toolkit": "^2.0.4",
+    "eslint-formatter-codeframe": "^7.32.2",
+    "eslint-plugin-html": "^8.1.4"
   }
 }

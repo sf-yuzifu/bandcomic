@@ -157,7 +157,7 @@ export default {
 
 		this.loadingMore = true;
 		this.error = false;
-		let apiKey = {
+		const apiKey = {
 			search: true,
 		};
 
