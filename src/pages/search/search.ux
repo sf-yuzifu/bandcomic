@@ -121,6 +121,7 @@ import router from "@system.router";
 import fetch from "../../components/interconnfetch";
 import prompt from "@system.prompt";
 import { addCoverParams } from "../../components/imageUrl";
+import { flattenParams } from "../../components/routerParams";
 
 const { getTime } = global;
 const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项
@@ -281,7 +282,7 @@ export default {
 			success: (response) => {
 				router.push({
 					uri: "/pages/album",
-					params: { data: response.data },
+					params: flattenParams(response.data),
 				});
 			},
 			fail: (data, code) => {
