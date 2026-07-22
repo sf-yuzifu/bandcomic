@@ -444,7 +444,7 @@ export default {
 			let folderUri;
 			let coverUri;
 
-			await this.DownloadImage();
+			await this.fetchImageList();
 
 			if (this.is_serial) {
 				const mainFolderUri = `internal://files/${
@@ -468,7 +468,7 @@ export default {
 
 			for (let i = 1; i <= this.page_count; i++) {
 				this.page = i;
-				await this.downloadImage(i, folderUri);
+				await this.downloadPage(i, folderUri);
 			}
 
 			if (!this.is_serial) {
@@ -511,7 +511,7 @@ export default {
 		});
 	},
 
-	DownloadImage(retryCount = 0) {
+	fetchImageList(retryCount = 0) {
 		const MAX_RETRY = 3;
 		return new Promise((resolve, reject) => {
 			fetch.fetch({
@@ -562,7 +562,7 @@ export default {
 							duration: 1500,
 						});
 						sleep(1000).then(() => {
-							this.DownloadImage(retryCount + 1)
+							this.fetchImageList(retryCount + 1)
 								.then(resolve)
 								.catch(reject);
 						});
@@ -575,7 +575,7 @@ export default {
 							duration: 1500,
 						});
 						sleep(1000).then(() => {
-							this.DownloadImage(retryCount + 1)
+							this.fetchImageList(retryCount + 1)
 								.then(resolve)
 								.catch(reject);
 						});
@@ -591,7 +591,7 @@ export default {
 		});
 	},
 
-	downloadImage(page, folderUri, retryCount = 0) {
+	downloadPage(page, folderUri, retryCount = 0) {
 		let imageUrl;
 		const MAX_RETRY = 3;
 
@@ -650,7 +650,7 @@ export default {
 							duration: 1500,
 						});
 						sleep(1000).then(() => {
-							this.downloadImage(page, folderUri, retryCount + 1)
+							this.downloadPage(page, folderUri, retryCount + 1)
 								.then(resolve)
 								.catch(reject);
 						});
@@ -663,7 +663,7 @@ export default {
 							duration: 1500,
 						});
 						sleep(1000).then(() => {
-							this.downloadImage(page, folderUri, retryCount + 1)
+							this.downloadPage(page, folderUri, retryCount + 1)
 								.then(resolve)
 								.catch(reject);
 						});
