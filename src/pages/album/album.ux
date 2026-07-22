@@ -130,12 +130,16 @@ export default {
 		if (typeof this.data === "string") {
 			this.data = JSON.parse(this.data);
 		}
+	},
+
+	onInit() {
+		if (typeof this.data === "string") {
+			this.data = JSON.parse(this.data);
+		}
 		if (this.data.cover) {
 			this.data.cover = addCoverParams(this.data.cover);
 		}
 	},
-
-	onInit() {},
 
 	getPhoto(value) {
 		this.size.width = screenSize.width / 2;
