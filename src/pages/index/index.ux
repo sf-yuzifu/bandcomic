@@ -212,7 +212,7 @@ export default {
 
 				const filesToDelete = files.filter(function (item) {
 					const fileName = item.uri.split("/").pop();
-					return !keepFiles.includes(fileName);
+					return !keepFiles.includes(fileName) && item.type !== "dir";
 				});
 
 				if (filesToDelete.length > 0) {
