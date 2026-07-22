@@ -117,6 +117,7 @@ import { createDataBridge } from "../../components/dataBridge";
 import { checkUpdate } from "../../components/updateChecker";
 import { flattenParams } from "../../components/routerParams";
 import { readSources, readSettings, readCookie } from "../../components/storage";
+import { safeJsonParse } from "../../components/jsonUtils";
 import { apiFetch, buildDetailUrl, getFetchErrorType } from "../../components/api";
 
 const { getTime } = global;
@@ -311,20 +312,17 @@ export default {
 			},
 			fail: (data, code) => {
 				console.log(`handling fail, errMsg = ${data}`);
-				try {
-					const parsed = JSON.parse(data);
-					if (
-						parsed.message &&
-						parsed.message.indexOf("请求的本子不存在") != -1
-					) {
-						prompt.showToast({
-							message: this.$t("error.noComicFound"),
-							duration: 3000,
-						});
-						return;
-					}
-				} catch (e) {
-					console.log(`JSON parse failed: ${e}`);
+				const parsed = safeJsonParse(data, null);
+				if (
+					parsed &&
+					parsed.message &&
+					parsed.message.indexOf("请求的本子不存在") != -1
+				) {
+					prompt.showToast({
+						message: this.$t("error.noComicFound"),
+						duration: 3000,
+					});
+					return;
 				}
 				if (getFetchErrorType(code) === "timeout") {
 					prompt.showToast({

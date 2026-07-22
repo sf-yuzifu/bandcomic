@@ -1,3 +1,5 @@
+import { safeJsonParse } from "./jsonUtils";
+
 const FETCH_TAG = "fetch";
 const FETCH_CHUNK_TAG = "fetch-chunk";
 const FETCH_ACK_TAG = "fetch-ack";
@@ -206,10 +208,8 @@ class InterconnFetchClient {
         this.open = false;
       }, TIMEOUT);
 
-      let parsed;
-      try {
-        parsed = JSON.parse(data);
-      } catch (e) {
+      const parsed = safeJsonParse(data, null);
+      if (parsed == null) {
         return;
       }
       const { tag, ...payload } = parsed;
@@ -540,11 +540,7 @@ export default {
         const resp = await interconnClient.fetch(url, options, onChunk);
         let data = resp.data;
         if (responseType === "json") {
-          try {
-            data = JSON.parse(data);
-          } catch (e) {
-            // keep raw
-          }
+          data = safeJsonParse(data, data);
         } else if (responseType === "file") {
           try {
             if (chunkFiles.length > 0) {

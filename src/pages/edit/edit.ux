@@ -97,6 +97,7 @@
 import router from "@system.router";
 import prompt from "@system.prompt";
 import { readSources, writeSources } from "../../components/storage";
+import { safeJsonParse } from "../../components/jsonUtils";
 import { apiFetch, getFetchErrorType } from "../../components/api";
 
 const { getTime } = global;
@@ -209,7 +210,13 @@ export default {
 			url: "https://" + this.context + "/config",
 			responseType: "text",
 			success: (response) => {
-				let data = JSON.parse(response.data);
+				let data = safeJsonParse(response.data, null);
+				if (data == null) {
+					prompt.showToast({
+						message: this.$t("edit.unknownReadError") + response.data,
+					});
+					return;
+				}
 				if (text) {
 					data = replaceIfDuplicate(text, data);
 				} else {
