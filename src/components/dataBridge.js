@@ -7,6 +7,7 @@ import {
   writeSources,
   writeCookie,
 } from "./storage";
+import { safeJsonParse } from "./jsonUtils";
 
 function detectImageFormat(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
@@ -1036,10 +1037,8 @@ export function createDataBridge(interConnect) {
       return;
     }
 
-    let parsed;
-    try {
-      parsed = JSON.parse(rawData);
-    } catch (e) {
+    const parsed = safeJsonParse(rawData, null);
+    if (parsed == null) {
       prompt.showToast({ message: "非JSON，按Cookie处理" });
       handleCookieMessage(rawData, null);
       return;
