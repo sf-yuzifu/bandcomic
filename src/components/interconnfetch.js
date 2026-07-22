@@ -260,10 +260,11 @@ class InterconnFetchClient {
         req.received++;
 
         // 乱序缓存：按 seq 落位
+        let decoded;
         if (encoding === "text") {
           req.chunkBuffer[seq] = chunkData;
         } else {
-          const decoded = decodeBody(chunkData, encoding);
+          decoded = decodeBody(chunkData, encoding);
           if (decoded instanceof Uint8Array) {
             req.chunkBuffer[seq] = decoded;
           }
@@ -297,7 +298,6 @@ class InterconnFetchClient {
         if (req.nextAck >= req.chunkCount) {
           req.settled = true;
           this.requests.delete(id);
-          const that = this;
 
           // 等待所有 onChunk 写入完成后再 resolve
           const finish = function () {

@@ -435,7 +435,7 @@ export default {
 						recursive: true,
 						success: (data) => {
 							let length = 0;
-							for (let i of data.subFiles) {
+							for (const i of data.subFiles) {
 								if (i.type === "dir" && i.subFiles.length != 0) {
 									if (!comic.totalChapter) {
 										comic.totalChapter = [];
@@ -445,7 +445,7 @@ export default {
 									const chapterNum = parts[0];
 									const chapterName = parts.slice(1).join("　");
 									comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
-									for (let m of i.subFiles) {
+									for (const m of i.subFiles) {
 										length += m.length;
 									}
 								} else {
@@ -659,7 +659,7 @@ export default {
 	},
 
 	onBackPress () {
-  		return true;
+			return true;
 	},
 };
 </script>

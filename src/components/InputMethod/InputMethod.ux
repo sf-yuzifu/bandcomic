@@ -289,7 +289,7 @@ import vibrator from "@system.vibrator";
 import device from '@system.device'
 import { SimpleInputMethod } from "./assets/dicUtil.js";
 function doSearchDic(word, cb) {
-  let hanzi = SimpleInputMethod.getHanzi(word);
+  const hanzi = SimpleInputMethod.getHanzi(word);
   if (hanzi && hanzi[0]) {
     cb(hanzi[0]);
   } else {
@@ -590,14 +590,14 @@ export default {
     }
   },
   handelScroll(event) {
-    let percentTemp67 = (event.scrollX / 636) * 100 + 52.8;
+    const percentTemp67 = (event.scrollX / 636) * 100 + 52.8;
     this.percent67 = parseInt(percentTemp67 <= 100 ? percentTemp67 : 100);
-    let percentTemp66 = (event.scrollX / 633) * 100;
+    const percentTemp66 = (event.scrollX / 633) * 100;
     this.percent66 = parseInt(percentTemp66 <= 100 ? percentTemp66 : 100);
   },
   pushCval() {
     this.onVibrate();
-    let temp = this.cval;
+    const temp = this.cval;
     this.cval = "";
     this.clearWaiting();
     this.resetReslutList();

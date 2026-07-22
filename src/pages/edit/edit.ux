@@ -193,7 +193,7 @@ export default {
 					file.readText({
 						uri: "internal://files/sources.json",
 						success: (data) => {
-							let datas = JSON.parse(data.text);
+							const datas = JSON.parse(data.text);
 							this.writeSource(datas);
 						},
 						fail: (data, code) => {
