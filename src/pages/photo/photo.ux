@@ -228,6 +228,10 @@ export default {
 		return true;
 	},
 
+	onDestroy() {
+		ImageCache = [];
+	},
+
 	onInit() {
 		// 如果有传入的 source 参数，切换到对应的漫画源
 		if (this.source) {
