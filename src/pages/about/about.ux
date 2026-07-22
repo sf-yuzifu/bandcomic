@@ -236,7 +236,7 @@
 <script>
 import router from "@system.router";
 import app from "@system.app";
-import file from "@system.file";
+import { writeSettings } from "../../components/storage";
 
 const { getTime } = global;
 
@@ -317,12 +317,7 @@ export default {
 	},
 
 	saveSetting() {
-		file.writeText({
-			uri: "internal://files/settings.json",
-			text: JSON.stringify(global.APP_SETTING),
-			success: () => {},
-			fail: function () {},
-		});
+		writeSettings(global.APP_SETTING).catch(() => {});
 	},
 };
 </script>

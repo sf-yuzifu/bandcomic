@@ -158,6 +158,7 @@ import fetch from "../../components/interconnfetch";
 import prompt from "@system.prompt";
 
 import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
+import { readComics, writeComics } from "../../components/storage";
 
 const { getTime } = global;
 
@@ -357,69 +358,57 @@ export default {
 	},
 
 	checkFileExists() {
-		return new Promise((resolve, reject) => {
-			file.readText({
-				uri: "internal://files/comics.json",
-				success: () => {
-					resolve(true);
-				},
-				fail: (data, code) => {
-					if (code === 301) {
-						resolve(false);
-					} else {
-						reject(this.$t("download.checkFileFailed", { code: code }));
-					}
-				},
-			});
-		});
+		return readComics().then(
+			() => true,
+			({ code }) => {
+				if (code === 301) {
+					return false;
+				}
+				throw this.$t("download.checkFileFailed", { code: code });
+			}
+		);
 	},
 
 	readAndUpdateComicsJson() {
 		return new Promise((resolve, reject) => {
-			file.readText({
-				uri: "internal://files/comics.json",
-				success: (data) => {
-					try {
-						let comicsData = [];
-						if (data.text) {
-							comicsData = JSON.parse(data.text);
-						}
+			readComics(true).then(
+				(comicsData) => {
+					const newComic = {
+						name: this.is_serial ? this.originalName : this.name,
+						page_count: this.page_count,
+						id: global.API_SETTING.using + "_" + this.id,
+						is_serial: this.is_serial,
+					};
 
-						const newComic = {
-							name: this.is_serial ? this.originalName : this.name,
-							page_count: this.page_count,
-							id: global.API_SETTING.using + "_" + this.id,
-							is_serial: this.is_serial,
-						};
-
-						const existingIndex = comicsData.findIndex(
-							(comic) => comic.id === newComic.id
-						);
-						if (existingIndex !== -1) {
-							comicsData[existingIndex] = newComic;
-						} else {
-							comicsData.push(newComic);
-						}
-
-						file.writeText({
-							uri: "internal://files/comics.json",
-							text: JSON.stringify(comicsData),
-							success: () => {
-								console.log("comics.json 更新成功");
-								resolve();
-							},
-							fail: (data, code) => {
-								reject(this.$t("download.writeIndexFailed", { code: code }));
-							},
-						});
-					} catch (parseError) {
-						reject(this.$t("download.parseIndexFailed"));
+					const existingIndex = comicsData.findIndex(
+						(comic) => comic.id === newComic.id
+					);
+					if (existingIndex !== -1) {
+						comicsData[existingIndex] = newComic;
+					} else {
+						comicsData.push(newComic);
 					}
+
+					writeComics(comicsData).then(
+						() => {
+							console.log("comics.json 更新成功");
+							resolve();
+						},
+						({ code }) => {
+							reject(this.$t("download.writeIndexFailed", { code: code }));
+						}
+					);
 				},
-				fail: (data, code) => {
-					reject(this.$t("download.readIndexFailed", { code: code }));
-				},
-			});
+				(err) => {
+					if (err.parseError) {
+						reject(this.$t("download.parseIndexFailed"));
+					} else {
+						reject(
+							this.$t("download.readIndexFailed", { code: err.code })
+						);
+					}
+				}
+			);
 		});
 	},
 
@@ -434,17 +423,15 @@ export default {
 				},
 			];
 
-			file.writeText({
-				uri: "internal://files/comics.json",
-				text: JSON.stringify(comicsData),
-				success: () => {
+			writeComics(comicsData).then(
+				() => {
 					console.log("comics.json 创建成功");
 					resolve();
 				},
-				fail: (data, code) => {
+				({ code }) => {
 					reject(this.$t("download.createIndexFailed", { code: code }));
-				},
-			});
+				}
+			);
 		});
 	},
 
