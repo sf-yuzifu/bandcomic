@@ -40,16 +40,16 @@
 				<image
 					class="cover"
 					@complete="getPhoto"
-					src="{{ data.cover || '/common/loading.png' }}"
+					src="{{ cover || '/common/loading.png' }}"
 					alt="/common/loading.png"
 					onclick="toPhoto"
 					style="{{ `width:${size.width}px;height:${size.height}px;` }}"
 				></image>
-				<text class="title1">{{ data.name }}</text>
+				<text class="title1">{{ name }}</text>
 				<div class="detail">
-					<div class="column" if="{{ data.gid }}">
+					<div class="column" if="{{ gid }}">
 						<text class="bold grey">GID</text>
-						<text class="bold">{{ data.gid.toString() }}</text>
+						<text class="bold">{{ gid.toString() }}</text>
 					</div>
 					<div class="column" else>
 						<text class="bold grey" style="width: 48px">ID</text>
@@ -59,28 +59,28 @@
 							text-offset="{{ 20 }}"
 							class="bold"
 						>
-							{{ data.item_id.toString() }}
+							{{ item_id.toString() }}
 						</marquee>
 					</div>
-					<div class="column" if="{{ data.page_count }}">
+					<div class="column" if="{{ page_count }}">
 						<text class="bold grey">{{ $t("detail.page_count") }}</text>
-						<text class="bold">{{ data.page_count }}</text>
+						<text class="bold">{{ page_count }}</text>
 					</div>
-					<div class="column" if="{{ data.total_chapters > 1 }}">
+					<div class="column" if="{{ total_chapters > 1 }}">
 						<text class="bold grey">{{ $t("detail.total_chapters") }}</text>
-						<text class="bold">{{ data.total_chapters }}</text>
+						<text class="bold">{{ total_chapters }}</text>
 					</div>
-					<div class="column" if="{{ data.views }}">
+					<div class="column" if="{{ views }}">
 						<text class="bold grey">{{ $t("detail.views") }}</text>
-						<text class="bold">{{ data.views }}</text>
+						<text class="bold">{{ views }}</text>
 					</div>
-					<div class="column" if="{{ data.rate }}">
+					<div class="column" if="{{ rate }}">
 						<text class="bold grey">{{ $t("detail.rate") }}</text>
-						<text class="bold">{{ data.rate }}</text>
+						<text class="bold">{{ rate }}</text>
 					</div>
-					<div class="column tags" if="{{ data.tags }}">
+					<div class="column tags" if="{{ tags }}">
 						<text class="bold grey">{{ $t("detail.tags") }}</text>
-						<text for="{{ tag in data.tags }}" class="bold">
+						<text for="{{ tag in tags }}" class="bold">
 							{{ tag }}
 						</text>
 					</div>
@@ -106,38 +106,44 @@
 <script>
 import router from "@system.router";
 import { addCoverParams } from "../../components/imageUrl";
+import { parseParams } from "../../components/routerParams";
 
 const { screenSize, getTime } = global;
 
 export default {
 	private: {
-		data: {
-			name: "",
-			item_id: "",
-			views: "",
-			page_count: 0,
-			cover: "",
-			rate: "",
-			tags: "",
-			total_chapters: 0,
-		},
+		name: "",
+		item_id: "",
+		gid: "",
+		views: "",
+		page_count: 0,
+		cover: "",
+		rate: "",
+		tags: "",
+		total_chapters: 0,
 		time: "",
 		size: { width: 200, height: 200 },
 	},
 
 	onShow() {
 		this.time = getTime();
-		if (typeof this.data === "string") {
-			this.data = JSON.parse(this.data);
-		}
 	},
 
 	onInit() {
-		if (typeof this.data === "string") {
-			this.data = JSON.parse(this.data);
-		}
-		if (this.data.cover) {
-			this.data.cover = addCoverParams(this.data.cover);
+		const parsed = parseParams({
+			name: this.name,
+			item_id: this.item_id,
+			gid: this.gid,
+			views: this.views,
+			page_count: this.page_count,
+			cover: this.cover,
+			rate: this.rate,
+			tags: this.tags,
+			total_chapters: this.total_chapters,
+		});
+		Object.assign(this, parsed);
+		if (this.cover) {
+			this.cover = addCoverParams(this.cover);
 		}
 	},
 
@@ -150,12 +156,12 @@ export default {
 		router.push({
 			uri: "/pages/photo",
 			params: {
-				id: this.data.item_id,
+				id: this.item_id,
 				total_chapters:
-					this.data.total_chapters <= 1 ? 0 : this.data.total_chapters,
-				page_count: this.data.page_count,
-				title: this.data.name,
-				cover: this.data.cover,
+					this.total_chapters <= 1 ? 0 : this.total_chapters,
+				page_count: this.page_count,
+				title: this.name,
+				cover: this.cover,
 			},
 		});
 	},
@@ -164,12 +170,12 @@ export default {
 		router.push({
 			uri: "/pages/download",
 			params: {
-				id: this.data.item_id,
-				page_count: this.data.page_count,
-				chapter: this.data.total_chapters || 1,
-				name: this.data.name,
-				cover: this.data.cover,
-				total_chapters: this.data.total_chapters || 1,
+				id: this.item_id,
+				page_count: this.page_count,
+				chapter: this.total_chapters || 1,
+				name: this.name,
+				cover: this.cover,
+				total_chapters: this.total_chapters || 1,
 			},
 		});
 	},

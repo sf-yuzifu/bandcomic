@@ -126,6 +126,7 @@ import router from "@system.router"
 import file from "@system.file";
 import prompt from "@system.prompt";
 import device from "@system.device";
+import { serializeParams } from "../../components/routerParams";
 
 const { getTime } = global;
 
@@ -488,13 +489,13 @@ export default {
 	toPhoto(val) {
 		router.push({
 			uri: "/pages/photo",
-			params: {
+			params: serializeParams({
 				id: val.id,
 				page_count: val.page_count,
 				is_serial: val.is_serial ? 1 : "",
-				downloadChapter: JSON.stringify(val.totalChapter),
+				downloadChapter: val.totalChapter,
 				local: true,
-			},
+			}),
 		});
 	},
 

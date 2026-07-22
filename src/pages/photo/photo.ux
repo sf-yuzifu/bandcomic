@@ -186,6 +186,7 @@ import router from "@system.router";
 import fetch from "../../components/interconnfetch";
 import file from "@system.file";
 import { addImageParams, appendLvglSuffix } from "../../components/imageUrl";
+import { parseParam } from "../../components/routerParams";
 
 const { screenSize, getTime } = global;
 
@@ -272,7 +273,7 @@ export default {
 				this.generatePickerRanges(this.total_chapters);
 			}
 		} else if (this.is_serial) {
-			this.downloadChapter = JSON.parse(this.downloadChapter);
+			this.downloadChapter = parseParam(this.downloadChapter);
 			this.total_chapters = this.downloadChapter.length;
 			this.chapterList = this.downloadChapter.map((ch) => ch[0]);
 			this.generatePickerRanges(this.total_chapters);

@@ -116,6 +116,7 @@ import interconnect from "@system.interconnect";
 import file from "@system.file";
 import { createDataBridge } from "../../components/dataBridge";
 import { checkUpdate } from "../../components/updateChecker";
+import { flattenParams } from "../../components/routerParams";
 
 const { getTime } = global;
 
@@ -308,7 +309,7 @@ export default {
 	toAlbum(data) {
 		router.push({
 			uri: "/pages/album",
-			params: { data: data },
+			params: flattenParams(data),
 		});
 	},
 
