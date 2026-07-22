@@ -28,25 +28,25 @@ try {
 }
 
 function base64ToBytes(base64) {
-  var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  var lookup = {};
-  for (var i = 0; i < chars.length; i++) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  const lookup = {};
+  for (let i = 0; i < chars.length; i++) {
     lookup[chars[i]] = i;
   }
   base64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
-  var len = base64.length;
-  var padding = 0;
+  const len = base64.length;
+  let padding = 0;
   if (len > 0 && base64.charAt(len - 1) === "=") padding++;
   if (len > 1 && base64.charAt(len - 2) === "=") padding++;
-  var bufLen = Math.floor((len * 3) / 4 - padding);
+  let bufLen = Math.floor((len * 3) / 4 - padding);
   if (bufLen < 0) bufLen = 0;
-  var bytes = new Uint8Array(bufLen);
-  var p = 0;
-  for (var i = 0; i < len; i += 4) {
-    var enc1 = lookup[base64.charAt(i)];
-    var enc2 = lookup[base64.charAt(i + 1)];
-    var enc3 = lookup[base64.charAt(i + 2)];
-    var enc4 = lookup[base64.charAt(i + 3)];
+  const bytes = new Uint8Array(bufLen);
+  let p = 0;
+  for (let i = 0; i < len; i += 4) {
+    const enc1 = lookup[base64.charAt(i)];
+    const enc2 = lookup[base64.charAt(i + 1)];
+    const enc3 = lookup[base64.charAt(i + 2)];
+    const enc4 = lookup[base64.charAt(i + 3)];
     bytes[p++] = (enc1 << 2) | (enc2 >> 4);
     if (base64.charAt(i + 2) !== "=") {
       bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
@@ -60,18 +60,18 @@ function base64ToBytes(base64) {
 
 function hexDecode(hex) {
   hex = hex.replace(/[^0-9a-fA-F]/g, "");
-  var len = (hex.length / 2) | 0;
-  var bytes = new Uint8Array(len);
-  for (var i = 0; i < len; i++) {
+  const len = (hex.length / 2) | 0;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
     bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
   }
   return bytes;
 }
 
 function uint8ToString(bytes) {
-  var CHUNK = 8192;
-  var parts = [];
-  for (var i = 0; i < bytes.length; i += CHUNK) {
+  const CHUNK = 8192;
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
     parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
   }
   return parts.join("");
@@ -167,7 +167,7 @@ function checkFetchAvailable() {
   });
 }
 
-var LOCAL_CAPS = {
+const LOCAL_CAPS = {
   version: 3,
   chunk: true,
   maxChunkSize: 4096,
@@ -263,7 +263,7 @@ class InterconnFetchClient {
         if (encoding === "text") {
           req.chunkBuffer[seq] = chunkData;
         } else {
-          var decoded = decodeBody(chunkData, encoding);
+          const decoded = decodeBody(chunkData, encoding);
           if (decoded instanceof Uint8Array) {
             req.chunkBuffer[seq] = decoded;
           }
@@ -271,7 +271,7 @@ class InterconnFetchClient {
 
         // 如果用了 onChunk，记录其 Promise 以便后续等待
         if (req.onChunk) {
-          var toWrite = encoding === "text" ? chunkData : decoded;
+          const toWrite = encoding === "text" ? chunkData : decoded;
           if (toWrite !== undefined) {
             req.chunkPromises.push(req.onChunk(toWrite, seq));
           }
@@ -297,30 +297,30 @@ class InterconnFetchClient {
         if (req.nextAck >= req.chunkCount) {
           req.settled = true;
           this.requests.delete(id);
-          var that = this;
+          const that = this;
 
           // 等待所有 onChunk 写入完成后再 resolve
-          var finish = function () {
+          const finish = function () {
             // 按顺序拼接
-            var raw;
+            let raw;
             if (encoding === "text") {
-              var parts = [];
-              for (var i = 0; i < req.chunkCount; i++) {
+              const parts = [];
+              for (let i = 0; i < req.chunkCount; i++) {
                 parts.push(req.chunkBuffer[i] || "");
               }
               raw = parts.join("");
             } else {
-              var totalLen = 0;
-              for (var i = 0; i < req.chunkCount; i++) {
-                var buf = req.chunkBuffer[i];
+              let totalLen = 0;
+              for (let i = 0; i < req.chunkCount; i++) {
+                const buf = req.chunkBuffer[i];
                 if (buf instanceof Uint8Array) {
                   totalLen += buf.length;
                 }
               }
-              var merged = new Uint8Array(totalLen);
-              var offset = 0;
-              for (var i = 0; i < req.chunkCount; i++) {
-                var buf = req.chunkBuffer[i];
+              const merged = new Uint8Array(totalLen);
+              let offset = 0;
+              for (let i = 0; i < req.chunkCount; i++) {
+                const buf = req.chunkBuffer[i];
                 if (buf instanceof Uint8Array) {
                   merged.set(buf, offset);
                   offset += buf.length;
@@ -452,7 +452,7 @@ class InterconnFetchClient {
     }
     const id = url + Math.random().toFixed(5);
     const resp = await this._sendFetch(id, url, options, onChunk);
-    var body = resp.body;
+    let body = resp.body;
     if (body === null) {
       return {
         data: null,
@@ -461,7 +461,7 @@ class InterconnFetchClient {
       };
     }
     if (!resp.chunked) {
-      var encoding = resp.bodyEncoding;
+      const encoding = resp.bodyEncoding;
       if (encoding) {
         body = decodeBody(body, encoding);
         if (!resp.raw && typeof body !== "string") {
@@ -486,12 +486,12 @@ const interconnClient = new InterconnFetchClient();
 let _tempId = 0;
 function getTempUri(url) {
   _tempId++;
-  var hash = 0;
-  for (var i = 0; i < url.length; i++) {
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) {
     hash = ((hash << 5) - hash + url.charCodeAt(i)) | 0;
   }
-  var ext = "";
-  var fragment = url.split("#")[1] || "";
+  let ext = "";
+  const fragment = url.split("#")[1] || "";
   if (/\.bin$/i.test(fragment)) {
     ext = ".bin";
   }
@@ -524,14 +524,14 @@ export default {
         raw: responseType === "file" || responseType === "arraybuffer",
       };
       try {
-        var chunkFiles = [];
-        var finalUri = (responseType === "file") ? getTempUri(url) : null;
-        var onChunk = null;
+        const chunkFiles = [];
+        const finalUri = (responseType === "file") ? getTempUri(url) : null;
+        let onChunk = null;
         if (responseType === "file") {
           onChunk = async function (bytes, seq) {
-            var partUri = finalUri + "." + seq;
+            const partUri = finalUri + "." + seq;
             await writeChunkFile(partUri, bytes);
-            var idx = chunkFiles.indexOf(partUri);
+            const idx = chunkFiles.indexOf(partUri);
             if (idx === -1) {
               chunkFiles.push(partUri);
             }
@@ -550,13 +550,13 @@ export default {
             if (chunkFiles.length > 0) {
               // 按 seq 排序，防止异步写入完成顺序乱序
               chunkFiles.sort(function (a, b) {
-                var seqA = parseInt(a.substring(a.lastIndexOf(".") + 1));
-                var seqB = parseInt(b.substring(b.lastIndexOf(".") + 1));
+                const seqA = parseInt(a.substring(a.lastIndexOf(".") + 1));
+                const seqB = parseInt(b.substring(b.lastIndexOf(".") + 1));
                 return seqA - seqB;
               });
               // 先写入第一个分片（覆盖创建），后续追加
-              for (var i = 0; i < chunkFiles.length; i++) {
-                var buf = await readBinaryFile(chunkFiles[i]);
+              for (let i = 0; i < chunkFiles.length; i++) {
+                let buf = await readBinaryFile(chunkFiles[i]);
                 await writeChunkFile(finalUri, buf, i > 0);
                 buf = null;
                 try { fileModule.delete({ uri: chunkFiles[i] }); } catch (e) {}
@@ -565,7 +565,7 @@ export default {
             } else if (data instanceof Uint8Array) {
               data = await writeBinaryFile(finalUri, data);
             } else if (data !== null) {
-              var bytes = base64ToBytes(data);
+              const bytes = base64ToBytes(data);
               data = await writeBinaryFile(finalUri, bytes);
             }
           } catch (e) {

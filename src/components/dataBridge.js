@@ -25,16 +25,15 @@ function detectImageFormat(bytes) {
 }
 
 function base64Encode(input) {
-  var chars =
+  const chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  var bytes = new Uint8Array(input);
-  var len = bytes.length;
-  var result = "";
-  var i;
-  for (i = 0; i < len; i += 3) {
-    var b1 = bytes[i];
-    var b2 = i + 1 < len ? bytes[i + 1] : 0;
-    var b3 = i + 2 < len ? bytes[i + 2] : 0;
+  const bytes = new Uint8Array(input);
+  const len = bytes.length;
+  let result = "";
+  for (let i = 0; i < len; i += 3) {
+    const b1 = bytes[i];
+    const b2 = i + 1 < len ? bytes[i + 1] : 0;
+    const b3 = i + 2 < len ? bytes[i + 2] : 0;
     result += chars[b1 >> 2];
     result += chars[((b1 & 3) << 4) | (b2 >> 4)];
     result += i + 1 < len ? chars[((b2 & 15) << 2) | (b3 >> 6)] : "=";
@@ -81,24 +80,24 @@ function updateComicsIndexAfterDelete(comicsList, deletedId, comicName) {
 }
 
 export function createDataBridge(interConnect) {
-  var bridge = {};
+  const bridge = {};
 
-  var _coverQueue = [];
-  var _coverIndex = 0;
-  var _coverName = "";
-  var _coverUri = "";
-  var _coverTotalBytes = 0;
-  var _coverMime = "image/jpeg";
-  var _coverPos = 0;
+  let _coverQueue = [];
+  let _coverIndex = 0;
+  let _coverName = "";
+  let _coverUri = "";
+  let _coverTotalBytes = 0;
+  let _coverMime = "image/jpeg";
+  let _coverPos = 0;
 
   function readCoverSlice() {
-    var READ = 6144;
-    var uri = _coverUri;
-    var name = _coverName;
-    var pos = _coverPos;
-    var total = _coverTotalBytes;
-    var len = Math.min(READ, total - pos);
-    var isFirst = pos === 0;
+    const READ = 6144;
+    const uri = _coverUri;
+    const name = _coverName;
+    const pos = _coverPos;
+    const total = _coverTotalBytes;
+    const len = Math.min(READ, total - pos);
+    const isFirst = pos === 0;
 
     file.readArrayBuffer({
       uri: uri,
@@ -113,14 +112,14 @@ export function createDataBridge(interConnect) {
           return;
         }
 
-        var bytes = new Uint8Array(bufData.buffer);
+        const bytes = new Uint8Array(bufData.buffer);
         if (isFirst) {
           _coverMime = detectImageFormat(bytes);
         }
-        var header = isFirst ? "data:" + _coverMime + ";base64," : "";
-        var b64 = base64Encode(bufData.buffer);
-        var totalChunks = Math.ceil(total / READ);
-        var chunkIndex = Math.floor(pos / READ);
+        const header = isFirst ? "data:" + _coverMime + ";base64," : "";
+        const b64 = base64Encode(bufData.buffer);
+        const totalChunks = Math.ceil(total / READ);
+        const chunkIndex = Math.floor(pos / READ);
 
         interConnect.send({
           data: {
@@ -178,13 +177,13 @@ export function createDataBridge(interConnect) {
   }
 
   function sendCoversOneByOne() {
-    var queue = _coverQueue;
+    const queue = _coverQueue;
     if (!queue || queue.length === 0) return;
 
-    var idx = _coverIndex;
+    const idx = _coverIndex;
     if (idx >= queue.length) return;
 
-    var c = queue[idx];
+    const c = queue[idx];
 
     file.get({
       uri: "internal://files/" + c.id + "/cover",
@@ -208,8 +207,7 @@ export function createDataBridge(interConnect) {
   function sendAppDataBatched(comics, sourceList) {
     // 请求-确认模式：每发一个消息等插件端 ACK 后才发下一个，确保严格顺序
     // 解决安卓端 QAIC 消息乱序问题
-    var messages = [];
-    var i;
+    const messages = [];
 
     messages.push({
       type: "app_data_header",
@@ -217,11 +215,11 @@ export function createDataBridge(interConnect) {
       source_count: sourceList.length,
     });
 
-    for (i = 0; i < comics.length; i++) {
+    for (let i = 0; i < comics.length; i++) {
       messages.push({ type: "app_data_comic", index: i, comic: comics[i] });
     }
 
-    for (i = 0; i < sourceList.length; i++) {
+    for (let i = 0; i < sourceList.length; i++) {
       messages.push({ type: "app_data_source", index: i, source: sourceList[i] });
     }
 
@@ -232,11 +230,11 @@ export function createDataBridge(interConnect) {
     });
 
     // 当前等待 ACK 的消息序号；-1 表示无等待
-    var pendingAckIndex = -1;
+    let pendingAckIndex = -1;
     // 当前正在发送的消息序号
-    var msgIndex = 0;
+    let msgIndex = 0;
     // 超时定时器 id
-    var ackTimer = null;
+    let ackTimer = null;
 
     // 监听插件端返回的 ACK（每个消息对应一个序号）
     // 这个函数会作为 bridge 的扩展挂载，由 handleMessage 调用
@@ -270,8 +268,8 @@ export function createDataBridge(interConnect) {
         return;
       }
 
-      var msg = messages[msgIndex];
-      var isDone = msg.type === "app_data_done";
+      const msg = messages[msgIndex];
+      const isDone = msg.type === "app_data_done";
 
       pendingAckIndex = msgIndex;
 
@@ -479,10 +477,10 @@ export function createDataBridge(interConnect) {
     });
   }
 
-  var _importState = null;
+  let _importState = null;
 
   function handleImportComic(parsed) {
-    var msgType = parsed.type || "";
+    const msgType = parsed.type || "";
     if (msgType === "import_comic_header") {
       handleImportComicHeader(parsed);
     } else if (msgType === "import_comic_chunk") {
@@ -495,29 +493,29 @@ export function createDataBridge(interConnect) {
   }
 
   function handleImportComicHeader(parsed) {
-    var comicName = parsed.name || "";
-    var mode = parsed.mode || "single";
-    var files = parsed.files || [];
-    var chapters = parsed.chapters || null;
+    const comicName = parsed.name || "";
+    const mode = parsed.mode || "single";
+    const files = parsed.files || [];
+    const chapters = parsed.chapters || null;
 
     if (!comicName) {
       prompt.showToast({ message: "导入失败：未提供漫画名称" });
       return;
     }
 
-    var comicId =
+    const comicId =
       "local_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
-    var dirUri = "internal://files/" + comicId;
+    const dirUri = "internal://files/" + comicId;
 
-    var pageCount = 0;
-    var isSerial = mode === "multi";
+    let pageCount = 0;
+    const isSerial = mode === "multi";
 
     if (mode === "single") {
       // files: ["cover", "1", "2", ...], 减去封面就是页数
       pageCount = files.length - 1;
     } else if (chapters) {
       // 所有章节的文件总数，减去第一章节的封面
-      var totalFileCount = 0;
+      let totalFileCount = 0;
       chapters.forEach(function (ch) {
         totalFileCount += (ch.files || []).length;
       });
@@ -548,10 +546,10 @@ export function createDataBridge(interConnect) {
       });
     } else if (chapters) {
       chapters.forEach(function (ch) {
-        var chapName = ch.name || "";
-        var chapFiles = ch.files || [];
+        const chapName = ch.name || "";
+        const chapFiles = ch.files || [];
         chapFiles.forEach(function (f) {
-          var fileKey = chapName + "/" + f;
+          const fileKey = chapName + "/" + f;
           _importState.files.push(fileKey);
           _importState.totalFiles++;
         });
@@ -565,7 +563,7 @@ export function createDataBridge(interConnect) {
 
     function flushPendingWrites() {
       if (!_importState || !_importState.pendingWrites) return;
-      var pending = _importState.pendingWrites;
+      const pending = _importState.pendingWrites;
       _importState.pendingWrites = [];
       pending.forEach(function (w) {
         writeBinaryFromBase64(
@@ -619,7 +617,7 @@ export function createDataBridge(interConnect) {
 
     if (chapters && mode === "multi") {
       chapters.forEach(function (ch) {
-        var chapUri = dirUri + "/" + (ch.name || "");
+        const chapUri = dirUri + "/" + (ch.name || "");
         file.mkdir({
           uri: chapUri,
           recursive: false,
@@ -650,11 +648,11 @@ export function createDataBridge(interConnect) {
       return;
     }
 
-    var comicName = parsed.name || "";
-    var fileKey = parsed.file || "";
-    var index = parsed.index;
-    var total = parsed.total;
-    var data = parsed.data || "";
+    const comicName = parsed.name || "";
+    const fileKey = parsed.file || "";
+    const index = parsed.index;
+    const total = parsed.total;
+    const data = parsed.data || "";
 
     if (comicName !== _importState.comicName) {
       console.log(
@@ -671,7 +669,7 @@ export function createDataBridge(interConnect) {
       };
     }
 
-    var buf = _importState.buffers[fileKey];
+    const buf = _importState.buffers[fileKey];
     if (buf.chunks[index]) {
       // 重复分片：数据忽略，但仍需重发 ACK，否则插件端超时重传会死循环
       interConnect.send({
@@ -699,8 +697,8 @@ export function createDataBridge(interConnect) {
     });
 
     if (buf.received === buf.total) {
-      var fullBase64 = buf.chunks.join("");
-      var fileUri = _importState.dirUri + "/" + fileKey;
+      const fullBase64 = buf.chunks.join("");
+      const fileUri = _importState.dirUri + "/" + fileKey;
       delete _importState.buffers[fileKey];
 
       if (_importState.dirReady) {
@@ -740,11 +738,11 @@ export function createDataBridge(interConnect) {
   function handleImportComicDone(parsed) {
     if (!_importState) return;
 
-    var comicName = parsed.name || "";
+    const comicName = parsed.name || "";
     if (comicName !== _importState.comicName) return;
 
     // 等待所有待处理写入完成（简单延迟）
-    var failed = _importState.failedFiles || 0;
+    const failed = _importState.failedFiles || 0;
 
     updateComicsIndex(
       _importState.comicId,
@@ -753,7 +751,7 @@ export function createDataBridge(interConnect) {
       _importState.isSerial,
     );
 
-    var msg =
+    let msg =
       "导入完成: " +
       _importState.comicName +
       " (" +
@@ -772,33 +770,33 @@ export function createDataBridge(interConnect) {
   }
 
   function base64DecodeToBytes(base64) {
-    var chars =
+    const chars =
       "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    var lookup = {};
-    for (var i = 0; i < chars.length; i++) {
+    const lookup = {};
+    for (let i = 0; i < chars.length; i++) {
       lookup[chars[i]] = i;
     }
 
     // 统一清洗：只保留 base64 有效字符（含 = 填充符）
     base64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
 
-    var len = base64.length;
-    var padding = 0;
+    const len = base64.length;
+    let padding = 0;
     if (len > 0 && base64.charAt(len - 1) === "=") padding++;
     if (len > 1 && base64.charAt(len - 2) === "=") padding++;
 
-    var bufLen = (len * 3) / 4 - padding;
+    let bufLen = (len * 3) / 4 - padding;
     bufLen = Math.floor(bufLen);
     if (bufLen < 0) bufLen = 0;
 
-    var bytes = new Uint8Array(bufLen);
-    var p = 0;
+    const bytes = new Uint8Array(bufLen);
+    let p = 0;
 
-    for (var i = 0; i < len; i += 4) {
-      var enc1 = lookup[base64.charAt(i)];
-      var enc2 = lookup[base64.charAt(i + 1)];
-      var enc3 = lookup[base64.charAt(i + 2)];
-      var enc4 = lookup[base64.charAt(i + 3)];
+    for (let i = 0; i < len; i += 4) {
+      const enc1 = lookup[base64.charAt(i)];
+      const enc2 = lookup[base64.charAt(i + 1)];
+      const enc3 = lookup[base64.charAt(i + 2)];
+      const enc4 = lookup[base64.charAt(i + 3)];
 
       bytes[p++] = (enc1 << 2) | (enc2 >> 4);
       if (base64.charAt(i + 2) !== "=") {
@@ -814,7 +812,7 @@ export function createDataBridge(interConnect) {
 
   function writeBinaryFromBase64(fileUri, base64Data, onSuccess, onFail) {
     try {
-      var bytes = base64DecodeToBytes(base64Data);
+      const bytes = base64DecodeToBytes(base64Data);
       if (bytes.length === 0) {
         console.log(fileUri + " 解码后为空");
         prompt.showToast({ message: "解码失败: 数据为空", duration: 1500 });
@@ -859,7 +857,7 @@ export function createDataBridge(interConnect) {
   }
 
   function updateComicsIndex(comicId, comicName, pageCount, isSerial) {
-    var entry = {
+    const entry = {
       id: comicId,
       name: comicName,
       page_count: pageCount || 0,
@@ -869,14 +867,14 @@ export function createDataBridge(interConnect) {
     file.readText({
       uri: "internal://files/comics.json",
       success: function (data) {
-        var comicsList = [];
+        let comicsList = [];
         try {
           comicsList = JSON.parse(data.text);
         } catch (e) {
           comicsList = [];
         }
 
-        var existing = comicsList.find(function (c) {
+        const existing = comicsList.find(function (c) {
           return c.name === comicName;
         });
 
@@ -909,7 +907,7 @@ export function createDataBridge(interConnect) {
         });
       },
       fail: function () {
-        var comicsList = [entry];
+        const comicsList = [entry];
 
         file.writeText({
           uri: "internal://files/comics.json",
@@ -1077,7 +1075,7 @@ export function createDataBridge(interConnect) {
       handleHandshakePing(parsed);
     } else if (msgType === "app_data_ack") {
       // 插件端确认收到 app_data 消息，继续发送下一个
-      var ackIndex = parsed.index || 0;
+      const ackIndex = parsed.index || 0;
       if (typeof bridge.onAppDataAck === "function") {
         bridge.onAppDataAck(ackIndex);
       }
