@@ -495,7 +495,7 @@ function getTempUri(url) {
   if (/\.bin$/i.test(fragment)) {
     ext = ".bin";
   }
-  return "internal://files/_icf_" + Math.abs(hash) + "_" + _tempId + ext;
+  return "internal://files/_icf_" + Math.abs(hash) + "_" + Date.now() + "_" + _tempId + ext;
 }
 
 export default {

@@ -631,9 +631,25 @@ export function createDataBridge(interConnect) {
     const data = parsed.data || "";
 
     if (comicName !== _importState.comicName) {
+      // 漫画名含特殊字符时传输中可能被转义导致不一致
+      // _importState 是单例，本身即代表当前唯一导入会话，名不匹配只告警不丢弃
       console.log(
         "分片漫画名不匹配: " + comicName + " vs " + _importState.comicName,
       );
+    }
+
+    // 严格匹配：fileKey 必须在头部声明的文件清单内，否则视为异常分片
+    if (_importState.files.indexOf(fileKey) === -1) {
+      console.log("未知分片文件: " + fileKey);
+      // 仍需回 ACK，避免插件端超时重传死循环
+      interConnect.send({
+        data: {
+          type: "import_chunk_ack",
+          name: comicName,
+          file: fileKey,
+          index: index,
+        },
+      });
       return;
     }
 
@@ -715,7 +731,12 @@ export function createDataBridge(interConnect) {
     if (!_importState) return;
 
     const comicName = parsed.name || "";
-    if (comicName !== _importState.comicName) return;
+    if (comicName !== _importState.comicName) {
+      // 与分片同理：名不匹配只告警，按当前导入会话完成收尾
+      console.log(
+        "完成消息漫画名不匹配: " + comicName + " vs " + _importState.comicName,
+      );
+    }
 
     // 等待所有待处理写入完成（简单延迟）
     const failed = _importState.failedFiles || 0;
