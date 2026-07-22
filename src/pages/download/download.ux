@@ -154,11 +154,11 @@
 <script>
 import router from "@system.router";
 import file from "@system.file";
-import fetch from "../../components/interconnfetch";
 import prompt from "@system.prompt";
 
 import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
 import { readComics, writeComics } from "../../components/storage";
+import { apiFetch, buildPhotoUrl, getCurrentSource } from "../../components/api";
 
 const { getTime } = global;
 
@@ -514,26 +514,15 @@ export default {
 	fetchImageList(retryCount = 0) {
 		const MAX_RETRY = 3;
 		return new Promise((resolve, reject) => {
-			fetch.fetch({
-				url:
-					global.API_SETTING[global.API_SETTING.using].apiUrl +
-					global.API_SETTING[global.API_SETTING.using].photoPath
-						.replace("<id>", this.id)
-						.replace("<chapter>", this.chapter),
+			apiFetch({
+				url: buildPhotoUrl(this.id, this.chapter),
 				responseType: "json",
-				header: {
-					"User-Agent": global.userAgent(),
-					...(global.cookie && global.cookie[global.API_SETTING.using]
-						? { Cookie: global.cookie[global.API_SETTING.using] }
-						: {}),
-				},
 				success: (response) => {
 					const body = response.data;
 					if (body.images_data) {
 						ImageCache = [
 							...body.images_data.data.picture.map(
-								(img) =>
-									global.API_SETTING[global.API_SETTING.using].apiUrl + img.url
+								(img) => getCurrentSource().apiUrl + img.url
 							),
 						];
 						if (body.chapter_info && body.chapter_info.title) {
@@ -607,18 +596,12 @@ export default {
 				global.APP_SETTING.imagePreTranscode ? ".bin" : ""
 			}`;
 
-			fetch.fetch({
+			apiFetch({
 				url: appendLvglSuffix(
 					imageUrl,
 					`${global.API_SETTING.using}_${this.id}${this.chapter ? "_ch" + this.chapter : ""}_p${page}`
 				),
 				responseType: "file",
-				header: {
-					"User-Agent": global.userAgent(),
-					...(global.cookie && global.cookie[global.API_SETTING.using]
-						? { Cookie: global.cookie[global.API_SETTING.using] }
-						: {}),
-				},
 				success: (response) => {
 					if (response.data) {
 						file.move({
@@ -686,18 +669,12 @@ export default {
 
 			const fileUri = `${folderUri}/cover`;
 
-			fetch.fetch({
+			apiFetch({
 			url: appendLvglSuffix(
 				imageUrl,
 				`${global.API_SETTING.using}_${this.id}_cover`
 			),
 			responseType: "file",
-			header: {
-				"User-Agent": global.userAgent(),
-				...(global.cookie && global.cookie[global.API_SETTING.using]
-					? { Cookie: global.cookie[global.API_SETTING.using] }
-					: {}),
-			},
 			success: (response) => {
 				if (response.data) {
 					file.move({

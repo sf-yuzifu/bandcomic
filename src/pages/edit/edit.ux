@@ -95,9 +95,9 @@
 
 <script>
 import router from "@system.router";
-import fetch from "../../components/interconnfetch";
 import prompt from "@system.prompt";
 import { readSources, writeSources } from "../../components/storage";
+import { apiFetch, getFetchErrorType } from "../../components/api";
 
 const { getTime } = global;
 
@@ -205,15 +205,9 @@ export default {
 	},
 
 	writeSource(text) {
-		fetch.fetch({
+		apiFetch({
 			url: "https://" + this.context + "/config",
 			responseType: "text",
-			header: {
-				"User-Agent": global.userAgent(),
-				...(global.cookie && global.cookie[global.API_SETTING.using]
-					? { Cookie: global.cookie[global.API_SETTING.using] }
-					: {}),
-			},
 			success: (response) => {
 				let data = JSON.parse(response.data);
 				if (text) {
@@ -239,13 +233,14 @@ export default {
 				);
 			},
 			fail: (data, code) => {
-				if (code == 6) {
+				const errorType = getFetchErrorType(code);
+				if (errorType === "domain") {
 					prompt.showToast({ message: this.$t("edit.domainError") });
-				} else if (code == 28) {
+				} else if (errorType === "timeout") {
 					prompt.showToast({ message: this.$t("edit.timeoutError") });
-				} else if (code == 60 || code == 35) {
+				} else if (errorType === "ssl") {
 					prompt.showToast({ message: this.$t("edit.sslError") });
-				} else if (code == 7 || code == 52) {
+				} else if (errorType === "connection") {
 					prompt.showToast({ message: this.$t("edit.connectionError") });
 				} else {
 					prompt.showToast({
