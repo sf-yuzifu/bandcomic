@@ -108,7 +108,7 @@
         "downloadTimeout": "Timeout, retrying ({count})...",
         "networkErrorRetry": "Network error, retrying ({count})...",
         "downloadTimeoutFailed": "Download timeout, 3 retries failed",
-        "downloadFailed": "Download failed, code: {code}",
+        "downloadFailed": "Download failed",
         "fetchListTimeoutFailed": "Fetch list timeout, 3 retries failed",
         "fetchListFailed": "Fetch list failed, code: {code}",
         "coverTimeoutFailed": "Cover download timeout, 3 retries failed",
