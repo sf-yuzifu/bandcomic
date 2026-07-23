@@ -58,7 +58,7 @@
 				</div>
 				<div style="height: 10px"></div>
 
-				<list if="{{ comicsList.length != 0 }}" class="box" bounces="true">
+				<list if="{{ comicsList.length != 0 }}" id="comicsScroll" class="box" bounces="true">
 					<list-item for="{{ comicsList }}" class="item" type="list-item">
 						<scroll class="swipe-item" scroll-x="true" id="scroll_{{ $idx }}" @scroll="(event) => onScroll(event.scrollX, $idx)">
 							<div class="swipe-content" @click="toPhoto($item)">
@@ -76,6 +76,29 @@
 							</div>
 						</scroll>
 					</list-item>
+					<list-item type="pagination" class="pagination-wrapper" if="{{ comicsTotalPages() > 1 }}">
+						<div class="pagination-controls">
+							<div
+								class="{{ comicsPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
+								@click="changeComicsPage(comicsPage - 1)"
+							>
+								<text class="{{ comicsPage > 1 ? 'text-normal' : 'text-disabled' }}">
+									{{ $t("offline.up") }}
+								</text>
+							</div>
+							<text class="page-indicator">
+								{{ $t("offline.pageIndicator", { page: comicsPage }) }}
+							</text>
+							<div
+								class="{{ comicsPage < comicsTotalPages() ? 'pagination-button' : 'pagination-button-disabled' }}"
+								@click="changeComicsPage(comicsPage + 1)"
+							>
+								<text class="{{ comicsPage < comicsTotalPages() ? 'text-normal' : 'text-disabled' }}">
+									{{ $t("offline.down") }}
+								</text>
+							</div>
+						</div>
+					</list-item>
 					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
 				</list>
 
@@ -88,7 +111,7 @@
 			<!-- 历史记录标签页 -->
 			<div class="tab-switcher">
 				<div style="height: 10px"></div>
-				<list if="{{ historyList.length != 0 }}" class="box" bounces="true">
+				<list if="{{ historyList.length != 0 }}" id="historyScroll" class="box" bounces="true">
 					<list-item for="{{ historyList }}" class="item" type="list-item">
 						<scroll class="swipe-item" scroll-x="true" id="history_scroll_{{ $idx }}" @scroll="(event) => onHistoryScroll(event.scrollX, $idx)">
 							<div class="swipe-content" @click="toHistoryPhoto($item)">
@@ -108,6 +131,29 @@
 								<image src="/common/del.png" class="delete-icon"></image>
 							</div>
 						</scroll>
+					</list-item>
+					<list-item type="pagination" class="pagination-wrapper" if="{{ historyTotalPages() > 1 }}">
+						<div class="pagination-controls">
+							<div
+								class="{{ historyPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
+								@click="changeHistoryPage(historyPage - 1)"
+							>
+								<text class="{{ historyPage > 1 ? 'text-normal' : 'text-disabled' }}">
+									{{ $t("offline.up") }}
+								</text>
+							</div>
+							<text class="page-indicator">
+								{{ $t("offline.pageIndicator", { page: historyPage }) }}
+							</text>
+							<div
+								class="{{ historyPage < historyTotalPages() ? 'pagination-button' : 'pagination-button-disabled' }}"
+								@click="changeHistoryPage(historyPage + 1)"
+							>
+								<text class="{{ historyPage < historyTotalPages() ? 'text-normal' : 'text-disabled' }}">
+									{{ $t("offline.down") }}
+								</text>
+							</div>
+						</div>
 					</list-item>
 					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
 				</list>
@@ -131,6 +177,8 @@ import { readComics, writeComics, readHistory, writeHistory } from "../../compon
 
 const { getTime } = global;
 
+const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10;
+
 let del;
 
 function formatFileSize(size) {
@@ -153,7 +201,12 @@ let delHistoryId;
 export default {
 	private: {
 		time: "",
+		allComics: [],
 		comicsList: [],
+		comicsPage: 1,
+		allHistory: [],
+		historyList: [],
+		historyPage: 1,
 		storage: "",
 		storagePercent: 0,
 		storageUsed: "",
@@ -171,7 +224,6 @@ export default {
 		storageLoaded: false,
 		isLoading: false,
 		currentTab: "offline",
-		historyList: [],
 		isLoadingHistory: false,
 		openedComicsIndex: -1,
 		openedHistoryIndex: -1,
@@ -237,14 +289,68 @@ export default {
 				if (!Array.isArray(historyList)) {
 					historyList = [];
 				}
-				this.historyList = historyList.filter(item => !item.local);
+				this.allHistory = historyList.filter(item => !item.local);
+				if (this.historyPage > this.historyTotalPages()) {
+					this.historyPage = this.historyTotalPages();
+				}
+				this.updateHistoryList();
 				this.isLoadingHistory = false;
 			},
 			() => {
-				this.historyList = [];
+				this.allHistory = [];
+				this.historyPage = 1;
+				this.updateHistoryList();
 				this.isLoadingHistory = false;
 			}
 		);
+	},
+
+	historyTotalPages() {
+		return Math.max(1, Math.ceil(this.allHistory.length / PAGE_SIZE));
+	},
+
+	comicsTotalPages() {
+		return Math.max(1, Math.ceil(this.allComics.length / PAGE_SIZE));
+	},
+
+	updateHistoryList() {
+		const start = (this.historyPage - 1) * PAGE_SIZE;
+		this.historyList = this.allHistory.slice(start, start + PAGE_SIZE);
+		this.openedHistoryIndex = -1;
+		this.$nextTick(() => {
+			const el = this.$element("historyScroll");
+			if (el) {
+				el.scrollTo({ index: 0, smooth: false });
+			}
+		});
+	},
+
+	updateComicsList() {
+		const start = (this.comicsPage - 1) * PAGE_SIZE;
+		this.comicsList = this.allComics.slice(start, start + PAGE_SIZE);
+		this.openedComicsIndex = -1;
+		this.$nextTick(() => {
+			const el = this.$element("comicsScroll");
+			if (el) {
+				el.scrollTo({ index: 0, smooth: false });
+			}
+		});
+	},
+
+	changeHistoryPage(targetPage) {
+		if (targetPage < 1 || targetPage > this.historyTotalPages() || targetPage === this.historyPage) {
+			return;
+		}
+		this.historyPage = targetPage;
+		this.updateHistoryList();
+	},
+
+	changeComicsPage(targetPage) {
+		if (targetPage < 1 || targetPage > this.comicsTotalPages() || targetPage === this.comicsPage) {
+			return;
+		}
+		this.comicsPage = targetPage;
+		this.updateComicsList();
 	},
 
 	formatTime(timestamp) {
@@ -298,8 +404,12 @@ export default {
 			});
 
 			// 从列表中删除
-			const newList = this.historyList.filter(item => item.id !== id);
-			this.historyList = newList;
+			const newList = this.allHistory.filter(item => item.id !== id);
+			this.allHistory = newList;
+			if (this.historyPage > this.historyTotalPages()) {
+				this.historyPage = this.historyTotalPages();
+			}
+			this.updateHistoryList();
 
 			// 保存到文件
 			writeHistory(newList).then(
@@ -346,7 +456,11 @@ export default {
 				console.log(`读取comics.json失败, code = ${err.code}`);
 			}
 			const stats = await this.getStorage(comics);
-			this.comicsList = comics;
+			this.allComics = comics;
+			if (this.comicsPage > this.comicsTotalPages()) {
+				this.comicsPage = this.comicsTotalPages();
+			}
+			this.updateComicsList();
 			this.totalStorage = stats.totalStorage;
 			this.storageTotal = stats.storageTotal;
 			this.systemReserved = stats.systemReserved;
@@ -899,6 +1013,63 @@ export default {
 .meta {
 	font-size: 20px;
 	color: rgba(255, 255, 255, 0.6);
+}
+
+.pagination-wrapper {
+	height: 70px;
+	margin-top: 10px;
+	margin-bottom: 20px;
+}
+
+.pagination-controls {
+	display: flex;
+	flex-direction: row;
+	justify-content: space-around;
+	align-items: center;
+	width: 100%;
+}
+
+.pagination-button {
+	height: 56px;
+	width: 100px;
+	border-radius: 100%;
+	border: 3px rgba(255, 255, 255, 0.24);
+	background-color: #262626;
+	justify-content: center;
+	align-items: center;
+}
+
+.pagination-button-disabled {
+	height: 56px;
+	width: 100px;
+	border-radius: 100%;
+	border: 3px rgba(255, 255, 255, 0.06);
+	background-color: rgba(38, 38, 38, 0.12);
+	justify-content: center;
+	align-items: center;
+}
+
+.text-normal {
+	font-size: 24px;
+	color: #ffffff;
+	font-weight: bold;
+}
+
+.text-disabled {
+	font-size: 24px;
+	color: #555555;
+}
+
+.page-indicator {
+	font-size: 26px;
+	color: rgba(255, 255, 255, 0.8);
+	font-weight: bold;
+}
+
+@media (shape: circle) {
+	.pagination-controls {
+		justify-content: center;
+	}
 }
 
 /* 圆形手表适配 */
