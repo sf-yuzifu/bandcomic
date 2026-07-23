@@ -63,7 +63,7 @@ export function readHistory() {
 }
 
 export function writeHistory(list) {
-	return writeJsonFile(HISTORY_URI, list, 2);
+	return writeJsonFile(HISTORY_URI, list);
 }
 
 export function readSources() {
