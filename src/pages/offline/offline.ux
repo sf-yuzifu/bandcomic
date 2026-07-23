@@ -336,12 +336,30 @@ export default {
 		const fileExists = await this.checkFileExists();
 
 		if (fileExists) {
+			let comics = [];
 			try {
-				this.comicsList = await readComics();
+				comics = await readComics();
+				if (!Array.isArray(comics)) {
+					comics = [];
+				}
 			} catch (err) {
 				console.log(`读取comics.json失败, code = ${err.code}`);
 			}
-			await this.getStorage();
+			const stats = await this.getStorage(comics);
+			this.comicsList = comics;
+			this.totalStorage = stats.totalStorage;
+			this.storageTotal = stats.storageTotal;
+			this.systemReserved = stats.systemReserved;
+			this.actualTotal = stats.actualTotal;
+			this.storage = stats.storage;
+			this.comicsUsed = stats.comicsUsed;
+			this.comicsUsedPercent = stats.comicsUsedPercent;
+			this.storageUsed = stats.storageUsed;
+			this.actualUsedPercent = stats.actualUsedPercent;
+			this.otherUsed = stats.otherUsed;
+			this.remaining = stats.remaining;
+			this.systemReservedPercent = stats.systemReservedPercent;
+			this.storageLoaded = true;
 		}
 		this.isLoading = false;
 	},
@@ -353,7 +371,7 @@ export default {
 		);
 	},
 
-	async getStorage() {
+	async getStorage(comics) {
 		let totalStorage = 0;
 		let availableStorage = 0;
 
@@ -378,23 +396,37 @@ export default {
 			}),
 		]);
 
+		const stats = {
+			totalStorage: 0,
+			storageTotal: "",
+			systemReserved: "",
+			actualTotal: "",
+			storage: "",
+			comicsUsed: "",
+			comicsUsedPercent: 0,
+			storageUsed: "",
+			actualUsedPercent: 0,
+			otherUsed: "",
+			remaining: "",
+			systemReservedPercent: 25,
+		};
+
 		if (totalResult) {
 			totalStorage = totalResult.totalStorage;
-			this.totalStorage = totalStorage;
 			const systemReserved = global.getReservedSpace(totalStorage);
-			const actualTotal = totalStorage - systemReserved;
-			this.storageTotal = formatFileSize(totalStorage);
-			this.systemReserved = formatFileSize(systemReserved);
-			this.actualTotal = formatFileSize(actualTotal);
+			stats.totalStorage = totalStorage;
+			stats.storageTotal = formatFileSize(totalStorage);
+			stats.systemReserved = formatFileSize(systemReserved);
+			stats.actualTotal = formatFileSize(totalStorage - systemReserved);
 		}
 
 		if (availableResult) {
 			availableStorage = availableResult.availableStorage;
-			this.storage = formatFileSize(availableStorage);
+			stats.storage = formatFileSize(availableStorage);
 		}
 
 		const comicsSizeResults = await Promise.all(
-			this.comicsList.map((comic, index) => {
+			comics.map((comic, index) => {
 				return new Promise((resolve) => {
 					file.get({
 						uri: `internal://files/${comic.id}`,
@@ -439,17 +471,17 @@ export default {
 			const systemReserved = global.getReservedSpace(totalStorage);
 			const actualTotal = totalStorage - systemReserved;
 			const actualAvailable = Math.max(0, availableStorage - systemReserved);
-			this.comicsUsed = formatFileSize(comicsTotalSize);
+			stats.comicsUsed = formatFileSize(comicsTotalSize);
 			// 统一基于 totalStorage 计算百分比，确保进度条显示正确
-			this.comicsUsedPercent = Math.floor((comicsTotalSize / totalStorage) * 100);
-			this.storageUsed = formatFileSize(actualTotal - actualAvailable);
-			this.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / totalStorage) * 100);
-			this.otherUsed = formatFileSize(Math.max(0, actualTotal - actualAvailable - comicsTotalSize));
-			this.remaining = formatFileSize(actualAvailable);
-			this.systemReservedPercent = Math.floor((systemReserved / totalStorage) * 100);
+			stats.comicsUsedPercent = Math.floor((comicsTotalSize / totalStorage) * 100);
+			stats.storageUsed = formatFileSize(actualTotal - actualAvailable);
+			stats.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / totalStorage) * 100);
+			stats.otherUsed = formatFileSize(Math.max(0, actualTotal - actualAvailable - comicsTotalSize));
+			stats.remaining = formatFileSize(actualAvailable);
+			stats.systemReservedPercent = Math.floor((systemReserved / totalStorage) * 100);
 		}
 
-		this.storageLoaded = true;
+		return stats;
 	},
 
 	toPhoto(val) {
