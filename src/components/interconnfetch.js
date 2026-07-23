@@ -1,4 +1,5 @@
 import { safeJsonParse } from "./jsonUtils";
+import { base64ToBytes } from "./base64";
 
 const FETCH_TAG = "fetch";
 const FETCH_CHUNK_TAG = "fetch-chunk";
@@ -27,37 +28,6 @@ try {
   fileModule = require("@system.file");
 } catch (e) {
   fileModule = null;
-}
-
-function base64ToBytes(base64) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  const lookup = {};
-  for (let i = 0; i < chars.length; i++) {
-    lookup[chars[i]] = i;
-  }
-  base64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
-  const len = base64.length;
-  let padding = 0;
-  if (len > 0 && base64.charAt(len - 1) === "=") padding++;
-  if (len > 1 && base64.charAt(len - 2) === "=") padding++;
-  let bufLen = Math.floor((len * 3) / 4 - padding);
-  if (bufLen < 0) bufLen = 0;
-  const bytes = new Uint8Array(bufLen);
-  let p = 0;
-  for (let i = 0; i < len; i += 4) {
-    const enc1 = lookup[base64.charAt(i)];
-    const enc2 = lookup[base64.charAt(i + 1)];
-    const enc3 = lookup[base64.charAt(i + 2)];
-    const enc4 = lookup[base64.charAt(i + 3)];
-    bytes[p++] = (enc1 << 2) | (enc2 >> 4);
-    if (base64.charAt(i + 2) !== "=") {
-      bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
-    }
-    if (base64.charAt(i + 3) !== "=") {
-      bytes[p++] = ((enc3 & 3) << 6) | enc4;
-    }
-  }
-  return bytes;
 }
 
 function hexDecode(hex) {

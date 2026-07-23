@@ -8,6 +8,7 @@ import {
   writeCookie,
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
+import { base64Encode, base64ToBytes } from "./base64";
 
 function detectImageFormat(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
@@ -30,24 +31,6 @@ function detectImageFormat(bytes) {
     return "image/webp";
   if (bytes[0] === 0x42 && bytes[1] === 0x4d) return "image/bmp";
   return "image/jpeg";
-}
-
-function base64Encode(input) {
-  const chars =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-  const bytes = new Uint8Array(input);
-  const len = bytes.length;
-  let result = "";
-  for (let i = 0; i < len; i += 3) {
-    const b1 = bytes[i];
-    const b2 = i + 1 < len ? bytes[i + 1] : 0;
-    const b3 = i + 2 < len ? bytes[i + 2] : 0;
-    result += chars[b1 >> 2];
-    result += chars[((b1 & 3) << 4) | (b2 >> 4)];
-    result += i + 1 < len ? chars[((b2 & 15) << 2) | (b3 >> 6)] : "=";
-    result += i + 2 < len ? chars[b3 & 63] : "=";
-  }
-  return result;
 }
 
 function replaceIfDuplicate(configArray, newConfigObject) {
@@ -767,50 +750,9 @@ export function createDataBridge(interConnect) {
     _importState = null;
   }
 
-  function base64DecodeToBytes(base64) {
-    const chars =
-      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    const lookup = {};
-    for (let i = 0; i < chars.length; i++) {
-      lookup[chars[i]] = i;
-    }
-
-    // 统一清洗：只保留 base64 有效字符（含 = 填充符）
-    base64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
-
-    const len = base64.length;
-    let padding = 0;
-    if (len > 0 && base64.charAt(len - 1) === "=") padding++;
-    if (len > 1 && base64.charAt(len - 2) === "=") padding++;
-
-    let bufLen = (len * 3) / 4 - padding;
-    bufLen = Math.floor(bufLen);
-    if (bufLen < 0) bufLen = 0;
-
-    const bytes = new Uint8Array(bufLen);
-    let p = 0;
-
-    for (let i = 0; i < len; i += 4) {
-      const enc1 = lookup[base64.charAt(i)];
-      const enc2 = lookup[base64.charAt(i + 1)];
-      const enc3 = lookup[base64.charAt(i + 2)];
-      const enc4 = lookup[base64.charAt(i + 3)];
-
-      bytes[p++] = (enc1 << 2) | (enc2 >> 4);
-      if (base64.charAt(i + 2) !== "=") {
-        bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);
-      }
-      if (base64.charAt(i + 3) !== "=") {
-        bytes[p++] = ((enc3 & 3) << 6) | enc4;
-      }
-    }
-
-    return bytes;
-  }
-
   function writeBinaryFromBase64(fileUri, base64Data, onSuccess, onFail) {
     try {
-      const bytes = base64DecodeToBytes(base64Data);
+      const bytes = base64ToBytes(base64Data);
       if (bytes.length === 0) {
         console.log(fileUri + " 解码后为空");
         prompt.showToast({ message: "解码失败: 数据为空", duration: 1500 });
