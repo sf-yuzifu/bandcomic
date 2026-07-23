@@ -215,8 +215,7 @@ export default {
 		downloadChapter: "",
 		chapterList: [],
 		pickerValues: [],
-		hasReachedBottom: 0,
-		hasReachedTop: 0,
+		reachedEdge: null,
 		pos: [0, 0],
 	},
 
@@ -357,8 +356,7 @@ export default {
 		const page = this.page;
 
 		if (this.local) {
-			this.hasReachedBottom = 0;
-			this.hasReachedTop = 0;
+			this.reachedEdge = null;
 			this.pos = [0, 0];
 			if (this.is_serial) {
 				const chapterNum = this.downloadChapter[this.chapter - 1][2];
@@ -399,10 +397,9 @@ export default {
 				if (page != this.page) {
 					return;
 				}
-				this.images = response.data;
-				this.hasReachedBottom = 0;
-				this.hasReachedTop = 0;
-				this.pos = [0, 0];
+			this.images = response.data;
+			this.reachedEdge = null;
+			this.pos = [0, 0];
 			},
 			fail: () => {
 				if (page != this.page) {
@@ -640,56 +637,32 @@ export default {
 			top: 1,
 			left: 0,
 		});
-		this.hasReachedBottom = 0;
-		this.hasReachedTop = 0;
+		this.reachedEdge = null;
 		this.pos = [0, 0];
 	},
 
 	async onScroll(val) {
 		if (!this.images) {
-			// console.log(this.images);
 			return;
 		}
-		if (this.pos[1] == val.scrollY) {
-			// console.log(this.pos[1], val.scrollY);
-			this.pos[0] = val.scrollX;
-			return;
-		}
-		if (this.pos[0] != val.scrollX) {
-			// console.log(this.pos[0], val.scrollX);
-			this.pos[1] = val.scrollY;
-			return;
-		}
-		// if (val.scrollX < 0 && val.scrollY == 0) return;
+		const [prevX, prevY] = this.pos;
 		this.pos = [val.scrollX, val.scrollY];
-		const self = this;
+		// 只处理纯纵向滚动（横向/斜向滚动忽略）
+		if (prevY === val.scrollY || prevX !== val.scrollX) return;
+
 		this.$element("scrollId").getScrollRect({
-			success({ width, height }) {
+			success: ({ width, height }) => {
+				// 横向 overscroll 回弹期间不触发翻页
 				if (val.scrollX + global.screenSize.width > width) return;
-				if (val.scrollY + global.screenSize.height >= height) {
-					if (val.scrollY + global.screenSize.height == height) {
-						if (self.hasReachedBottom > 0) {
-							self.toPage("+");
-						} else {
-							self.hasReachedBottom++;
-							self.hasReachedTop = 0;
-							// console.log("到底部了1", self.hasReachedBottom);
-						}
-					} else {
-						// console.log("到底部了", self.hasReachedBottom);
-					}
-				} else if (val.scrollY <= 0) {
-					if (val.scrollY == 0) {
-						if (self.hasReachedTop > 0) {
-							self.toPage("-");
-						} else {
-							self.hasReachedTop++;
-							self.hasReachedBottom = 0;
-							// console.log("到顶部了1", self.hasReachedTop);
-						}
-					} else {
-						// console.log("到顶部了", self.hasReachedTop);
-					}
+				const atBottom = val.scrollY + global.screenSize.height === height;
+				const atTop = val.scrollY === 0;
+				if (!atBottom && !atTop) return;
+				const edge = atBottom ? "bottom" : "top";
+				// 同一边缘连续到达两次才翻页；触发后保持戒备状态（加载成功后才重置），换边则重新计数
+				if (this.reachedEdge === edge) {
+					this.toPage(atBottom ? "+" : "-");
+				} else {
+					this.reachedEdge = edge;
 				}
 			},
 		});
