@@ -1,16 +1,23 @@
 <template>
 	<div class="container">
-		<scroll
-			scroll-x="false"
-			scroll-y="false"
+		<div
 			id="mask"
 			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
 		>
 			<image
-				style="top: 100px"
+				style="top: 300px; width: 926px; height: 926px"
 				src="/common/{{ processing ? 'success':'dling' }}_s4.png"
 			></image>
-		</scroll>
+		</div>
+		<div
+			id="mask"
+			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
+		>
+			<image
+				style="top: 300px; width: 926px; height: 926px"
+				src="/common/fail_s4.png"
+			></image>
+		</div>
 
 		<text class="time">{{ time }}</text>
 
@@ -130,11 +137,6 @@
 			</text>
 			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
 		</div>
-		<image
-			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
-			id="mask"
-			src="/common/fail_s4.png"
-		></image>
 		<div
 			class="downloading"
 			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
@@ -599,41 +601,54 @@ export default {
 				global.APP_SETTING.imagePreTranscode ? ".bin" : ""
 			}`;
 
-			apiFetch({
-				url: appendLvglSuffix(
-					imageUrl,
-					`${global.API_SETTING.using}_${this.id}${
-						this.chapter ? "_ch" + this.chapter : ""
-					}_p${page}`
-				),
-				responseType: "file",
-				success: (response) => {
-					if (response.data) {
-						file.move({
-							srcUri: response.data,
-							dstUri: fileUri,
-							success: () => {
-								console.log(`图片保存成功: ${fileUri}`);
-								resolve();
-							},
-							fail: (data, code) => {
-								reject(this.$t("download.moveImageFailed", { code: code }));
-							},
-						});
-					} else {
-						reject(this.$t("download.emptyImageData"));
-					}
+			const startFetch = () => {
+				apiFetch({
+					url: appendLvglSuffix(
+						imageUrl,
+						`${global.API_SETTING.using}_${this.id}${
+							this.chapter ? "_ch" + this.chapter : ""
+						}_p${page}`
+					),
+					responseType: "file",
+					success: (response) => {
+						if (response.data) {
+							file.move({
+								srcUri: response.data,
+								dstUri: fileUri,
+								success: () => {
+									console.log(`图片保存成功: ${fileUri}`);
+									resolve();
+								},
+								fail: (data, code) => {
+									reject(this.$t("download.moveImageFailed", { code: code }));
+								},
+							});
+						} else {
+							reject(this.$t("download.emptyImageData"));
+						}
+					},
+					fail: (data, code) => {
+						this.retryOnFail(code, retryCount, {
+							label: "下载图片失败",
+							retry: (count) => this.downloadPage(page, folderUri, count),
+							timeoutMessage: this.$t("download.downloadTimeoutFailed"),
+							failMessage: (errCode) =>
+								this.$t("download.downloadFailed") + errCode,
+						})
+							.then(resolve)
+							.catch(reject);
+					},
+				});
+			};
+
+			file.access({
+				uri: fileUri,
+				success: () => {
+					console.log(`图片已存在，跳过下载: ${fileUri}`);
+					resolve();
 				},
-				fail: (data, code) => {
-					this.retryOnFail(code, retryCount, {
-						label: "下载图片失败",
-						retry: (count) => this.downloadPage(page, folderUri, count),
-						timeoutMessage: this.$t("download.downloadTimeoutFailed"),
-						failMessage: (errCode) =>
-							this.$t("download.downloadFailed", { code: errCode }),
-					})
-						.then(resolve)
-						.catch(reject);
+				fail: () => {
+					startFetch();
 				},
 			});
 		});
@@ -835,7 +850,10 @@ export default {
 
 	#mask {
 		position: absolute;
+		width: 100%;
 		height: 100%;
+		align-items: center;
+		overflow: hidden;
 	}
 
 	.dl-text {

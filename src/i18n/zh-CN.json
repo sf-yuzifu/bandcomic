@@ -108,7 +108,7 @@
         "downloadTimeout": "网络超时，正在重试第 {count} 次...",
         "networkErrorRetry": "网络错误，正在重试第 {count} 次...",
         "downloadTimeoutFailed": "下载超时，已重试3次仍失败",
-        "downloadFailed": "下载图片失败，错误码：{code}",
+        "downloadFailed": "下载失败",
         "fetchListTimeoutFailed": "获取图片列表超时，已重试3次仍失败",
         "fetchListFailed": "获取图片列表失败，错误码：{code}",
         "coverTimeoutFailed": "下载封面超时，已重试3次仍失败",
