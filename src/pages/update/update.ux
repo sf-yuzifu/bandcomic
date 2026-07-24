@@ -122,7 +122,7 @@ export default {
 
 	checkAgain() {
 		prompt.showToast({ message: this.$t("update.checking") });
-		checkUpdate().then((info) => {
+		checkUpdate(true).then((info) => {
 			if (info) {
 				this.applyUpdateInfo(info);
 				prompt.showToast({ message: this.$t("update.hasUpdate") });

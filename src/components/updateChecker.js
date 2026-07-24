@@ -1,6 +1,12 @@
 import app from "@system.app";
 import fetch from "./interconnfetch";
 
+const CHECK_INTERVAL = 5 * 60 * 1000;
+const FAIL_RETRY_INTERVAL = 60 * 1000;
+
+let lastCheckTime = 0;
+let lastCheckOk = false;
+
 function getUpdateUrl() {
   return global.UPDATE_CHECK_URL;
 }
@@ -46,13 +52,21 @@ function normalizeUpdateInfo(data) {
   };
 }
 
-export function checkUpdate() {
+export function checkUpdate(force) {
   return new Promise((resolve) => {
     const url = getUpdateUrl();
     if (!url) {
       resolve(null);
       return;
     }
+
+    const now = Date.now();
+    const interval = lastCheckOk ? CHECK_INTERVAL : FAIL_RETRY_INTERVAL;
+    if (!force && lastCheckTime && now - lastCheckTime < interval) {
+      resolve(null);
+      return;
+    }
+    lastCheckTime = now;
 
     fetch.fetch({
       url: url,
@@ -61,6 +75,7 @@ export function checkUpdate() {
         "User-Agent": global.userAgent(),
       },
       success: (response) => {
+        lastCheckOk = true;
         const info = normalizeUpdateInfo(response.data);
         if (info) {
           global.pendingUpdateInfo = info;
@@ -68,6 +83,7 @@ export function checkUpdate() {
         resolve(info);
       },
       fail: () => {
+        lastCheckOk = false;
         resolve(null);
       },
     });
