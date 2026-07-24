@@ -8,15 +8,15 @@ let deviceInfo = {};
 const screenSize = { width: 0, height: 0 };
 
 global.API_SETTING = {
-	MangaDex: {
-		name: "MangaDex",
-		apiUrl: "https://mangadex.yzf.moe",
-		detailPath: "/comic/<id>",
-		photoPath: "/photo/<id>/ch/<chapter>",
-		searchPath: "/search/<text>/<page>",
-		type: "mangedex",
-	},
-	using: "MangaDex",
+  MangaDex: {
+    name: "MangaDex",
+    apiUrl: "https://mangadex.yzf.moe",
+    detailPath: "/comic/<id>",
+    photoPath: "/photo/<id>/ch/<chapter>",
+    searchPath: "/search/<text>/<page>",
+    type: "mangedex",
+  },
+  using: "MangaDex",
 };
 
 global.buildin = ["MangaDex"];
@@ -30,63 +30,63 @@ global.pendingUpdateInfo = null;
 global.deviceReservedSpace = DEVICE_RESERVED_SPACE;
 
 global.getReservedSpace = function (totalStorage) {
-	const product = deviceInfo.product;
-	const reserved = global.deviceReservedSpace[product];
-	if (typeof reserved === "number" && reserved < 1) {
-		return Math.floor(totalStorage * reserved);
-	}
-	return reserved || 0;
+  const product = deviceInfo.product;
+  const reserved = global.deviceReservedSpace[product];
+  if (typeof reserved === "number" && reserved < 1) {
+    return Math.floor(totalStorage * reserved);
+  }
+  return reserved || 0;
 };
 
 global.isXiaomiSmartBand10Pro = function () {
-	return deviceInfo.product === "Xiaomi Smart Band 10 Pro";
+  return deviceInfo.product === "Xiaomi Smart Band 10 Pro";
 };
 
 global.applyDeviceRecommendedSettings = function () {
-	if (global.APP_SETTING && global.isXiaomiSmartBand10Pro()) {
-		global.APP_SETTING.imageUsePng = true;
-	}
+  if (global.APP_SETTING && global.isXiaomiSmartBand10Pro()) {
+    global.APP_SETTING.imageUsePng = true;
+  }
 };
 
 device.getInfo({
-	success: function (deviceRet) {
-		screenSize.width = deviceRet.screenWidth;
-		screenSize.height = deviceRet.screenHeight;
-		global.screenShape = deviceRet.screenShape;
-		global.screenSize = screenSize;
-		deviceInfo = {
-			product: deviceRet.product,
-			brand: deviceRet.brand,
-			osType: deviceRet.osType,
-			osVersionName: deviceRet.osVersionName,
-			osVersionCode: deviceRet.osVersionCode,
-			language: deviceRet.language,
-			region: deviceRet.region,
-		};
-		global.applyDeviceRecommendedSettings();
-	},
+  success: function (deviceRet) {
+    screenSize.width = deviceRet.screenWidth;
+    screenSize.height = deviceRet.screenHeight;
+    global.screenShape = deviceRet.screenShape;
+    global.screenSize = screenSize;
+    deviceInfo = {
+      product: deviceRet.product,
+      brand: deviceRet.brand,
+      osType: deviceRet.osType,
+      osVersionName: deviceRet.osVersionName,
+      osVersionCode: deviceRet.osVersionCode,
+      language: deviceRet.language,
+      region: deviceRet.region,
+    };
+    global.applyDeviceRecommendedSettings();
+  },
 });
 
 global.userAgent = function () {
-	return `${appInfo.packageName}(${appInfo.versionName}(${appInfo.versionCode}))/${deviceInfo.product}/${deviceInfo.brand}/${deviceInfo.osType}/${deviceInfo.osVersionName}/${deviceInfo.osVersionCode}/${deviceInfo.language}/${deviceInfo.region}`;
+  return `${appInfo.packageName}(${appInfo.versionName}(${appInfo.versionCode}))/${deviceInfo.product}/${deviceInfo.brand}/${deviceInfo.osType}/${deviceInfo.osVersionName}/${deviceInfo.osVersionCode}/${deviceInfo.language}/${deviceInfo.region}`;
 };
 
 global.getTime = function () {
-	const date = new Date();
-	const hour = date.getHours().toString().padStart(2, "0");
-	const minute = date.getMinutes().toString().padStart(2, "0");
-	return hour + ":" + minute;
+  const date = new Date();
+  const hour = date.getHours().toString().padStart(2, "0");
+  const minute = date.getMinutes().toString().padStart(2, "0");
+  return hour + ":" + minute;
 };
 
 global.APP_SETTING = {
-	searchPageSize: "10",
-	imageQuality: "50",
-	imageSize: "600",
-	showCoverInSearch: true,
-	keepDefaultZoom: false,
-	imageUsePng: false,
-	imagePreTranscode: false,
-	imagePreload: false,
+  searchPageSize: "10",
+  imageQuality: "50",
+  imageSize: "600",
+  showCoverInSearch: true,
+  keepDefaultZoom: false,
+  imageUsePng: false,
+  imagePreTranscode: false,
+  imagePreload: false,
 };
 
 export default {};

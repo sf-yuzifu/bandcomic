@@ -84,7 +84,10 @@ function writeBinaryFile(uri, bytes) {
 
 function writeChunkFile(uri, bytes, append) {
   return new Promise((resolve, reject) => {
-    if (!fileModule) { reject(new Error("no file")); return; }
+    if (!fileModule) {
+      reject(new Error("no file"));
+      return;
+    }
     fileModule.writeArrayBuffer({
       uri: uri,
       buffer: bytes,
@@ -105,7 +108,10 @@ function writeChunkFile(uri, bytes, append) {
 
 function readBinaryFile(uri) {
   return new Promise((resolve, reject) => {
-    if (!fileModule) { reject(new Error("no file")); return; }
+    if (!fileModule) {
+      reject(new Error("no file"));
+      return;
+    }
     fileModule.readArrayBuffer({
       uri: uri,
       success: (bufData) => resolve(new Uint8Array(bufData.buffer)),
@@ -116,9 +122,7 @@ function readBinaryFile(uri) {
 
 function checkFetchAvailable() {
   return new Promise((resolve) => {
-    // fetchAvailable = false;
-    // resolve(false);
-    // return;
+    // 调试 interconnect 通道时，可在下一行直接 resolve(false); return; 强制走插件代理
     if (!systemFetch) {
       resolve(false);
       return;
@@ -313,9 +317,11 @@ class InterconnFetchClient {
           };
 
           if (req.chunkPromises && req.chunkPromises.length > 0) {
-            Promise.all(req.chunkPromises).then(finish).catch(function (e) {
-              req.reject(new Error("chunk write failed: " + e));
-            });
+            Promise.all(req.chunkPromises)
+              .then(finish)
+              .catch(function (e) {
+                req.reject(new Error("chunk write failed: " + e));
+              });
           } else {
             finish();
           }
@@ -396,7 +402,12 @@ class InterconnFetchClient {
           reject(err);
         }
       };
-      this.requests.set(id, { resolve: onceResolve, reject: onceReject, settled: false, onChunk: onChunk || null });
+      this.requests.set(id, {
+        resolve: onceResolve,
+        reject: onceReject,
+        settled: false,
+        onChunk: onChunk || null,
+      });
       this.conn.send({
         data: {
           tag: FETCH_TAG,
@@ -477,16 +488,7 @@ export default {
       if (fetchAvailable) {
         return systemFetch.fetch(params);
       }
-      const {
-        url,
-        method,
-        header,
-        body,
-        responseType,
-        success,
-        fail,
-        complete,
-      } = params;
+      const { url, method, header, body, responseType, success, fail, complete } = params;
       const options = {
         method: method || "GET",
         headers: header || {},
@@ -495,7 +497,7 @@ export default {
       };
       try {
         const chunkFiles = [];
-        const finalUri = (responseType === "file") ? getTempUri(url) : null;
+        const finalUri = responseType === "file" ? getTempUri(url) : null;
         let onChunk = null;
         if (responseType === "file") {
           onChunk = async function (bytes, seq) {
@@ -525,7 +527,9 @@ export default {
                 let buf = await readBinaryFile(chunkFiles[i]);
                 await writeChunkFile(finalUri, buf, i > 0);
                 buf = null;
-                try { fileModule.delete({ uri: chunkFiles[i] }); } catch (e) {}
+                try {
+                  fileModule.delete({ uri: chunkFiles[i] });
+                } catch (e) {}
               }
               data = finalUri;
             } else if (data instanceof Uint8Array) {

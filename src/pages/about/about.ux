@@ -1,259 +1,190 @@
 <template>
-	<div class="container">
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="leftButton top"
-			src="/common/back.png"
-			@click="routeBack"
-		/>
-		<text class="time">{{ time }}</text>
-		<text
-			@click="
-				() => {
-					if (global.screenShape == 'circle') {
-						routeBack();
-					}
-				}
-			"
-			class="title"
-		>
-			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
-				&#xe685;
-			</span>
-			<span>{{ $t("about") }}</span>
-		</text>
-		<div style="height: 6px"></div>
-		<div class="box">
-			<scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
-				<div id="info">
-					<div id="inner">
-						<text class="bold" style="color: #fff; font-size: 30px">
-							{{ $t("appName") }}
-						</text>
-						<text id="version" class="re">{{ ver }}({{ code }})</text>
-					</div>
-					<div id="logo-container">
-						<image id="logo" style="width: 76px" src="/common/logo.png" />
-					</div>
-				</div>
-				<div id="copyright">
-					<text class="re bold">
-						<span>{{ $t("author") }}</span>
-						<!-- 这里是占位符 -->
-						<span style="color: transparent">2</span>
-						<span class="bold" style="color: #fff">小鱼yuzifu</span>
-					</text>
-					<div style="width: 1px; height: 10px"></div>
-					<text class="re bold">{{ $t("tks") }}</text>
-					<text class="bold" style="color: #fff">OrPudding</text>
-					<text class="bold" style="color: #fff">NEORUAA</text>
-					<text class="bold" style="color: #fff">无源流沙</text>
-				</div>
-				<div class="settings">
-					<text class="re bold setting-title">
-						{{ $t("setting") }}
-					</text>
-					<div class="setting-item">
-						<div class="setting-item-content">
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-title"
-							>
-								{{ $t("settings.searchPageSize") }}
-							</marquee>
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-info"
-							>
-								{{ $t("settings.info.searchPageSize") }}
-							</marquee>
-						</div>
-						<picker
-							class="picker"
-							type="text"
-							range="{{ pickerList1 }}"
-							selected="{{ pickerList1.indexOf(global.APP_SETTING.searchPageSize) }}"
-							onchange="onPicker1Change"
-						></picker>
-					</div>
-					<div class="setting-item">
-						<div class="setting-item-content">
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-title"
-							>
-								{{ $t("settings.imageQuality") }}
-							</marquee>
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-info"
-							>
-								{{ $t("settings.info.imageQuality") }}
-							</marquee>
-						</div>
-						<picker
-							class="picker"
-							type="text"
-							range="{{ pickerList2 }}"
-							selected="{{ pickerList2.indexOf(global.APP_SETTING.imageQuality) }}"
-							onchange="onPicker2Change"
-						></picker>
-					</div>
-					<div class="setting-item">
-						<div class="setting-item-content">
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-title"
-							>
-								{{ $t("settings.imageSize") }}
-							</marquee>
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-info"
-							>
-								{{ $t("settings.info.imageSize") }}
-							</marquee>
-						</div>
-						<picker
-							class="picker"
-							type="text"
-							range="{{ pickerList3 }}"
-							selected="{{ pickerList3.indexOf(global.APP_SETTING.imageSize) }}"
-							onchange="onPicker3Change"
-						></picker>
-					</div>
-					<div class="setting-item">
-						<div class="setting-item-content">
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-title"
-							>
-								{{ $t("settings.showCoverInSearch") }}
-							</marquee>
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-info"
-							>
-								{{ $t("settings.info.showCoverInSearch") }}
-							</marquee>
-						</div>
-						<switch
-							checked="{{ global.APP_SETTING.showCoverInSearch }}"
-							class="switch"
-							@change="onCoverSwitchChange"
-						></switch>
-					</div>
-					<div class="setting-item">
-						<div class="setting-item-content">
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-title"
-							>
-								{{ $t("settings.keepDefaultZoom") }}
-							</marquee>
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-info"
-							>
-								{{ $t("settings.info.keepDefaultZoom") }}
-							</marquee>
-						</div>
-						<switch
-							checked="{{ global.APP_SETTING.keepDefaultZoom }}"
-							class="switch"
-							@change="onZoomSwitchChange"
-						></switch>
-					</div>
-					<div class="setting-item">
-						<div class="setting-item-content">
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-title"
-							>
-								{{ $t("settings.imageUsePng") }}
-							</marquee>
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-info"
-							>
-								{{ $t("settings.info.imageUsePng") }}
-							</marquee>
-						</div>
-						<switch
-							checked="{{ global.APP_SETTING.imageUsePng }}"
-							class="switch"
-							@change="onPngSwitchChange"
-						></switch>
-					</div>
-					<div class="setting-item">
-						<div class="setting-item-content">
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-title"
-							>
-								{{ $t("settings.imagePreTranscode") }}
-							</marquee>
-							<marquee
-								scrollamount="{{ 20 }}"
-								text-offset="{{ 20 }}"
-								class="setting-item-info"
-							>
-								{{ $t("settings.info.imagePreTranscode") }}
-							</marquee>
-						</div>
-					<switch
-						checked="{{ global.APP_SETTING.imagePreTranscode }}"
-						class="switch"
-						@change="onPreTranscodeSwitchChange"
-					></switch>
-				</div>
-				<div class="setting-item">
-					<div class="setting-item-content">
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							class="setting-item-title"
-						>
-							{{ $t("settings.imagePreload") }}
-						</marquee>
-						<marquee
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							class="setting-item-info"
-						>
-							{{ $t("settings.info.imagePreload") }}
-						</marquee>
-					</div>
-					<switch
-						checked="{{ global.APP_SETTING.imagePreload }}"
-						class="switch"
-						@change="onPreloadSwitchChange"
-					></switch>
-				</div>
-			</div>
-				<text
-					class="bold"
-					style="color: #fff; width: 276px; text-align: center; height: 100%"
-				>
-					本项目由米坛社区开源项目支持计划提供支持
-				</text>
-				<div class="padding"></div>
-			</scroll>
-		</div>
-	</div>
+  <div class="container">
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="leftButton top"
+      src="/common/back.png"
+      @click="routeBack"
+    />
+    <text class="time">{{ time }}</text>
+    <text
+      @click="
+        () => {
+          if (global.screenShape == 'circle') {
+            routeBack();
+          }
+        }
+      "
+      class="title"
+    >
+      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span>{{ $t("about") }}</span>
+    </text>
+    <div style="height: 6px"></div>
+    <div class="box">
+      <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+        <div id="info">
+          <div id="inner">
+            <text class="bold" style="color: #fff; font-size: 30px">
+              {{ $t("appName") }}
+            </text>
+            <text id="version" class="re">{{ ver }}({{ code }})</text>
+          </div>
+          <div id="logo-container">
+            <image id="logo" style="width: 76px" src="/common/logo.png" />
+          </div>
+        </div>
+        <div id="copyright">
+          <text class="re bold">
+            <span>{{ $t("author") }}</span>
+            <!-- 这里是占位符 -->
+            <span style="color: transparent">2</span>
+            <span class="bold" style="color: #fff">小鱼yuzifu</span>
+          </text>
+          <div style="width: 1px; height: 10px"></div>
+          <text class="re bold">{{ $t("tks") }}</text>
+          <text class="bold" style="color: #fff">OrPudding</text>
+          <text class="bold" style="color: #fff">NEORUAA</text>
+          <text class="bold" style="color: #fff">无源流沙</text>
+        </div>
+        <div class="settings">
+          <text class="re bold setting-title">
+            {{ $t("setting") }}
+          </text>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.searchPageSize") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.searchPageSize") }}
+              </marquee>
+            </div>
+            <picker
+              class="picker"
+              type="text"
+              range="{{ pickerList1 }}"
+              selected="{{ pickerList1.indexOf(global.APP_SETTING.searchPageSize) }}"
+              onchange="onPicker1Change"
+            ></picker>
+          </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.imageQuality") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.imageQuality") }}
+              </marquee>
+            </div>
+            <picker
+              class="picker"
+              type="text"
+              range="{{ pickerList2 }}"
+              selected="{{ pickerList2.indexOf(global.APP_SETTING.imageQuality) }}"
+              onchange="onPicker2Change"
+            ></picker>
+          </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.imageSize") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.imageSize") }}
+              </marquee>
+            </div>
+            <picker
+              class="picker"
+              type="text"
+              range="{{ pickerList3 }}"
+              selected="{{ pickerList3.indexOf(global.APP_SETTING.imageSize) }}"
+              onchange="onPicker3Change"
+            ></picker>
+          </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.showCoverInSearch") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.showCoverInSearch") }}
+              </marquee>
+            </div>
+            <switch
+              checked="{{ global.APP_SETTING.showCoverInSearch }}"
+              class="switch"
+              @change="onCoverSwitchChange"
+            ></switch>
+          </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.keepDefaultZoom") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.keepDefaultZoom") }}
+              </marquee>
+            </div>
+            <switch
+              checked="{{ global.APP_SETTING.keepDefaultZoom }}"
+              class="switch"
+              @change="onZoomSwitchChange"
+            ></switch>
+          </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.imageUsePng") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.imageUsePng") }}
+              </marquee>
+            </div>
+            <switch
+              checked="{{ global.APP_SETTING.imageUsePng }}"
+              class="switch"
+              @change="onPngSwitchChange"
+            ></switch>
+          </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.imagePreTranscode") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.imagePreTranscode") }}
+              </marquee>
+            </div>
+            <switch
+              checked="{{ global.APP_SETTING.imagePreTranscode }}"
+              class="switch"
+              @change="onPreTranscodeSwitchChange"
+            ></switch>
+          </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.imagePreload") }}
+              </marquee>
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+                {{ $t("settings.info.imagePreload") }}
+              </marquee>
+            </div>
+            <switch
+              checked="{{ global.APP_SETTING.imagePreload }}"
+              class="switch"
+              @change="onPreloadSwitchChange"
+            ></switch>
+          </div>
+        </div>
+        <text class="bold" style="color: #fff; width: 276px; text-align: center; height: 100%">
+          本项目由米坛社区开源项目支持计划提供支持
+        </text>
+        <div class="padding"></div>
+      </scroll>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -264,89 +195,89 @@ import { writeSettings } from "../../components/storage";
 const { getTime } = global;
 
 export default {
-	private: {
-		ver: app.getInfo().versionName,
-		name: app.getInfo().name,
-		code: app.getInfo().versionCode,
-		time: "",
-		pickerList1: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
-		pickerList2: ["30", "35", "40", "45", "50", "55", "60", "65", "70"],
-		pickerList3: [
-			"300",
-			"320",
-			"340",
-			"360",
-			"380",
-			"400",
-			"420",
-			"440",
-			"460",
-			"480",
-			"500",
-			"520",
-			"540",
-			"560",
-			"580",
-			"600",
-			"620",
-			"640",
-			"660",
-			"680",
-			"700",
-		],
-	},
+  private: {
+    ver: app.getInfo().versionName,
+    name: app.getInfo().name,
+    code: app.getInfo().versionCode,
+    time: "",
+    pickerList1: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
+    pickerList2: ["30", "35", "40", "45", "50", "55", "60", "65", "70"],
+    pickerList3: [
+      "300",
+      "320",
+      "340",
+      "360",
+      "380",
+      "400",
+      "420",
+      "440",
+      "460",
+      "480",
+      "500",
+      "520",
+      "540",
+      "560",
+      "580",
+      "600",
+      "620",
+      "640",
+      "660",
+      "680",
+      "700",
+    ],
+  },
 
-	onShow() {
-		this.time = getTime();
-	},
+  onShow() {
+    this.time = getTime();
+  },
 
-	routeBack() {
-		router.back();
-	},
+  routeBack() {
+    router.back();
+  },
 
-	onPicker1Change(value) {
-		global.APP_SETTING.searchPageSize = value.newValue;
-		this.saveSetting();
-	},
+  onPicker1Change(value) {
+    global.APP_SETTING.searchPageSize = value.newValue;
+    this.saveSetting();
+  },
 
-	onPicker2Change(value) {
-		global.APP_SETTING.imageQuality = value.newValue;
-		this.saveSetting();
-	},
+  onPicker2Change(value) {
+    global.APP_SETTING.imageQuality = value.newValue;
+    this.saveSetting();
+  },
 
-	onPicker3Change(value) {
-		global.APP_SETTING.imageSize = value.newValue;
-		this.saveSetting();
-	},
+  onPicker3Change(value) {
+    global.APP_SETTING.imageSize = value.newValue;
+    this.saveSetting();
+  },
 
-	onCoverSwitchChange(value) {
-		global.APP_SETTING.showCoverInSearch = value.checked;
-		this.saveSetting();
-	},
+  onCoverSwitchChange(value) {
+    global.APP_SETTING.showCoverInSearch = value.checked;
+    this.saveSetting();
+  },
 
-	onZoomSwitchChange(value) {
-		global.APP_SETTING.keepDefaultZoom = value.checked;
-		this.saveSetting();
-	},
+  onZoomSwitchChange(value) {
+    global.APP_SETTING.keepDefaultZoom = value.checked;
+    this.saveSetting();
+  },
 
-	onPngSwitchChange(value) {
-		global.APP_SETTING.imageUsePng = value.checked;
-		this.saveSetting();
-	},
+  onPngSwitchChange(value) {
+    global.APP_SETTING.imageUsePng = value.checked;
+    this.saveSetting();
+  },
 
-	onPreTranscodeSwitchChange(value) {
-		global.APP_SETTING.imagePreTranscode = value.checked;
-		this.saveSetting();
-	},
+  onPreTranscodeSwitchChange(value) {
+    global.APP_SETTING.imagePreTranscode = value.checked;
+    this.saveSetting();
+  },
 
-	onPreloadSwitchChange(value) {
-		global.APP_SETTING.imagePreload = value.checked;
-		this.saveSetting();
-	},
+  onPreloadSwitchChange(value) {
+    global.APP_SETTING.imagePreload = value.checked;
+    this.saveSetting();
+  },
 
-	saveSetting() {
-		writeSettings(global.APP_SETTING).catch(() => {});
-	},
+  saveSetting() {
+    writeSettings(global.APP_SETTING).catch(() => {});
+  },
 };
 </script>
 
@@ -354,148 +285,148 @@ export default {
 @import "../../common/base.css";
 
 .container {
-	flex-direction: column;
-	justify-content: flex-start;
-	align-items: center;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 #info {
-	flex-direction: column;
-	justify-content: center;
-	border: 3px solid rgba(255, 255, 255, 0.06);
-	background-color: #262626;
-	border-radius: 20px;
-	padding: 10px 20px;
-	width: 276px;
+  flex-direction: column;
+  justify-content: center;
+  border: 3px solid rgba(255, 255, 255, 0.06);
+  background-color: #262626;
+  border-radius: 20px;
+  padding: 10px 20px;
+  width: 276px;
 }
 
 #logo-container {
-	width: 100%;
-	flex-direction: column;
-	align-items: flex-end;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 #inner {
-	align-items: flex-start;
-	justify-content: space-between;
-	flex-direction: column;
-	width: 100%;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-direction: column;
+  width: 100%;
 }
 
 #logo {
-	width: 60px;
+  width: 60px;
 }
 
 #version {
-	font-size: 24px;
+  font-size: 24px;
 }
 
 #copyright {
-	margin-top: 10px;
-	width: 276px;
-	flex-direction: column;
-	justify-content: center;
-	align-items: flex-start;
+  margin-top: 10px;
+  width: 276px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
 }
 
 .re {
-	color: #999;
+  color: #999;
 }
 
 .bold {
-	font-weight: bold;
+  font-weight: bold;
 }
 
 .box {
-	position: relative;
-	width: 100%;
-	flex: 1;
-	flex-direction: column;
-	align-items: center;
+  position: relative;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
 }
 
 .settings {
-	flex-direction: column;
-	width: 324px;
-	margin-top: 10px;
+  flex-direction: column;
+  width: 324px;
+  margin-top: 10px;
 }
 
 .setting-item {
-	margin-top: 10px;
-	border-radius: 36px;
-	padding: 14px 20px;
-	height: 112px;
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: space-between;
-	background-color: #262626;
+  margin-top: 10px;
+  border-radius: 36px;
+  padding: 14px 20px;
+  height: 112px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #262626;
 }
 
 .setting-title {
-	margin-left: 24px;
+  margin-left: 24px;
 }
 
 .setting-item-content {
-	display: flex;
-	flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .setting-item-title {
-	font-size: 32px;
-	color: #fff;
-	font-weight: bold;
+  font-size: 32px;
+  color: #fff;
+  font-weight: bold;
 }
 
 .setting-item-info {
-	font-size: 28px;
-	font-weight: bold;
-	margin-top: 5px;
-	color: rgba(255, 255, 255, 0.6);
+  font-size: 28px;
+  font-weight: bold;
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .padding {
-	height: 10px;
+  height: 10px;
 }
 
 .picker {
-	width: 72px;
-	margin-left: 10px;
-	selected-font-size: 32px;
-	selected-color: #fff;
+  width: 72px;
+  margin-left: 10px;
+  selected-font-size: 32px;
+  selected-color: #fff;
 }
 
 .switch {
-	height: 36px;
-	margin-left: 10px;
-	flex-basis: 72px;
+  height: 36px;
+  margin-left: 10px;
+  flex-basis: 72px;
 }
 
 /* 看看是不是小米手表 */
 @media (device-type: watch) and (shape: circle) {
-	.padding {
-		height: 50px;
-	}
+  .padding {
+    height: 50px;
+  }
 
-	.settings {
-		width: 380px;
-	}
+  .settings {
+    width: 380px;
+  }
 
-	#copyright,
-	#info {
-		width: 332px;
-	}
+  #copyright,
+  #info {
+    width: 332px;
+  }
 }
 
 /* 看看是不是红米手表 */
 @media (device-type: watch) and (shape: rect) {
-	.settings {
-		width: 380px;
-	}
+  .settings {
+    width: 380px;
+  }
 
-	#copyright,
-	#info {
-		width: 332px;
-	}
+  #copyright,
+  #info {
+    width: 332px;
+  }
 }
 </style>

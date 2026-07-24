@@ -1,106 +1,98 @@
 <template>
-	<div class="demo-page">
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="leftButton top"
-			src="/common/back.png"
-			@click="routeBack"
-		/>
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="rightButton top"
-			src="/common/info.png"
-			@click="routeAbout"
-		/>
+  <div class="demo-page">
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="leftButton top"
+      src="/common/back.png"
+      @click="routeBack"
+    />
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="rightButton top"
+      src="/common/info.png"
+      @click="routeAbout"
+    />
 
-		<text class="time">{{ time }}</text>
-		<text
-			class="title"
-			@click="
-				() => {
-					if (global.screenShape == 'circle') {
-						routeBack();
-					}
-				}
-			"
-		>
-			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
-				&#xe685;
-			</span>
-			<span>{{ $t("detail.detail") }}</span>
-		</text>
-		<div class="box">
-			<scroll
-				id="scrollId"
-				class="box"
-				scroll-x="true"
-				scroll-y="true"
-				bounces="true"
-			>
-				<image
-					class="cover"
-					@complete="getPhoto"
-					src="{{ cover || '/common/loading.png' }}"
-					alt="/common/loading.png"
-					onclick="toPhoto"
-					style="{{ `width:${size.width}px;height:${size.height}px;` }}"
-				></image>
-				<text class="title1">{{ name }}</text>
-				<div class="detail">
-					<div class="column" if="{{ gid }}">
-						<text class="bold grey">GID</text>
-						<text class="bold">{{ gid.toString() }}</text>
-					</div>
-					<div class="column" else>
-						<text class="bold grey" style="width: 48px">ID</text>
-						<marquee
-							style="font-size: 24px; width: 100%; text-align: right"
-							scrollamount="{{ 20 }}"
-							text-offset="{{ 20 }}"
-							class="bold"
-						>
-							{{ item_id.toString() }}
-						</marquee>
-					</div>
-					<div class="column" if="{{ page_count }}">
-						<text class="bold grey">{{ $t("detail.page_count") }}</text>
-						<text class="bold">{{ page_count }}</text>
-					</div>
-					<div class="column" if="{{ total_chapters > 1 }}">
-						<text class="bold grey">{{ $t("detail.total_chapters") }}</text>
-						<text class="bold">{{ total_chapters }}</text>
-					</div>
-					<div class="column" if="{{ views }}">
-						<text class="bold grey">{{ $t("detail.views") }}</text>
-						<text class="bold">{{ views }}</text>
-					</div>
-					<div class="column" if="{{ rate }}">
-						<text class="bold grey">{{ $t("detail.rate") }}</text>
-						<text class="bold">{{ rate }}</text>
-					</div>
-					<div class="column tags" if="{{ tags }}">
-						<text class="bold grey">{{ $t("detail.tags") }}</text>
-						<text for="{{ tag in tags }}" class="bold">
-							{{ tag }}
-						</text>
-					</div>
-				</div>
-				<div class="padding"></div>
-			</scroll>
-		</div>
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="rightButton bottom"
-			src="/common/dl.png"
-			@click="download"
-		/>
-		<img
-			if="{{ global.screenShape == 'circle' }}"
-			class="bottom"
-			src="/common/dl_s4.png"
-			@click="download"
-		/>
-	</div>
+    <text class="time">{{ time }}</text>
+    <text
+      class="title"
+      @click="
+        () => {
+          if (global.screenShape == 'circle') {
+            routeBack();
+          }
+        }
+      "
+    >
+      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span>{{ $t("detail.detail") }}</span>
+    </text>
+    <div class="box">
+      <scroll id="scrollId" class="box" scroll-x="true" scroll-y="true" bounces="true">
+        <image
+          class="cover"
+          @complete="getPhoto"
+          src="{{ cover || '/common/loading.png' }}"
+          alt="/common/loading.png"
+          onclick="toPhoto"
+          style="{{ `width:${size.width}px;height:${size.height}px;` }}"
+        ></image>
+        <text class="title1">{{ name }}</text>
+        <div class="detail">
+          <div class="column" if="{{ gid }}">
+            <text class="bold grey">GID</text>
+            <text class="bold">{{ gid.toString() }}</text>
+          </div>
+          <div class="column" else>
+            <text class="bold grey" style="width: 48px">ID</text>
+            <marquee
+              style="font-size: 24px; width: 100%; text-align: right"
+              scrollamount="{{ 20 }}"
+              text-offset="{{ 20 }}"
+              class="bold"
+            >
+              {{ item_id.toString() }}
+            </marquee>
+          </div>
+          <div class="column" if="{{ page_count }}">
+            <text class="bold grey">{{ $t("detail.page_count") }}</text>
+            <text class="bold">{{ page_count }}</text>
+          </div>
+          <div class="column" if="{{ total_chapters > 1 }}">
+            <text class="bold grey">{{ $t("detail.total_chapters") }}</text>
+            <text class="bold">{{ total_chapters }}</text>
+          </div>
+          <div class="column" if="{{ views }}">
+            <text class="bold grey">{{ $t("detail.views") }}</text>
+            <text class="bold">{{ views }}</text>
+          </div>
+          <div class="column" if="{{ rate }}">
+            <text class="bold grey">{{ $t("detail.rate") }}</text>
+            <text class="bold">{{ rate }}</text>
+          </div>
+          <div class="column tags" if="{{ tags }}">
+            <text class="bold grey">{{ $t("detail.tags") }}</text>
+            <text for="{{ tag in tags }}" class="bold">
+              {{ tag }}
+            </text>
+          </div>
+        </div>
+        <div class="padding"></div>
+      </scroll>
+    </div>
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="rightButton bottom"
+      src="/common/dl.png"
+      @click="download"
+    />
+    <img
+      if="{{ global.screenShape == 'circle' }}"
+      class="bottom"
+      src="/common/dl_s4.png"
+      @click="download"
+    />
+  </div>
 </template>
 
 <script>
@@ -111,84 +103,83 @@ import { parseParams } from "../../components/routerParams";
 const { screenSize, getTime } = global;
 
 export default {
-	private: {
-		name: "",
-		item_id: "",
-		gid: "",
-		views: "",
-		page_count: 0,
-		cover: "",
-		rate: "",
-		tags: "",
-		total_chapters: 0,
-		time: "",
-		size: { width: 200, height: 200 },
-	},
+  private: {
+    name: "",
+    item_id: "",
+    gid: "",
+    views: "",
+    page_count: 0,
+    cover: "",
+    rate: "",
+    tags: "",
+    total_chapters: 0,
+    time: "",
+    size: { width: 200, height: 200 },
+  },
 
-	onShow() {
-		this.time = getTime();
-	},
+  onShow() {
+    this.time = getTime();
+  },
 
-	onInit() {
-		const parsed = parseParams({
-			name: this.name,
-			item_id: this.item_id,
-			gid: this.gid,
-			views: this.views,
-			page_count: this.page_count,
-			cover: this.cover,
-			rate: this.rate,
-			tags: this.tags,
-			total_chapters: this.total_chapters,
-		});
-		Object.assign(this, parsed);
-		if (this.cover) {
-			this.cover = addCoverParams(this.cover);
-		}
-	},
+  onInit() {
+    const parsed = parseParams({
+      name: this.name,
+      item_id: this.item_id,
+      gid: this.gid,
+      views: this.views,
+      page_count: this.page_count,
+      cover: this.cover,
+      rate: this.rate,
+      tags: this.tags,
+      total_chapters: this.total_chapters,
+    });
+    Object.assign(this, parsed);
+    if (this.cover) {
+      this.cover = addCoverParams(this.cover);
+    }
+  },
 
-	getPhoto(value) {
-		this.size.width = screenSize.width / 2;
-		this.size.height = ((screenSize.width / value.width) * value.height) / 2;
-	},
+  getPhoto(value) {
+    this.size.width = screenSize.width / 2;
+    this.size.height = ((screenSize.width / value.width) * value.height) / 2;
+  },
 
-	toPhoto() {
-		router.push({
-			uri: "/pages/photo",
-			params: {
-				id: this.item_id,
-				total_chapters:
-					this.total_chapters <= 1 ? 0 : this.total_chapters,
-				page_count: this.page_count,
-				title: this.name,
-				cover: this.cover,
-			},
-		});
-	},
+  toPhoto() {
+    router.push({
+      uri: "/pages/photo",
+      params: {
+        id: this.item_id,
+        total_chapters: this.total_chapters <= 1 ? 0 : this.total_chapters,
+        page_count: this.page_count,
+        title: this.name,
+        cover: this.cover,
+      },
+    });
+  },
 
-	download() {
-		router.push({
-			uri: "/pages/download",
-			params: {
-				id: this.item_id,
-				page_count: this.page_count,
-				chapter: this.total_chapters || 1,
-				name: this.name,
-				cover: this.cover,
-				total_chapters: this.total_chapters || 1,
-			},
-		});
-	},
+  download() {
+    router.push({
+      uri: "/pages/download",
+      params: {
+        id: this.item_id,
+        page_count: this.page_count,
+        chapter: this.total_chapters || 1,
+        name: this.name,
+        cover: this.cover,
+        total_chapters: this.total_chapters || 1,
+      },
+    });
+  },
 
-	routeBack() {
-		router.back();
-	},
+  routeBack() {
+    router.back();
+  },
 
-	routeAbout() {
-		router.push({
-			uri: "/pages/about",
-		});
-	},
+  routeAbout() {
+    router.push({
+      uri: "/pages/about",
+    });
+  },
 };
 </script>
 
@@ -196,73 +187,73 @@ export default {
 @import "../../common/base.css";
 
 .demo-page {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #ffffff;
 }
 
 text {
-	font-size: 24px;
+  font-size: 24px;
 }
 
 .bold {
-	font-weight: bold;
+  font-weight: bold;
 }
 
 .grey {
-	color: #aaaaaa;
+  color: #aaaaaa;
 }
 
 .title1 {
-	font-size: 28px;
-	text-align: center;
-	margin-bottom: 10px;
-	margin-top: 10px;
-	width: 80%;
-	lines: 3;
-	font-weight: bold;
-	text-overflow: ellipsis;
+  font-size: 28px;
+  text-align: center;
+  margin-bottom: 10px;
+  margin-top: 10px;
+  width: 80%;
+  lines: 3;
+  font-weight: bold;
+  text-overflow: ellipsis;
 }
 
 .detail {
-	width: 80%;
-	flex-direction: column;
-	align-items: flex-start;
+  width: 80%;
+  flex-direction: column;
+  align-items: flex-start;
 }
 
 .box {
-	flex-direction: column;
-	align-items: center;
-	flex: 1;
-	width: 100%;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  width: 100%;
 }
 
 .column {
-	background-color: #262626;
-	border-radius: 36px;
-	width: 100%;
-	padding: 10px 20px;
-	justify-content: space-between;
-	margin-bottom: 10px;
-	border: 3px rgba(255, 255, 255, 0.24);
+  background-color: #262626;
+  border-radius: 36px;
+  width: 100%;
+  padding: 10px 20px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  border: 3px rgba(255, 255, 255, 0.24);
 }
 
 .tags {
-	flex-wrap: wrap;
+  flex-wrap: wrap;
 }
 
 @media screen and (shape: circle) {
-	.padding {
-		width: 1px;
-		height: 20%;
-	}
+  .padding {
+    width: 1px;
+    height: 20%;
+  }
 }
 
 @media screen and (shape: rect) {
-	.padding {
-		width: 1px;
-		height: 10%;
-	}
+  .padding {
+    width: 1px;
+    height: 10%;
+  }
 }
 </style>

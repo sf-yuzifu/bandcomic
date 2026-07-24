@@ -1,184 +1,170 @@
 <template>
-	<div class="demo-page">
-		<img
-			if="{{ showit && global.screenShape == 'circle' }}"
-			src="/common/mask.png"
-			class="leftButton"
-		/>
-		<img
-			if="{{ showit&& global.screenShape == 'circle' }}"
-			src="/common/mask.png"
-			class="rightButton"
-		/>
-		<scroll
-			style="{{ `align-items: ${images ? 'flex-start':'center'}; justify-content: ${images ?
+  <div class="demo-page">
+    <img
+      if="{{ showit && global.screenShape == 'circle' }}"
+      src="/common/mask.png"
+      class="leftButton"
+    />
+    <img
+      if="{{ showit&& global.screenShape == 'circle' }}"
+      src="/common/mask.png"
+      class="rightButton"
+    />
+    <scroll
+      style="{{ `align-items: ${images ? 'flex-start':'center'}; justify-content: ${images ?
 'flex-start':'center'};` }}"
-			id="scrollId"
-			class="box"
-			scroll-x="true"
-			scroll-y="true"
-			bounces="true"
-			@scroll="onScroll"
-		>
-			<div @click="showButton" if="{{ images }}" class="padding"></div>
-			<div
-				if="{{ images }}"
-				style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100
-* 2))/ 2 + 2}px;` }}"
-			></div>
-			<image
-				class="cover"
-				src="{{ images }}"
-				@complete="getPhoto"
-				@error="
-					() => {
-						if (images != '') {
-							loading = false;
-							images = '';
-						}
-					}
-				"
-				@click="showButton"
-				alt="{{ loading == 'end' ? '/common/end.png' : loading ? '/common/loading.png' :
-'/common/error.png' }}"
-				style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale
-/ 100 * 2)}px;` }}"
-			></image>
-			<div
-				if="{{ images }}"
-				style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100
-* 2))/ 2 + 2}px;` }}"
-			></div>
-			<div @click="showButton" if="{{ images }}" class="padding"></div>
-		</scroll>
+      id="scrollId"
+      class="box"
+      scroll-x="true"
+      scroll-y="true"
+      bounces="true"
+      @scroll="onScroll"
+    >
+      <div @click="showButton" if="{{ images }}" class="padding"></div>
+      <div
+        if="{{ images }}"
+        style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2}px;` }}"
+      ></div>
+      <image
+        class="cover"
+        src="{{ images }}"
+        @complete="getPhoto"
+        @error="
+          () => {
+            if (images != '') {
+              loading = false;
+              images = '';
+            }
+          }
+        "
+        @click="showButton"
+        alt="{{ loading == 'end' ? '/common/end.png' : loading ? '/common/loading.png' : '/common/error.png' }}"
+        style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale / 100 * 2)}px;` }}"
+      ></image>
+      <div
+        if="{{ images }}"
+        style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2}px;` }}"
+      ></div>
+      <div @click="showButton" if="{{ images }}" class="padding"></div>
+    </scroll>
 
-		<img
-			if="{{ showit }}"
-			src="/common/upCover.png"
-			style="position: absolute; top: 0px; width: {{ global.screenSize.width }}px;"
-		/>
-		<img
-			if="{{ showit }}"
-			src="/common/bottomCover.png"
-			style="position: absolute; bottom: 0px; width: {{ global.screenSize.width }}px;"
-		/>
+    <img
+      if="{{ showit }}"
+      src="/common/upCover.png"
+      style="position: absolute; top: 0px; width: {{ global.screenSize.width }}px;"
+    />
+    <img
+      if="{{ showit }}"
+      src="/common/bottomCover.png"
+      style="position: absolute; bottom: 0px; width: {{ global.screenSize.width }}px;"
+    />
 
-		<!-- 方表适配 -->
-		<img
-			if="{{ showit && global.screenShape != 'circle' }}"
-			src="/common/left.png"
-			onclick="toPage('-')"
-			class="leftButton bottom"
-		/>
-		<img
-			if="{{ showit && global.screenShape != 'circle' }}"
-			src="/common/right.png"
-			onclick="toPage('+')"
-			class="rightButton bottom"
-		/>
+    <!-- 方表适配 -->
+    <img
+      if="{{ showit && global.screenShape != 'circle' }}"
+      src="/common/left.png"
+      onclick="toPage('-')"
+      class="leftButton bottom"
+    />
+    <img
+      if="{{ showit && global.screenShape != 'circle' }}"
+      src="/common/right.png"
+      onclick="toPage('+')"
+      class="rightButton bottom"
+    />
 
-		<!-- 圆表适配 -->
-		<img
-			if="{{ showit && global.screenShape == 'circle' }}"
-			src="/common/left_s4.png"
-			onclick="toPage('-')"
-			class="leftButton"
-		/>
-		<img
-			if="{{ showit&& global.screenShape == 'circle' }}"
-			src="/common/right_s4.png"
-			onclick="toPage('+')"
-			class="rightButton"
-		/>
+    <!-- 圆表适配 -->
+    <img
+      if="{{ showit && global.screenShape == 'circle' }}"
+      src="/common/left_s4.png"
+      onclick="toPage('-')"
+      class="leftButton"
+    />
+    <img
+      if="{{ showit&& global.screenShape == 'circle' }}"
+      src="/common/right_s4.png"
+      onclick="toPage('+')"
+      class="rightButton"
+    />
 
-		<div class="com" if="{{ showSlider }}">
-			<div class="shade">
-				<div if="{{ total_chapters > 1 }}" class="chapter">
-					<img src="/common/left.png" onclick="toChapter('-')" class="" />
-					<marquee
-						class="subtitle"
-						scrollamount="{{ 20 }}"
-						text-offset="{{ 20 }}"
-					>
-						{{ title }}
-					</marquee>
-					<img src="/common/right.png" onclick="toChapter('+')" class="" />
-				</div>
-				<text class="subtitle" if="{{ total_chapters > 1 }}">
-					{{ $t("photo.chapterChange") }}
-				</text>
-				<div if="{{ total_chapters > 1 }}" style="height: 10px"></div>
-				<div
-					if="{{ total_chapters > 1 }}"
-					style="
-						flex-direction: row;
-						justify-content: space-around;
-						height: 40px;
-					"
-				>
-					<picker
-						for="pickerValue in pickerValues"
-						type="text"
-						style="width:{{ 80/pickerValues.length }}%; selected-font-size: 32px;"
-						range="{{ pickerValue }}"
-						selected="{{ chapter.toString().padStart(pickerValues.length, '0')[$idx] }}"
-						onchange="onPickerChange($idx)"
-					></picker>
-				</div>
-				<div if="{{ total_chapters > 1 }}" style="height: 20px"></div>
-				<text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
-				<div style="height: 10px"></div>
-				<slider
-					class="slider"
-					min="0"
-					max="100"
-					step="1"
-					value="{{ scale }}"
-					onchange="onSliderChange"
-				></slider>
-				<div style="height: 10px"></div>
-			</div>
-		</div>
+    <div class="com" if="{{ showSlider }}">
+      <div class="shade">
+        <div if="{{ total_chapters > 1 }}" class="chapter">
+          <img src="/common/left.png" onclick="toChapter('-')" class="" />
+          <marquee class="subtitle" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+            {{ title }}
+          </marquee>
+          <img src="/common/right.png" onclick="toChapter('+')" class="" />
+        </div>
+        <text class="subtitle" if="{{ total_chapters > 1 }}">
+          {{ $t("photo.chapterChange") }}
+        </text>
+        <div if="{{ total_chapters > 1 }}" style="height: 10px"></div>
+        <div
+          if="{{ total_chapters > 1 }}"
+          style="flex-direction: row; justify-content: space-around; height: 40px"
+        >
+          <picker
+            for="pickerValue in pickerValues"
+            type="text"
+            style="width:{{ 80/pickerValues.length }}%; selected-font-size: 32px;"
+            range="{{ pickerValue }}"
+            selected="{{ chapter.toString().padStart(pickerValues.length, '0')[$idx] }}"
+            onchange="onPickerChange($idx)"
+          ></picker>
+        </div>
+        <div if="{{ total_chapters > 1 }}" style="height: 20px"></div>
+        <text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
+        <div style="height: 10px"></div>
+        <slider
+          class="slider"
+          min="0"
+          max="100"
+          step="1"
+          value="{{ scale }}"
+          onchange="onSliderChange"
+        ></slider>
+        <div style="height: 10px"></div>
+      </div>
+    </div>
 
-		<img
-			if="{{ showit && global.screenShape != 'circle' }}"
-			src="/common/left.png"
-			@click="routeBack"
-			class="leftButton top"
-		/>
-		<img
-			if="{{ showit && global.screenShape != 'circle' }}"
-			src="/common/more.png"
-			class="rightButton top"
-			@click="() => (showSlider = !showSlider)"
-		/>
-		<img
-			if="{{ showit && global.screenShape == 'circle' }}"
-			src="/common/check.png"
-			class="bottom"
-			@click="() => (showSlider = !showSlider)"
-		/>
+    <img
+      if="{{ showit && global.screenShape != 'circle' }}"
+      src="/common/left.png"
+      @click="routeBack"
+      class="leftButton top"
+    />
+    <img
+      if="{{ showit && global.screenShape != 'circle' }}"
+      src="/common/more.png"
+      class="rightButton top"
+      @click="() => (showSlider = !showSlider)"
+    />
+    <img
+      if="{{ showit && global.screenShape == 'circle' }}"
+      src="/common/check.png"
+      class="bottom"
+      @click="() => (showSlider = !showSlider)"
+    />
 
-		<text class="time" if="{{ showit }}">{{ time }}</text>
-		<text
-			class="title"
-			@click="
-				() => {
-					if (global.screenShape == 'circle') {
-						routeBack();
-					}
-				}
-			"
-			if="{{ showit }}"
-		>
-			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">
-				&#xe685;
-			</span>
-			<span>
-				{{ $t("photo.page", { page: page > page_count ? page_count : page }) }}
-			</span>
-		</text>
-	</div>
+    <text class="time" if="{{ showit }}">{{ time }}</text>
+    <text
+      class="title"
+      @click="
+        () => {
+          if (global.screenShape == 'circle') {
+            routeBack();
+          }
+        }
+      "
+      if="{{ showit }}"
+    >
+      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span>
+        {{ $t("photo.page", { page: page > page_count ? page_count : page }) }}
+      </span>
+    </text>
+  </div>
 </template>
 
 <script>
@@ -197,559 +183,547 @@ let PreloadInflight = {};
 let originalName;
 
 export default {
-	private: {
-		id: "",
-		page_count: 0,
-		page: 1,
-		time: "",
-		scale: 0,
-		size: { width: 0, height: 0 },
-		showit: true,
-		showSlider: false,
-		images: null,
-		local: false,
-		loading: true,
-		title: "",
-		chapter: 1,
-		cover: "",
-		total_chapters: 0,
-		is_serial: false,
-		downloadChapter: "",
-		chapterList: [],
-		pickerValues: [],
-		reachedEdge: null,
-		pos: [0, 0],
-	},
+  private: {
+    id: "",
+    page_count: 0,
+    page: 1,
+    time: "",
+    scale: 0,
+    size: { width: 0, height: 0 },
+    showit: true,
+    showSlider: false,
+    images: null,
+    local: false,
+    loading: true,
+    title: "",
+    chapter: 1,
+    cover: "",
+    total_chapters: 0,
+    is_serial: false,
+    downloadChapter: "",
+    chapterList: [],
+    pickerValues: [],
+    reachedEdge: null,
+    pos: [0, 0],
+  },
 
-	onShow() {
-		this.time = getTime();
-	},
+  onShow() {
+    this.time = getTime();
+  },
 
-	onBackPress() {
-		return true;
-	},
+  onBackPress() {
+    return true;
+  },
 
-	onDestroy() {
-		ImageCache = [];
-		PreloadCache = {};
-		PreloadInflight = {};
-	},
+  onDestroy() {
+    ImageCache = [];
+    PreloadCache = {};
+    PreloadInflight = {};
+  },
 
-	onInit() {
-		// 如果有传入的 source 参数，切换到对应的漫画源
-		if (this.source) {
-			global.API_SETTING.using = this.source;
-		}
+  onInit() {
+    // 如果有传入的 source 参数，切换到对应的漫画源
+    if (this.source) {
+      global.API_SETTING.using = this.source;
+    }
 
-		// 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
-		const comicId = this.getComicId();
-		const restorePosition = (historyList) => {
-			const historyItem = historyList.find((item) => item.id === comicId);
-			if (historyItem) {
-				// 恢复上次阅读的章节和页码
-				this.chapter = historyItem.chapter || 1;
-				this.page = historyItem.page || 1;
-				console.log(`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`);
-			}
-		};
-		readHistory().then(
-			(historyList) => {
-				restorePosition(historyList);
-				this.initData();
-			},
-			() => {
-				// 没有历史记录，正常初始化
-				this.initData();
-			}
-		);
-	},
+    // 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
+    const comicId = this.getComicId();
+    const restorePosition = (historyList) => {
+      const historyItem = historyList.find((item) => item.id === comicId);
+      if (historyItem) {
+        // 恢复上次阅读的章节和页码
+        this.chapter = historyItem.chapter || 1;
+        this.page = historyItem.page || 1;
+        console.debug(`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`);
+      }
+    };
+    readHistory().then(
+      (historyList) => {
+        restorePosition(historyList);
+        this.initData();
+      },
+      () => {
+        // 没有历史记录，正常初始化
+        this.initData();
+      }
+    );
+  },
 
-	initData() {
-		if (!this.local) {
-			originalName = this.title;
-			this.is_serial = this.total_chapters > 1;
-			if (this.is_serial) {
-				this.chapterList = [];
-				for (let i = 1; i <= this.total_chapters; i++) {
-					this.chapterList.push(`${this.$t("photo.chapter")} ${i}`);
-				}
-				this.generatePickerRanges(this.total_chapters);
-			}
-		} else if (this.is_serial) {
-			this.downloadChapter = parseParam(this.downloadChapter);
-			this.total_chapters = this.downloadChapter.length;
-			this.chapterList = this.downloadChapter.map((ch) => ch[0]);
-			this.generatePickerRanges(this.total_chapters);
-		}
-		this.processData();
-	},
+  initData() {
+    if (!this.local) {
+      originalName = this.title;
+      this.is_serial = this.total_chapters > 1;
+      if (this.is_serial) {
+        this.chapterList = [];
+        for (let i = 1; i <= this.total_chapters; i++) {
+          this.chapterList.push(`${this.$t("photo.chapter")} ${i}`);
+        }
+        this.generatePickerRanges(this.total_chapters);
+      }
+    } else if (this.is_serial) {
+      this.downloadChapter = parseParam(this.downloadChapter);
+      this.total_chapters = this.downloadChapter.length;
+      this.chapterList = this.downloadChapter.map((ch) => ch[0]);
+      this.generatePickerRanges(this.total_chapters);
+    }
+    this.processData();
+  },
 
-	generatePickerRanges(total) {
-		const values = [];
-		const totalStr = total.toString();
-		const digits = totalStr.length;
+  generatePickerRanges(total) {
+    const values = [];
+    const totalStr = total.toString();
+    const digits = totalStr.length;
 
-		for (let i = 0; i < digits; i++) {
-			const digit = parseInt(totalStr[i]);
-			const maxDigit = i === 0 ? digit : 9;
-			const valueRange = [];
-			for (let j = 0; j <= maxDigit; j++) {
-				valueRange.push(j.toString());
-			}
-			values.push(valueRange);
-		}
-		this.pickerValues = values;
-	},
+    for (let i = 0; i < digits; i++) {
+      const digit = parseInt(totalStr[i]);
+      const maxDigit = i === 0 ? digit : 9;
+      const valueRange = [];
+      for (let j = 0; j <= maxDigit; j++) {
+        valueRange.push(j.toString());
+      }
+      values.push(valueRange);
+    }
+    this.pickerValues = values;
+  },
 
-	processData() {
-		if (this.local) {
-			this.getImageForPage();
-		} else {
-			this.fetchAllImageUrls();
-		}
-	},
+  processData() {
+    if (this.local) {
+      this.getImageForPage();
+    } else {
+      this.fetchAllImageUrls();
+    }
+  },
 
-	fetchAllImageUrls() {
-		this.loading = true;
-		this.images = "";
-		this.scale = 0;
-		this.size.width = screenSize.width / 2;
-		this.size.height = screenSize.height / 2;
-		const chapter = this.chapter;
-		PreloadCache = {};
-		PreloadInflight = {};
+  fetchAllImageUrls() {
+    this.loading = true;
+    this.images = "";
+    this.scale = 0;
+    this.size.width = screenSize.width / 2;
+    this.size.height = screenSize.height / 2;
+    const chapter = this.chapter;
+    PreloadCache = {};
+    PreloadInflight = {};
 
-		apiFetch({
-			url: buildPhotoUrl(this.id, Math.floor(this.chapter)),
-			responseType: "json",
-			success: (response) => {
-				if (chapter != this.chapter) {
-					return;
-				}
-				const body = response.data;
-				const urls =
-					body && Array.isArray(body.images)
-						? body.images.filter((img) => img && img.url).map((img) => img.url)
-						: null;
-				if (!urls) {
-					this.images = "internal://files/error.png";
-					console.log("handling fail, invalid response data");
-					return;
-				}
-				ImageCache = urls;
-				this.title = body.title;
-				this.page_count = ImageCache.length;
-				this.getImageForPage();
-			},
-			fail: (data, code) => {
-				if (chapter != this.chapter) {
-					return;
-				}
-				this.images = "internal://files/error.png";
-				console.log(`handling fail, errMsg = ${data}`);
-				console.log(`handling fail, errCode = ${code}`);
-			},
-		});
-	},
+    apiFetch({
+      url: buildPhotoUrl(this.id, Math.floor(this.chapter)),
+      responseType: "json",
+      success: (response) => {
+        if (chapter != this.chapter) {
+          return;
+        }
+        const body = response.data;
+        const urls =
+          body && Array.isArray(body.images)
+            ? body.images.filter((img) => img && img.url).map((img) => img.url)
+            : null;
+        if (!urls) {
+          this.images = "internal://files/error.png";
+          console.debug("handling fail, invalid response data");
+          return;
+        }
+        ImageCache = urls;
+        this.title = body.title;
+        this.page_count = ImageCache.length;
+        this.getImageForPage();
+      },
+      fail: (data, code) => {
+        if (chapter != this.chapter) {
+          return;
+        }
+        this.images = "internal://files/error.png";
+        console.debug(`handling fail, errMsg = ${data}`);
+        console.debug(`handling fail, errCode = ${code}`);
+      },
+    });
+  },
 
-	getImageForPage(keepScale) {
-		this.loading = true;
-		this.images = "";
-		if (!keepScale) {
-			this.scale = 0;
-		}
-		this.size.width = screenSize.width / 2;
-		this.size.height = screenSize.height / 2;
+  getImageForPage(keepScale) {
+    this.loading = true;
+    this.images = "";
+    if (!keepScale) {
+      this.scale = 0;
+    }
+    this.size.width = screenSize.width / 2;
+    this.size.height = screenSize.height / 2;
 
-		if (this.page > this.page_count) {
-			this.loading = "end";
-			return;
-		}
+    if (this.page > this.page_count) {
+      this.loading = "end";
+      return;
+    }
 
-		const page = this.page;
+    const page = this.page;
 
-		if (this.local) {
-			this.reachedEdge = null;
-			this.pos = [0, 0];
-			if (this.is_serial) {
-				const chapterNum = this.downloadChapter[this.chapter - 1][2];
-				const chapterName = this.downloadChapter[this.chapter - 1][0];
-				this.title = chapterName;
-				this.page_count = this.downloadChapter[this.chapter - 1][1];
-				const baseUri = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
-				this.resolveLocalImage(baseUri);
-			} else {
-				const baseUri = `internal://files/${this.id}/${this.page}`;
-				this.resolveLocalImage(baseUri);
-			}
-			return;
-		}
+    if (this.local) {
+      this.reachedEdge = null;
+      this.pos = [0, 0];
+      if (this.is_serial) {
+        const chapterNum = this.downloadChapter[this.chapter - 1][2];
+        const chapterName = this.downloadChapter[this.chapter - 1][0];
+        this.title = chapterName;
+        this.page_count = this.downloadChapter[this.chapter - 1][1];
+        const baseUri = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
+        this.resolveLocalImage(baseUri);
+      } else {
+        const baseUri = `internal://files/${this.id}/${this.page}`;
+        this.resolveLocalImage(baseUri);
+      }
+      return;
+    }
 
-		let imageUrl = "";
+    let imageUrl = "";
 
-		if (ImageCache.length > 0 && this.page <= ImageCache.length) {
-			imageUrl = ImageCache[this.page - 1];
-			imageUrl = addImageParams(
-				imageUrl,
-				parseInt(global.APP_SETTING.imageSize) || 600,
-				parseInt(global.APP_SETTING.imageQuality) || 50
-			);
-		} else {
-			return;
-		}
+    if (ImageCache.length > 0 && this.page <= ImageCache.length) {
+      imageUrl = ImageCache[this.page - 1];
+      imageUrl = addImageParams(
+        imageUrl,
+        parseInt(global.APP_SETTING.imageSize) || 600,
+        parseInt(global.APP_SETTING.imageQuality) || 50
+      );
+    } else {
+      return;
+    }
 
-		if (PreloadCache[this.page]) {
-			const cachedUri = PreloadCache[this.page];
-			delete PreloadCache[this.page];
-			this.images = cachedUri;
-			this.reachedEdge = null;
-			this.pos = [0, 0];
-			this.preloadAdjacentPages();
-			return;
-		}
+    if (PreloadCache[this.page]) {
+      const cachedUri = PreloadCache[this.page];
+      delete PreloadCache[this.page];
+      this.images = cachedUri;
+      this.reachedEdge = null;
+      this.pos = [0, 0];
+      this.preloadAdjacentPages();
+      return;
+    }
 
-		if (PreloadInflight[this.page]) {
-			return;
-		}
+    if (PreloadInflight[this.page]) {
+      return;
+    }
 
-		imageUrl = appendLvglSuffix(
-			imageUrl,
-			`${global.API_SETTING.using}_${this.id}_ch${this.chapter}_p${page}`
-		);
+    imageUrl = appendLvglSuffix(
+      imageUrl,
+      `${global.API_SETTING.using}_${this.id}_ch${this.chapter}_p${page}`
+    );
 
-		apiFetch({
-			url: imageUrl,
-			responseType: "file",
-			success: (response) => {
-				if (page != this.page) {
-					return;
-				}
-				this.images = response.data;
-				this.reachedEdge = null;
-				this.pos = [0, 0];
-				this.preloadAdjacentPages();
-			},
-			fail: () => {
-				if (page != this.page) {
-					return;
-				}
-				this.images = "internal://files/error.png";
-			},
-		});
-	},
+    apiFetch({
+      url: imageUrl,
+      responseType: "file",
+      success: (response) => {
+        if (page != this.page) {
+          return;
+        }
+        this.images = response.data;
+        this.reachedEdge = null;
+        this.pos = [0, 0];
+        this.preloadAdjacentPages();
+      },
+      fail: () => {
+        if (page != this.page) {
+          return;
+        }
+        this.images = "internal://files/error.png";
+      },
+    });
+  },
 
-	preloadAdjacentPages() {
-		if (this.local || !global.APP_SETTING.imagePreload) {
-			return;
-		}
-		const chapter = this.chapter;
-		const preloadPage = (p) => {
-			if (
-				p < 1 ||
-				p > ImageCache.length ||
-				PreloadCache[p] ||
-				PreloadInflight[p]
-			) {
-				return;
-			}
-			let url = addImageParams(
-				ImageCache[p - 1],
-				parseInt(global.APP_SETTING.imageSize) || 600,
-				parseInt(global.APP_SETTING.imageQuality) || 50
-			);
-			url = appendLvglSuffix(
-				url,
-				`${global.API_SETTING.using}_${this.id}_ch${chapter}_p${p}`
-			);
-			PreloadInflight[p] = true;
-			apiFetch({
-				url: url,
-				responseType: "file",
-				success: (response) => {
-					delete PreloadInflight[p];
-					if (chapter != this.chapter) {
-						return;
-					}
-					if (p == this.page && !this.images) {
-						this.images = response.data;
-						this.reachedEdge = null;
-						this.pos = [0, 0];
-						return;
-					}
-					PreloadCache[p] = response.data;
-				},
-				fail: () => {
-					delete PreloadInflight[p];
-					if (chapter != this.chapter) {
-						return;
-					}
-					if (p == this.page && !this.images) {
-						this.images = "internal://files/error.png";
-					}
-				},
-			});
-		};
-		preloadPage(this.page + 1);
-		preloadPage(this.page - 1);
-	},
+  preloadAdjacentPages() {
+    if (this.local || !global.APP_SETTING.imagePreload) {
+      return;
+    }
+    const chapter = this.chapter;
+    const preloadPage = (p) => {
+      if (p < 1 || p > ImageCache.length || PreloadCache[p] || PreloadInflight[p]) {
+        return;
+      }
+      let url = addImageParams(
+        ImageCache[p - 1],
+        parseInt(global.APP_SETTING.imageSize) || 600,
+        parseInt(global.APP_SETTING.imageQuality) || 50
+      );
+      url = appendLvglSuffix(url, `${global.API_SETTING.using}_${this.id}_ch${chapter}_p${p}`);
+      PreloadInflight[p] = true;
+      apiFetch({
+        url: url,
+        responseType: "file",
+        success: (response) => {
+          delete PreloadInflight[p];
+          if (chapter != this.chapter) {
+            return;
+          }
+          if (p == this.page && !this.images) {
+            this.images = response.data;
+            this.reachedEdge = null;
+            this.pos = [0, 0];
+            return;
+          }
+          PreloadCache[p] = response.data;
+        },
+        fail: () => {
+          delete PreloadInflight[p];
+          if (chapter != this.chapter) {
+            return;
+          }
+          if (p == this.page && !this.images) {
+            this.images = "internal://files/error.png";
+          }
+        },
+      });
+    };
+    preloadPage(this.page + 1);
+    preloadPage(this.page - 1);
+  },
 
-	resolveLocalImage(baseUri) {
-		const binUri = baseUri + ".bin";
-		const self = this;
-		file.access({
-			uri: binUri,
-			success() {
-				self.images = binUri;
-			},
-			fail() {
-				self.images = baseUri;
-			},
-		});
-	},
+  resolveLocalImage(baseUri) {
+    const binUri = baseUri + ".bin";
+    const self = this;
+    file.access({
+      uri: binUri,
+      success() {
+        self.images = binUri;
+      },
+      fail() {
+        self.images = baseUri;
+      },
+    });
+  },
 
-	routeBack() {
-		router.back();
-	},
+  routeBack() {
+    router.back();
+  },
 
-	toChapter(value) {
-		switch (value) {
-			case "+":
-				if (this.chapter < this.total_chapters) {
-					this.chapter += 1;
-				}
-				break;
-			case "-":
-				if (this.chapter > 1) {
-					this.chapter -= 1;
-				}
-				break;
-		}
-		this.$element("scrollId").scrollTo({
-			top: 1,
-			left: 0,
-		});
-		this.page = 1;
-		this.processData();
-		this.saveHistory();
-	},
+  toChapter(value) {
+    switch (value) {
+      case "+":
+        if (this.chapter < this.total_chapters) {
+          this.chapter += 1;
+        }
+        break;
+      case "-":
+        if (this.chapter > 1) {
+          this.chapter -= 1;
+        }
+        break;
+    }
+    this.$element("scrollId").scrollTo({
+      top: 1,
+      left: 0,
+    });
+    this.page = 1;
+    this.processData();
+    this.saveHistory();
+  },
 
-	toPage(value) {
-		switch (value) {
-			case "+":
-				if (this.page <= this.page_count) {
-					this.page += 1;
-				}
-				break;
-			case "-":
-				if (this.page > 1) {
-					this.page -= 1;
-				}
-				break;
-		}
-		this.$element("scrollId").scrollTo({
-			top: 1,
-			left: 0,
-		});
-		this.getImageForPage(global.APP_SETTING.keepDefaultZoom);
-		this.saveHistory();
-	},
+  toPage(value) {
+    switch (value) {
+      case "+":
+        if (this.page <= this.page_count) {
+          this.page += 1;
+        }
+        break;
+      case "-":
+        if (this.page > 1) {
+          this.page -= 1;
+        }
+        break;
+    }
+    this.$element("scrollId").scrollTo({
+      top: 1,
+      left: 0,
+    });
+    this.getImageForPage(global.APP_SETTING.keepDefaultZoom);
+    this.saveHistory();
+  },
 
-	getPhoto(value) {
-		this.size.width = screenSize.width;
-		this.size.height = (screenSize.width / value.width) * value.height;
-	},
+  getPhoto(value) {
+    this.size.width = screenSize.width;
+    this.size.height = (screenSize.width / value.width) * value.height;
+  },
 
-	// 获取漫画ID（区分本地和在线）
-	getComicId() {
-		if (this.local) {
-			// 本地漫画使用 local_ 前缀
-			return "local_" + this.id;
-		} else {
-			// 在线漫画使用 online_ 前缀
-			return "online_" + global.API_SETTING.using + "_" + this.id;
-		}
-	},
+  // 获取漫画ID（区分本地和在线）
+  getComicId() {
+    if (this.local) {
+      // 本地漫画使用 local_ 前缀
+      return "local_" + this.id;
+    } else {
+      // 在线漫画使用 online_ 前缀
+      return "online_" + global.API_SETTING.using + "_" + this.id;
+    }
+  },
 
-	// 保存阅读历史
-	saveHistory() {
-		const comicId = this.getComicId();
-		const historyData = {
-			id: comicId,
-			originalId: this.id,
-			title: this.is_serial && originalName ? originalName : this.title,
-			cover: this.cover,
-			chapter: this.chapter,
-			page: this.page > this.page_count ? this.page_count : this.page,
-			total_chapters: this.total_chapters,
-			page_count: this.page_count,
-			is_serial: this.is_serial,
-			local: this.local,
-			source: this.local ? null : global.API_SETTING.using,
-			last_read_time: Date.now(),
-		};
+  // 保存阅读历史
+  saveHistory() {
+    const comicId = this.getComicId();
+    const historyData = {
+      id: comicId,
+      originalId: this.id,
+      title: this.is_serial && originalName ? originalName : this.title,
+      cover: this.cover,
+      chapter: this.chapter,
+      page: this.page > this.page_count ? this.page_count : this.page,
+      total_chapters: this.total_chapters,
+      page_count: this.page_count,
+      is_serial: this.is_serial,
+      local: this.local,
+      source: this.local ? null : global.API_SETTING.using,
+      last_read_time: Date.now(),
+    };
 
-		// 读取现有历史记录
-		readHistory().then(
-			(historyList) => {
-				if (!Array.isArray(historyList)) {
-					historyList = [];
-				}
+    // 读取现有历史记录
+    readHistory().then(
+      (historyList) => {
+        if (!Array.isArray(historyList)) {
+          historyList = [];
+        }
 
-				// 查找是否已存在该漫画的记录
-				const existingIndex = historyList.findIndex(
-					(item) => item.id === comicId
-				);
+        // 查找是否已存在该漫画的记录
+        const existingIndex = historyList.findIndex((item) => item.id === comicId);
 
-				if (existingIndex !== -1) {
-					// 更新现有记录
-					historyList[existingIndex] = historyData;
-					// 移到最前面
-					historyList.splice(existingIndex, 1);
-					historyList.unshift(historyData);
-				} else {
-					// 添加新记录到最前面
-					historyList.unshift(historyData);
-				}
+        if (existingIndex !== -1) {
+          // 更新现有记录
+          historyList[existingIndex] = historyData;
+          // 移到最前面
+          historyList.splice(existingIndex, 1);
+          historyList.unshift(historyData);
+        } else {
+          // 添加新记录到最前面
+          historyList.unshift(historyData);
+        }
 
-				// 限制历史记录数量（最多50条）
-				if (historyList.length > 50) {
-					historyList = historyList.slice(0, 50);
-				}
+        // 限制历史记录数量（最多50条）
+        if (historyList.length > 50) {
+          historyList = historyList.slice(0, 50);
+        }
 
-				// 保存回文件
-				writeHistory(historyList).then(
-					() => {
-						console.log("历史记录保存成功");
-					},
-					({ code }) => {
-						console.error("保存历史记录失败:", code);
-					}
-				);
-			},
-			() => {
-				// 文件不存在，创建新文件
-				const historyList = [historyData];
-				writeHistory(historyList).then(
-					() => {
-						console.log("历史记录创建成功");
-					},
-					({ code }) => {
-						console.error("创建历史记录失败:", code);
-					}
-				);
-			}
-		);
-	},
+        // 保存回文件
+        writeHistory(historyList).then(
+          () => {
+            console.debug("历史记录保存成功");
+          },
+          ({ code }) => {
+            console.error("保存历史记录失败:", code);
+          }
+        );
+      },
+      () => {
+        // 文件不存在，创建新文件
+        const historyList = [historyData];
+        writeHistory(historyList).then(
+          () => {
+            console.debug("历史记录创建成功");
+          },
+          ({ code }) => {
+            console.error("创建历史记录失败:", code);
+          }
+        );
+      }
+    );
+  },
 
-	showButton() {
-		this.showit = !this.showit;
-	},
+  showButton() {
+    this.showit = !this.showit;
+  },
 
-	onPickerChange(pickerIndex, e) {
-		const chapterStr = this.chapter
-			.toString()
-			.padStart(this.pickerValues.length, "0");
-		const newDigits = [...chapterStr];
-		newDigits[pickerIndex] = e.newValue;
+  onPickerChange(pickerIndex, e) {
+    const chapterStr = this.chapter.toString().padStart(this.pickerValues.length, "0");
+    const newDigits = [...chapterStr];
+    newDigits[pickerIndex] = e.newValue;
 
-		let newChapter = parseInt(newDigits.join(""));
+    let newChapter = parseInt(newDigits.join(""));
 
-		if (newChapter > this.total_chapters) {
-			newChapter = this.total_chapters;
-		}
-		if (newChapter < 1) {
-			newChapter = 1;
-		}
-		this.chapter = newChapter;
+    if (newChapter > this.total_chapters) {
+      newChapter = this.total_chapters;
+    }
+    if (newChapter < 1) {
+      newChapter = 1;
+    }
+    this.chapter = newChapter;
 
-		this.updatePickerRanges();
+    this.updatePickerRanges();
 
-		if (this.local) {
-			this.title = this.downloadChapter[this.chapter - 1][0];
-		} else {
-			this.title = `${this.$t("photo.chapter")} ${this.chapter}`;
-		}
-		this.$element("scrollId").scrollTo({
-			top: 1,
-			left: 0,
-		});
-		this.page = 1;
-		this.processData();
-		this.saveHistory();
-	},
+    if (this.local) {
+      this.title = this.downloadChapter[this.chapter - 1][0];
+    } else {
+      this.title = `${this.$t("photo.chapter")} ${this.chapter}`;
+    }
+    this.$element("scrollId").scrollTo({
+      top: 1,
+      left: 0,
+    });
+    this.page = 1;
+    this.processData();
+    this.saveHistory();
+  },
 
-	updatePickerRanges() {
-		const values = [];
-		const totalStr = this.total_chapters.toString();
-		const digits = totalStr.length;
-		const chapterStr = this.chapter.toString().padStart(digits, "0");
+  updatePickerRanges() {
+    const values = [];
+    const totalStr = this.total_chapters.toString();
+    const digits = totalStr.length;
+    const chapterStr = this.chapter.toString().padStart(digits, "0");
 
-		for (let i = 0; i < digits; i++) {
-			const digit = parseInt(totalStr[i]);
-			const valueRange = [];
+    for (let i = 0; i < digits; i++) {
+      const digit = parseInt(totalStr[i]);
+      const valueRange = [];
 
-			if (i === 0) {
-				for (let j = 0; j <= digit; j++) {
-					valueRange.push(j.toString());
-				}
-			} else {
-				let maxDigit = 9;
-				for (let k = 0; k < i; k++) {
-					if (parseInt(chapterStr[k]) < parseInt(totalStr[k])) {
-						maxDigit = 9;
-						break;
-					} else if (parseInt(chapterStr[k]) > parseInt(totalStr[k])) {
-						maxDigit = 0;
-						break;
-					} else if (k === i - 1) {
-						maxDigit = digit;
-					}
-				}
-				for (let j = 0; j <= maxDigit; j++) {
-					valueRange.push(j.toString());
-				}
-			}
-			values.push(valueRange);
-		}
-		this.pickerValues = values;
-	},
+      if (i === 0) {
+        for (let j = 0; j <= digit; j++) {
+          valueRange.push(j.toString());
+        }
+      } else {
+        let maxDigit = 9;
+        for (let k = 0; k < i; k++) {
+          if (parseInt(chapterStr[k]) < parseInt(totalStr[k])) {
+            maxDigit = 9;
+            break;
+          } else if (parseInt(chapterStr[k]) > parseInt(totalStr[k])) {
+            maxDigit = 0;
+            break;
+          } else if (k === i - 1) {
+            maxDigit = digit;
+          }
+        }
+        for (let j = 0; j <= maxDigit; j++) {
+          valueRange.push(j.toString());
+        }
+      }
+      values.push(valueRange);
+    }
+    this.pickerValues = values;
+  },
 
-	onSliderChange(e) {
-		this.scale = e.progress;
-		this.$element("scrollId").scrollTo({
-			top: 1,
-			left: 0,
-		});
-		this.reachedEdge = null;
-		this.pos = [0, 0];
-	},
+  onSliderChange(e) {
+    this.scale = e.progress;
+    this.$element("scrollId").scrollTo({
+      top: 1,
+      left: 0,
+    });
+    this.reachedEdge = null;
+    this.pos = [0, 0];
+  },
 
-	async onScroll(val) {
-		if (!this.images) {
-			return;
-		}
-		const [prevX, prevY] = this.pos;
-		this.pos = [val.scrollX, val.scrollY];
-		// 只处理纯纵向滚动（横向/斜向滚动忽略）
-		if (prevY === val.scrollY || prevX !== val.scrollX) return;
+  async onScroll(val) {
+    if (!this.images) {
+      return;
+    }
+    const [prevX, prevY] = this.pos;
+    this.pos = [val.scrollX, val.scrollY];
+    // 只处理纯纵向滚动（横向/斜向滚动忽略）
+    if (prevY === val.scrollY || prevX !== val.scrollX) return;
 
-		this.$element("scrollId").getScrollRect({
-			success: ({ width, height }) => {
-				// 横向 overscroll 回弹期间不触发翻页
-				if (val.scrollX + global.screenSize.width > width) return;
-				const atBottom = val.scrollY + global.screenSize.height === height;
-				const atTop = val.scrollY === 0;
-				if (!atBottom && !atTop) return;
-				const edge = atBottom ? "bottom" : "top";
-				// 同一边缘连续到达两次才翻页；触发后保持戒备状态（加载成功后才重置），换边则重新计数
-				if (this.reachedEdge === edge) {
-					this.toPage(atBottom ? "+" : "-");
-				} else {
-					this.reachedEdge = edge;
-				}
-			},
-		});
-	},
+    this.$element("scrollId").getScrollRect({
+      success: ({ width, height }) => {
+        // 横向 overscroll 回弹期间不触发翻页
+        if (val.scrollX + global.screenSize.width > width) return;
+        const atBottom = val.scrollY + global.screenSize.height === height;
+        const atTop = val.scrollY === 0;
+        if (!atBottom && !atTop) return;
+        const edge = atBottom ? "bottom" : "top";
+        // 同一边缘连续到达两次才翻页；触发后保持戒备状态（加载成功后才重置），换边则重新计数
+        if (this.reachedEdge === edge) {
+          this.toPage(atBottom ? "+" : "-");
+        } else {
+          this.reachedEdge = edge;
+        }
+      },
+    });
+  },
 };
 </script>
 
@@ -757,147 +731,147 @@ export default {
 @import "../../common/base.css";
 
 .demo-page {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	color: #ffffff;
-	height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  height: 100%;
 }
 
 .box {
-	position: relative;
-	width: 100%;
-	height: 100%;
-	flex-direction: column;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
 }
 
 text {
-	font-size: 20px;
+  font-size: 20px;
 }
 
 .button {
-	height: 50px;
-	font-size: 25px;
-	color: white;
+  height: 50px;
+  font-size: 25px;
+  color: white;
 }
 
 .com {
-	position: absolute;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	width: 100%;
-	height: 100%;
+  position: absolute;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 .title {
-	position: absolute;
-	top: 32px;
+  position: absolute;
+  top: 32px;
 }
 
 .time {
-	position: absolute;
-	top: 10px;
+  position: absolute;
+  top: 10px;
 }
 
 .slider {
-	width: 100%;
+  width: 100%;
 }
 
 .shade {
-	background-color: rgba(38, 38, 38, 0.6);
-	border-radius: 36px;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	width: 90%;
-	padding: 20px 10px;
-	border: 3px rgba(255, 255, 255, 0.24);
+  background-color: rgba(38, 38, 38, 0.6);
+  border-radius: 36px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 90%;
+  padding: 20px 10px;
+  border: 3px rgba(255, 255, 255, 0.24);
 }
 
 .chapter {
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	margin-bottom: 20px;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 20px;
 }
 
 .subtitle {
-	display: flex;
-	justify-items: center;
-	align-items: center;
-	font-size: 24px;
-	width: 75%;
-	text-align: center;
-	font-weight: bold;
-	color: rgba(255, 255, 255, 1);
+  display: flex;
+  justify-items: center;
+  align-items: center;
+  font-size: 24px;
+  width: 75%;
+  text-align: center;
+  font-weight: bold;
+  color: rgba(255, 255, 255, 1);
 }
 
 .dl {
-	border-radius: 100%;
-	border: 3px rgba(255, 255, 255, 0.24);
-	background-color: #262626;
-	padding: 10px;
+  border-radius: 100%;
+  border: 3px rgba(255, 255, 255, 0.24);
+  background-color: #262626;
+  padding: 10px;
 }
 
 /* 看看是不是小米手表 */
 @media (device-type: watch) and (shape: circle) {
-	.padding {
-		height: 50%;
-	}
+  .padding {
+    height: 50%;
+  }
 
-	.leftButton {
-		left: 6px;
-	}
+  .leftButton {
+    left: 6px;
+  }
 
-	.rightButton {
-		right: 6px;
-	}
+  .rightButton {
+    right: 6px;
+  }
 
-	.bottom {
-		position: absolute;
-		bottom: 6px;
-	}
-	.shade {
-		width: 75%;
-	}
+  .bottom {
+    position: absolute;
+    bottom: 6px;
+  }
+  .shade {
+    width: 75%;
+  }
 }
 
 /* 看看是不是小米手表 */
 @media (min-width: 200) and (max-width: 235) and (shape: circle) {
-	.leftButton {
-		top: 182px;
-	}
+  .leftButton {
+    top: 182px;
+  }
 
-	.rightButton {
-		top: 182px;
-	}
+  .rightButton {
+    top: 182px;
+  }
 
-	.bottom {
-		left: 182px;
-	}
+  .bottom {
+    left: 182px;
+  }
 }
 
 /* 看看是不是小米手表s1 pro */
 @media (min-width: 235) and (max-width: 250) and (shape: circle) {
-	.leftButton {
-		top: 189px;
-	}
+  .leftButton {
+    top: 189px;
+  }
 
-	.rightButton {
-		top: 189px;
-	}
+  .rightButton {
+    top: 189px;
+  }
 
-	.bottom {
-		left: 189px;
-	}
+  .bottom {
+    left: 189px;
+  }
 }
 
 /* 看看是不是红米手表 */
 @media (device-type: watch) and (shape: rect) {
-	.padding {
-		height: 10%;
-	}
+  .padding {
+    height: 10%;
+  }
 }
 </style>

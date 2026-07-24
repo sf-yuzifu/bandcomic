@@ -1,156 +1,146 @@
 <template>
-	<div class="container">
-		<div
-			id="mask"
-			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
-		>
-			<image
-				style="top: 300px; width: 926px; height: 926px"
-				src="/common/{{ processing ? 'success':'dling' }}_s4.png"
-			></image>
-		</div>
-		<div
-			id="mask"
-			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
-		>
-			<image
-				style="top: 300px; width: 926px; height: 926px"
-				src="/common/fail_s4.png"
-			></image>
-		</div>
+  <div class="container">
+    <div
+      id="mask"
+      if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
+    >
+      <image
+        style="top: 300px; width: 926px; height: 926px"
+        src="/common/{{ processing ? 'success':'dling' }}_s4.png"
+      ></image>
+    </div>
+    <div id="mask" if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}">
+      <image style="top: 300px; width: 926px; height: 926px" src="/common/fail_s4.png"></image>
+    </div>
 
-		<text class="time">{{ time }}</text>
+    <text class="time">{{ time }}</text>
 
-		<div class="title" style="justify-content: center">
-			<text
-				class="iconfont"
-				style="margin-right: 10px"
-				if="{{ global.screenShape == 'circle' }}"
-			>
-				&#xe685;
-			</text>
-			<marquee
-				scrollamount="{{ 20 }}"
-				text-offset="{{ 20 }}"
-				style="font-size: 32px; font-weight: bold"
-				@click="
-					() => {
-						if (global.screenShape == 'circle') {
-							routeBack();
-						}
-					}
-				"
-			>
-				{{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
-			</marquee>
-		</div>
+    <div class="title" style="justify-content: center">
+      <text class="iconfont" style="margin-right: 10px" if="{{ global.screenShape == 'circle' }}">
+        &#xe685;
+      </text>
+      <marquee
+        scrollamount="{{ 20 }}"
+        text-offset="{{ 20 }}"
+        style="font-size: 32px; font-weight: bold"
+        @click="
+          () => {
+            if (global.screenShape == 'circle') {
+              routeBack();
+            }
+          }
+        "
+      >
+        {{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
+      </marquee>
+    </div>
 
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="leftButton top"
-			src="/common/back.png"
-			@click="routeBack"
-		/>
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="leftButton top"
+      src="/common/back.png"
+      @click="routeBack"
+    />
 
-		<!-- 章节选择界面 -->
-		<div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
-			<div style="width: 100%; height: 100%">
-				<scroll
-					id="chapterScroll"
-					scroll-y="true"
-					class="chapter-list"
-					bounces="true"
-					onscrolltop="onScrollTop"
-					onscrollbottom="onScrollBottom"
-				>
-					<div
-						for="{{ chapter in chapterList.slice(displayStart, displayEnd) }}"
-						class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
-						@click="toggleChapter(chapter.num)"
-					>
-						<text class="chapter-text">{{ $t("photo.chapter") }}</text>
-						<text class="chapter-text">{{ chapter.num }}</text>
-					</div>
-				</scroll>
-			</div>
-			<div class="select-buttons">
-				<div class="button" @click="selectAll">
-					<text class="select-text">
-						{{
-							selectedChapters.length == total_chapters
-								? $t("download.deselectAll")
-								: $t("download.selectAll")
-						}}
-					</text>
-				</div>
-				<div class="button" @click="startBatchDownload">
-					<text class="select-text">
-						{{ $t("download.startDownload") }}({{ selectedChapters.length }})
-					</text>
-				</div>
-			</div>
-		</div>
+    <!-- 章节选择界面 -->
+    <div class="chapter-select" if="{{ showChapterSelect && !downloadError }}">
+      <div style="width: 100%; height: 100%">
+        <scroll
+          id="chapterScroll"
+          scroll-y="true"
+          class="chapter-list"
+          bounces="true"
+          onscrolltop="onScrollTop"
+          onscrollbottom="onScrollBottom"
+        >
+          <div
+            for="{{ chapter in chapterList.slice(displayStart, displayEnd) }}"
+            class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
+            @click="toggleChapter(chapter.num)"
+          >
+            <text class="chapter-text">{{ $t("photo.chapter") }}</text>
+            <text class="chapter-text">{{ chapter.num }}</text>
+          </div>
+        </scroll>
+      </div>
+      <div class="select-buttons">
+        <div class="button" @click="selectAll">
+          <text class="select-text">
+            {{
+              selectedChapters.length == total_chapters
+                ? $t("download.deselectAll")
+                : $t("download.selectAll")
+            }}
+          </text>
+        </div>
+        <div class="button" @click="startBatchDownload">
+          <text class="select-text">
+            {{ $t("download.startDownload") }}({{ selectedChapters.length }})
+          </text>
+        </div>
+      </div>
+    </div>
 
-		<!-- 方形手表下载界面 -->
-		<div
-			class="downloading"
-			if="{{ !showChapterSelect && global.screenShape != 'circle' && !downloadError }}"
-		>
-			<image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
-			<text class="dl-text">
-				{{ processing ? $t("download.complete") : $t("download.downloading") }}
-			</text>
-		</div>
-		<div
-			id="process"
-			if="{{ !showChapterSelect && global.screenShape != 'circle' && !downloadError }}"
-		>
-			<text class="content">
-				{{ $t("download.page", { page: page, total_page: page_count }) }}
-			</text>
-			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
-		</div>
-		<div
-			class="downloading"
-			if="{{ !showChapterSelect && global.screenShape != 'circle' && downloadError }}"
-		>
-			<image src="/common/fail.png"></image>
-			<text class="dl-text">{{ downloadError }}</text>
-		</div>
+    <!-- 方形手表下载界面 -->
+    <div
+      class="downloading"
+      if="{{ !showChapterSelect && global.screenShape != 'circle' && !downloadError }}"
+    >
+      <image src="/common/{{ processing ? 'success':'dling' }}.png"></image>
+      <text class="dl-text">
+        {{ processing ? $t("download.complete") : $t("download.downloading") }}
+      </text>
+    </div>
+    <div
+      id="process"
+      if="{{ !showChapterSelect && global.screenShape != 'circle' && !downloadError }}"
+    >
+      <text class="content">
+        {{ $t("download.page", { page: page, total_page: page_count }) }}
+      </text>
+      <text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
+    </div>
+    <div
+      class="downloading"
+      if="{{ !showChapterSelect && global.screenShape != 'circle' && downloadError }}"
+    >
+      <image src="/common/fail.png"></image>
+      <text class="dl-text">{{ downloadError }}</text>
+    </div>
 
-		<!-- 圆形手表下载界面 -->
-		<div
-			class="downloading"
-			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
-		>
-			<text class="dl-text">
-				{{ processing ? $t("download.complete") : $t("download.downloading") }}
-			</text>
-			<image src="/common/{{ processing ? 'success':'dl' }}_icon.png"></image>
-		</div>
-		<div
-			id="process"
-			if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
-		>
-			<text class="content">
-				{{ $t("download.page", { page: page, total_page: page_count }) }}
-			</text>
-			<text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
-		</div>
-		<div
-			class="downloading"
-			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
-		>
-			<text class="dl-text">{{ $t("download.downloadFailed") }}</text>
-			<image src="/common/fail_icon.png"></image>
-		</div>
-		<div
-			id="process-s4"
-			if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
-		>
-			<text class="content">{{ downloadError }}</text>
-		</div>
-	</div>
+    <!-- 圆形手表下载界面 -->
+    <div
+      class="downloading"
+      if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
+    >
+      <text class="dl-text">
+        {{ processing ? $t("download.complete") : $t("download.downloading") }}
+      </text>
+      <image src="/common/{{ processing ? 'success':'dl' }}_icon.png"></image>
+    </div>
+    <div
+      id="process"
+      if="{{ !showChapterSelect && global.screenShape == 'circle' && !downloadError }}"
+    >
+      <text class="content">
+        {{ $t("download.page", { page: page, total_page: page_count }) }}
+      </text>
+      <text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
+    </div>
+    <div
+      class="downloading"
+      if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
+    >
+      <text class="dl-text">{{ $t("download.downloadFailed") }}</text>
+      <image src="/common/fail_icon.png"></image>
+    </div>
+    <div
+      id="process-s4"
+      if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
+    >
+      <text class="content">{{ downloadError }}</text>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -158,17 +148,9 @@ import router from "@system.router";
 import file from "@system.file";
 import prompt from "@system.prompt";
 
-import {
-	addImageParams,
-	addCoverParams,
-	appendLvglSuffix,
-} from "../../components/imageUrl";
+import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
 import { readComics, writeComics } from "../../components/storage";
-import {
-	apiFetch,
-	buildPhotoUrl,
-	getCurrentSource,
-} from "../../components/api";
+import { apiFetch, buildPhotoUrl, getCurrentSource } from "../../components/api";
 
 const { getTime } = global;
 
@@ -177,548 +159,529 @@ const MAX_RETRY = 3;
 let ImageCache = [];
 
 function sleep(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function sanitizeFolderName(name) {
-	if (!name) return name;
-	const invalidChars = /[\\/:*?"<>|]/g;
-	return name.replace(invalidChars, "_");
+  if (!name) return name;
+  const invalidChars = /[\\/:*?"<>|]/g;
+  return name.replace(invalidChars, "_");
 }
 
 export default {
-	private: {
-		time: "",
-		id: 0,
-		page_count: 0,
-		name: "",
-		page: 0,
-		cover: "",
-		processing: false,
-		chapter: 0,
-		downloadError: "",
-		originalName: "",
-		is_serial: false,
-		showChapterSelect: false,
-		chapterList: [],
-		selectedChapters: [],
-		total_chapters: 0,
-		currentChapterIndex: 0,
-		chapterName: "",
-		displayStart: 0,
-		displayEnd: 18,
-		loadingMore: false,
-		scrollTopTriggered: false,
-		scrollBottomTriggered: false,
-	},
+  private: {
+    time: "",
+    id: 0,
+    page_count: 0,
+    name: "",
+    page: 0,
+    cover: "",
+    processing: false,
+    chapter: 0,
+    downloadError: "",
+    originalName: "",
+    is_serial: false,
+    showChapterSelect: false,
+    chapterList: [],
+    selectedChapters: [],
+    total_chapters: 0,
+    currentChapterIndex: 0,
+    chapterName: "",
+    displayStart: 0,
+    displayEnd: 18,
+    loadingMore: false,
+    scrollTopTriggered: false,
+    scrollBottomTriggered: false,
+  },
 
-	onShow() {
-		this.time = getTime();
-	},
+  onShow() {
+    this.time = getTime();
+  },
 
-	async onInit() {
-		this.showChapterSelect = this.total_chapters > 1;
-		await this.initData();
-		if (!(this.is_serial && this.total_chapters > 1)) {
-			this.startDownloadProcess();
-		}
-	},
+  async onInit() {
+    this.showChapterSelect = this.total_chapters > 1;
+    await this.initData();
+    if (!(this.is_serial && this.total_chapters > 1)) {
+      this.startDownloadProcess();
+    }
+  },
 
-	async initData() {
-		this.is_serial = this.total_chapters > 1;
-		this.originalName = this.name;
-		this.displayStart = 0;
-		this.displayEnd = Math.min(18, this.total_chapters);
-		if (this.is_serial) {
-			this.chapterList = [];
-			for (let i = 1; i <= this.total_chapters; i++) {
-				this.chapterList.push({
-					num: i,
-					selected: false,
-				});
-			}
-		}
-	},
+  async initData() {
+    this.is_serial = this.total_chapters > 1;
+    this.originalName = this.name;
+    this.displayStart = 0;
+    this.displayEnd = Math.min(18, this.total_chapters);
+    if (this.is_serial) {
+      this.chapterList = [];
+      for (let i = 1; i <= this.total_chapters; i++) {
+        this.chapterList.push({
+          num: i,
+          selected: false,
+        });
+      }
+    }
+  },
 
-	toggleChapter(chapterNum) {
-		const index = this.selectedChapters.indexOf(chapterNum);
-		if (index === -1) {
-			this.selectedChapters.push(chapterNum);
-		} else {
-			this.selectedChapters.splice(index, 1);
-		}
-		for (let i = 0; i < this.chapterList.length; i++) {
-			if (this.chapterList[i].num === chapterNum) {
-				this.chapterList[i].selected = !this.chapterList[i].selected;
-				break;
-			}
-		}
-	},
+  toggleChapter(chapterNum) {
+    const index = this.selectedChapters.indexOf(chapterNum);
+    if (index === -1) {
+      this.selectedChapters.push(chapterNum);
+    } else {
+      this.selectedChapters.splice(index, 1);
+    }
+    for (let i = 0; i < this.chapterList.length; i++) {
+      if (this.chapterList[i].num === chapterNum) {
+        this.chapterList[i].selected = !this.chapterList[i].selected;
+        break;
+      }
+    }
+  },
 
-	selectAll() {
-		if (this.selectedChapters.length == this.total_chapters) {
-			this.selectedChapters = [];
-			for (let i = 0; i < this.chapterList.length; i++) {
-				this.chapterList[i].selected = false;
-			}
-		} else {
-			this.selectedChapters = [];
-			for (let i = 1; i <= this.total_chapters; i++) {
-				this.selectedChapters.push(i);
-			}
-			for (let i = 0; i < this.chapterList.length; i++) {
-				this.chapterList[i].selected = true;
-			}
-		}
-	},
+  selectAll() {
+    if (this.selectedChapters.length == this.total_chapters) {
+      this.selectedChapters = [];
+      for (let i = 0; i < this.chapterList.length; i++) {
+        this.chapterList[i].selected = false;
+      }
+    } else {
+      this.selectedChapters = [];
+      for (let i = 1; i <= this.total_chapters; i++) {
+        this.selectedChapters.push(i);
+      }
+      for (let i = 0; i < this.chapterList.length; i++) {
+        this.chapterList[i].selected = true;
+      }
+    }
+  },
 
-	onScrollTop() {
-		if (this.displayStart === 0 || this.loadingMore) {
-			this.scrollTopTriggered = false;
-			return;
-		}
-		if (!this.scrollTopTriggered) {
-			this.scrollTopTriggered = true;
-			return;
-		}
-		this.scrollTopTriggered = false;
-		this.scrollBottomTriggered = false;
-		this.loadingMore = true;
-		this.displayEnd = this.displayStart;
-		this.displayStart = Math.max(0, this.displayStart - 18);
-		this.loadingMore = false;
-	},
+  onScrollTop() {
+    if (this.displayStart === 0 || this.loadingMore) {
+      this.scrollTopTriggered = false;
+      return;
+    }
+    if (!this.scrollTopTriggered) {
+      this.scrollTopTriggered = true;
+      return;
+    }
+    this.scrollTopTriggered = false;
+    this.scrollBottomTriggered = false;
+    this.loadingMore = true;
+    this.displayEnd = this.displayStart;
+    this.displayStart = Math.max(0, this.displayStart - 18);
+    this.loadingMore = false;
+  },
 
-	onScrollBottom() {
-		if (this.displayEnd >= this.total_chapters || this.loadingMore) {
-			this.scrollBottomTriggered = false;
-			return;
-		}
-		if (!this.scrollBottomTriggered) {
-			this.scrollBottomTriggered = true;
-			return;
-		}
-		this.scrollTopTriggered = false;
-		this.scrollBottomTriggered = false;
-		this.loadingMore = true;
-		this.displayStart = this.displayEnd;
-		this.displayEnd = Math.min(this.displayEnd + 18, this.total_chapters);
-		this.loadingMore = false;
-	},
+  onScrollBottom() {
+    if (this.displayEnd >= this.total_chapters || this.loadingMore) {
+      this.scrollBottomTriggered = false;
+      return;
+    }
+    if (!this.scrollBottomTriggered) {
+      this.scrollBottomTriggered = true;
+      return;
+    }
+    this.scrollTopTriggered = false;
+    this.scrollBottomTriggered = false;
+    this.loadingMore = true;
+    this.displayStart = this.displayEnd;
+    this.displayEnd = Math.min(this.displayEnd + 18, this.total_chapters);
+    this.loadingMore = false;
+  },
 
-	async startBatchDownload() {
-		if (this.selectedChapters.length === 0) {
-			prompt.showToast({
-				message: this.$t("download.selectAtLeastOne"),
-				duration: 2000,
-			});
-			return;
-		}
-		this.showChapterSelect = false;
-		this.currentChapterIndex = 0;
-		await this.downloadNextChapter();
-	},
+  async startBatchDownload() {
+    if (this.selectedChapters.length === 0) {
+      prompt.showToast({
+        message: this.$t("download.selectAtLeastOne"),
+        duration: 2000,
+      });
+      return;
+    }
+    this.showChapterSelect = false;
+    this.currentChapterIndex = 0;
+    await this.downloadNextChapter();
+  },
 
-	async downloadNextChapter() {
-		if (this.currentChapterIndex >= this.selectedChapters.length) {
-			this.processing = true;
-			prompt.showToast({
-				message: this.$t("download.allComplete"),
-				duration: 2000,
-			});
-			await sleep(1000);
-			router.replace({
-				uri: "/pages/offline",
-			});
-			return;
-		}
+  async downloadNextChapter() {
+    if (this.currentChapterIndex >= this.selectedChapters.length) {
+      this.processing = true;
+      prompt.showToast({
+        message: this.$t("download.allComplete"),
+        duration: 2000,
+      });
+      await sleep(1000);
+      router.replace({
+        uri: "/pages/offline",
+      });
+      return;
+    }
 
-		this.chapter = this.selectedChapters[this.currentChapterIndex];
-		this.chapterName = "";
-		this.processing = false;
-		this.page = 0;
-		this.downloadError = "";
+    this.chapter = this.selectedChapters[this.currentChapterIndex];
+    this.chapterName = "";
+    this.processing = false;
+    this.page = 0;
+    this.downloadError = "";
 
-		try {
-			await this.startDownloadProcess();
-			this.currentChapterIndex++;
-			await sleep(500);
-			await this.downloadNextChapter();
-		} catch (error) {
-			console.error(`章节 ${this.chapter} 下载失败:`, error);
-			this.downloadError = error;
-			this.processing = false;
-		}
-	},
+    try {
+      await this.startDownloadProcess();
+      this.currentChapterIndex++;
+      await sleep(500);
+      await this.downloadNextChapter();
+    } catch (error) {
+      console.error(`章节 ${this.chapter} 下载失败:`, error);
+      this.downloadError = error;
+      this.processing = false;
+    }
+  },
 
-	async startDownloadProcess() {
-		try {
-			const fileExists = await this.checkFileExists();
+  async startDownloadProcess() {
+    try {
+      const fileExists = await this.checkFileExists();
 
-			if (fileExists) {
-				await this.readAndUpdateComicsJson();
-			} else {
-				await this.createComicsJson();
-			}
+      if (fileExists) {
+        await this.readAndUpdateComicsJson();
+      } else {
+        await this.createComicsJson();
+      }
 
-			await this.createFolderAndDownload();
-		} catch (error) {
-			console.log(`下载过程出错: ${error}`);
-			this.downloadError = error;
-			this.processing = false;
-		}
-	},
+      await this.createFolderAndDownload();
+    } catch (error) {
+      console.debug(`下载过程出错: ${error}`);
+      this.downloadError = error;
+      this.processing = false;
+    }
+  },
 
-	checkFileExists() {
-		return readComics().then(
-			() => true,
-			({ code }) => {
-				if (code === 301) {
-					return false;
-				}
-				throw this.$t("download.checkFileFailed", { code: code });
-			}
-		);
-	},
+  checkFileExists() {
+    return readComics().then(
+      () => true,
+      ({ code }) => {
+        if (code === 301) {
+          return false;
+        }
+        throw this.$t("download.checkFileFailed", { code: code });
+      }
+    );
+  },
 
-	readAndUpdateComicsJson() {
-		return new Promise((resolve, reject) => {
-			readComics(true).then(
-				(comicsData) => {
-					const newComic = {
-						name: this.is_serial ? this.originalName : this.name,
-						page_count: this.page_count,
-						id: global.API_SETTING.using + "_" + this.id,
-						is_serial: this.is_serial,
-					};
+  readAndUpdateComicsJson() {
+    return new Promise((resolve, reject) => {
+      readComics(true).then(
+        (comicsData) => {
+          const newComic = {
+            name: this.is_serial ? this.originalName : this.name,
+            page_count: this.page_count,
+            id: global.API_SETTING.using + "_" + this.id,
+            is_serial: this.is_serial,
+          };
 
-					const existingIndex = comicsData.findIndex(
-						(comic) => comic.id === newComic.id
-					);
-					if (existingIndex !== -1) {
-						comicsData[existingIndex] = newComic;
-					} else {
-						comicsData.push(newComic);
-					}
+          const existingIndex = comicsData.findIndex((comic) => comic.id === newComic.id);
+          if (existingIndex !== -1) {
+            comicsData[existingIndex] = newComic;
+          } else {
+            comicsData.push(newComic);
+          }
 
-					writeComics(comicsData).then(
-						() => {
-							console.log("comics.json 更新成功");
-							resolve();
-						},
-						({ code }) => {
-							reject(this.$t("download.writeIndexFailed", { code: code }));
-						}
-					);
-				},
-				(err) => {
-					if (err.parseError) {
-						reject(this.$t("download.parseIndexFailed"));
-					} else {
-						reject(this.$t("download.readIndexFailed", { code: err.code }));
-					}
-				}
-			);
-		});
-	},
+          writeComics(comicsData).then(
+            () => {
+              console.debug("comics.json 更新成功");
+              resolve();
+            },
+            ({ code }) => {
+              reject(this.$t("download.writeIndexFailed", { code: code }));
+            }
+          );
+        },
+        (err) => {
+          if (err.parseError) {
+            reject(this.$t("download.parseIndexFailed"));
+          } else {
+            reject(this.$t("download.readIndexFailed", { code: err.code }));
+          }
+        }
+      );
+    });
+  },
 
-	createComicsJson() {
-		return new Promise((resolve, reject) => {
-			const comicsData = [
-				{
-					name: this.is_serial ? this.originalName : this.name,
-					page_count: this.page_count,
-					id: global.API_SETTING.using + "_" + this.id,
-					is_serial: this.is_serial,
-				},
-			];
+  createComicsJson() {
+    return new Promise((resolve, reject) => {
+      const comicsData = [
+        {
+          name: this.is_serial ? this.originalName : this.name,
+          page_count: this.page_count,
+          id: global.API_SETTING.using + "_" + this.id,
+          is_serial: this.is_serial,
+        },
+      ];
 
-			writeComics(comicsData).then(
-				() => {
-					console.log("comics.json 创建成功");
-					resolve();
-				},
-				({ code }) => {
-					reject(this.$t("download.createIndexFailed", { code: code }));
-				}
-			);
-		});
-	},
+      writeComics(comicsData).then(
+        () => {
+          console.debug("comics.json 创建成功");
+          resolve();
+        },
+        ({ code }) => {
+          reject(this.$t("download.createIndexFailed", { code: code }));
+        }
+      );
+    });
+  },
 
-	async createFolderAndDownload() {
-		try {
-			this.processing = false;
-			this.page = 0;
-			this.downloadError = "";
+  async createFolderAndDownload() {
+    try {
+      this.processing = false;
+      this.page = 0;
+      this.downloadError = "";
 
-			let folderUri;
-			let coverUri;
+      let folderUri;
+      let coverUri;
 
-			await this.fetchImageList();
+      await this.fetchImageList();
 
-			if (this.is_serial) {
-				const mainFolderUri = `internal://files/${
-					global.API_SETTING.using + "_" + this.id
-				}`;
-				await this.createFolder(mainFolderUri);
-				const chapterName = sanitizeFolderName(this.chapterName || this.name);
-				folderUri = `${mainFolderUri}/${this.chapter}　${chapterName}`;
-				coverUri = mainFolderUri;
-			} else {
-				folderUri = `internal://files/${
-					global.API_SETTING.using + "_" + this.id
-				}`;
-				coverUri = folderUri;
-			}
-			await this.createFolder(folderUri);
+      if (this.is_serial) {
+        const mainFolderUri = `internal://files/${global.API_SETTING.using + "_" + this.id}`;
+        await this.createFolder(mainFolderUri);
+        const chapterName = sanitizeFolderName(this.chapterName || this.name);
+        folderUri = `${mainFolderUri}/${this.chapter}　${chapterName}`;
+        coverUri = mainFolderUri;
+      } else {
+        folderUri = `internal://files/${global.API_SETTING.using + "_" + this.id}`;
+        coverUri = folderUri;
+      }
+      await this.createFolder(folderUri);
 
-			if (this.currentChapterIndex === 0 || !this.is_serial) {
-				await this.downloadCover(coverUri);
-			}
+      if (this.currentChapterIndex === 0 || !this.is_serial) {
+        await this.downloadCover(coverUri);
+      }
 
-			for (let i = 1; i <= this.page_count; i++) {
-				this.page = i;
-				await this.downloadPage(i, folderUri);
-			}
+      for (let i = 1; i <= this.page_count; i++) {
+        this.page = i;
+        await this.downloadPage(i, folderUri);
+      }
 
-			if (!this.is_serial) {
-				this.processing = true;
-				prompt.showToast({
-					message: this.$t("download.complete"),
-					duration: 2000,
-				});
+      if (!this.is_serial) {
+        this.processing = true;
+        prompt.showToast({
+          message: this.$t("download.complete"),
+          duration: 2000,
+        });
 
-				await sleep(1000);
-				router.replace({
-					uri: "/pages/offline",
-				});
-			}
-		} catch (error) {
-			console.error("下载过程出错:", error);
-			this.downloadError = error;
-			this.processing = false;
-			throw error;
-		}
-	},
+        await sleep(1000);
+        router.replace({
+          uri: "/pages/offline",
+        });
+      }
+    } catch (error) {
+      console.error("下载过程出错:", error);
+      this.downloadError = error;
+      this.processing = false;
+      throw error;
+    }
+  },
 
-	createFolder(folderUri) {
-		return new Promise((resolve, reject) => {
-			file.mkdir({
-				uri: folderUri,
-				success: () => {
-					console.log(`创建文件夹成功: ${folderUri}`);
-					resolve();
-				},
-				fail: (data, code) => {
-					if (code === 13900001) {
-						console.log("文件夹已存在");
-						resolve();
-					} else {
-						reject(this.$t("download.createFolderFailed", { code: code }));
-					}
-				},
-			});
-		});
-	},
+  createFolder(folderUri) {
+    return new Promise((resolve, reject) => {
+      file.mkdir({
+        uri: folderUri,
+        success: () => {
+          console.debug(`创建文件夹成功: ${folderUri}`);
+          resolve();
+        },
+        fail: (data, code) => {
+          if (code === 13900001) {
+            console.debug("文件夹已存在");
+            resolve();
+          } else {
+            reject(this.$t("download.createFolderFailed", { code: code }));
+          }
+        },
+      });
+    });
+  },
 
-	retryOnFail(code, retryCount, options) {
-		console.log(`${options.label}, code = ${code}, retryCount = ${retryCount}`);
+  retryOnFail(code, retryCount, options) {
+    console.debug(`${options.label}, code = ${code}, retryCount = ${retryCount}`);
 
-		if (retryCount < MAX_RETRY) {
-			const isTimeout = code === 28;
-			console.log(
-				isTimeout
-					? `网络超时，正在重试第 ${retryCount + 1} 次...`
-					: `网络错误，正在重试第 ${retryCount + 1} 次...`
-			);
-			prompt.showToast({
-				message: this.$t(
-					isTimeout ? "download.downloadTimeout" : "download.networkErrorRetry",
-					{ count: retryCount + 1 }
-				),
-				duration: 1500,
-			});
-			return sleep(1000).then(() => options.retry(retryCount + 1));
-		}
+    if (retryCount < MAX_RETRY) {
+      const isTimeout = code === 28;
+      console.debug(
+        isTimeout
+          ? `网络超时，正在重试第 ${retryCount + 1} 次...`
+          : `网络错误，正在重试第 ${retryCount + 1} 次...`
+      );
+      prompt.showToast({
+        message: this.$t(isTimeout ? "download.downloadTimeout" : "download.networkErrorRetry", {
+          count: retryCount + 1,
+        }),
+        duration: 1500,
+      });
+      return sleep(1000).then(() => options.retry(retryCount + 1));
+    }
 
-		return Promise.reject(
-			code === 28 ? options.timeoutMessage : options.failMessage(code)
-		);
-	},
+    return Promise.reject(code === 28 ? options.timeoutMessage : options.failMessage(code));
+  },
 
-	fetchImageList(retryCount = 0) {
-		return new Promise((resolve, reject) => {
-			apiFetch({
-				url: buildPhotoUrl(this.id, this.chapter),
-				responseType: "json",
-				success: (response) => {
-					const body = response.data;
-					let urls = null;
-					if (
-						body &&
-						body.images_data &&
-						body.images_data.data &&
-						Array.isArray(body.images_data.data.picture)
-					) {
-						urls = body.images_data.data.picture
-							.filter((img) => img && img.url)
-							.map((img) => getCurrentSource().apiUrl + img.url);
-						if (body.chapter_info && body.chapter_info.title) {
-							this.chapterName = body.chapter_info.title;
-						}
-					} else if (body && Array.isArray(body.images)) {
-						urls = body.images
-							.filter((img) => img && img.url)
-							.map((img) => img.url);
-						if (body.title) {
-							this.chapterName = body.title;
-						}
-					}
-					if (!urls) {
-						this.retryOnFail(0, retryCount, {
-							label: "获取图片列表失败",
-							retry: (count) => this.fetchImageList(count),
-							timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
-							failMessage: () => this.$t("error.invalidResponse"),
-						})
-							.then(resolve)
-							.catch(reject);
-						return;
-					}
-					ImageCache = urls;
-					this.page_count = ImageCache.length;
-					resolve();
-				},
-				fail: (data, code) => {
-					this.retryOnFail(code, retryCount, {
-						label: "获取图片列表失败",
-						retry: (count) => this.fetchImageList(count),
-						timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
-						failMessage: (errCode) =>
-							this.$t("download.fetchListFailed", { code: errCode }),
-					})
-						.then(resolve)
-						.catch(reject);
-				},
-			});
-		});
-	},
+  fetchImageList(retryCount = 0) {
+    return new Promise((resolve, reject) => {
+      apiFetch({
+        url: buildPhotoUrl(this.id, this.chapter),
+        responseType: "json",
+        success: (response) => {
+          const body = response.data;
+          let urls = null;
+          if (
+            body &&
+            body.images_data &&
+            body.images_data.data &&
+            Array.isArray(body.images_data.data.picture)
+          ) {
+            urls = body.images_data.data.picture
+              .filter((img) => img && img.url)
+              .map((img) => getCurrentSource().apiUrl + img.url);
+            if (body.chapter_info && body.chapter_info.title) {
+              this.chapterName = body.chapter_info.title;
+            }
+          } else if (body && Array.isArray(body.images)) {
+            urls = body.images.filter((img) => img && img.url).map((img) => img.url);
+            if (body.title) {
+              this.chapterName = body.title;
+            }
+          }
+          if (!urls) {
+            this.retryOnFail(0, retryCount, {
+              label: "获取图片列表失败",
+              retry: (count) => this.fetchImageList(count),
+              timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
+              failMessage: () => this.$t("error.invalidResponse"),
+            })
+              .then(resolve)
+              .catch(reject);
+            return;
+          }
+          ImageCache = urls;
+          this.page_count = ImageCache.length;
+          resolve();
+        },
+        fail: (data, code) => {
+          this.retryOnFail(code, retryCount, {
+            label: "获取图片列表失败",
+            retry: (count) => this.fetchImageList(count),
+            timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
+            failMessage: (errCode) => this.$t("download.fetchListFailed", { code: errCode }),
+          })
+            .then(resolve)
+            .catch(reject);
+        },
+      });
+    });
+  },
 
-	downloadPage(page, folderUri, retryCount = 0) {
-		let imageUrl;
+  downloadPage(page, folderUri, retryCount = 0) {
+    let imageUrl;
 
-		return new Promise((resolve, reject) => {
-			imageUrl = ImageCache[page - 1];
-			imageUrl = addImageParams(
-				imageUrl,
-				parseInt(global.APP_SETTING.imageSize) || 600,
-				parseInt(global.APP_SETTING.imageQuality) || 50
-			);
+    return new Promise((resolve, reject) => {
+      imageUrl = ImageCache[page - 1];
+      imageUrl = addImageParams(
+        imageUrl,
+        parseInt(global.APP_SETTING.imageSize) || 600,
+        parseInt(global.APP_SETTING.imageQuality) || 50
+      );
 
-			const fileUri = `${folderUri}/${page}${
-				global.APP_SETTING.imagePreTranscode ? ".bin" : ""
-			}`;
+      const fileUri = `${folderUri}/${page}${global.APP_SETTING.imagePreTranscode ? ".bin" : ""}`;
 
-			const startFetch = () => {
-				apiFetch({
-					url: appendLvglSuffix(
-						imageUrl,
-						`${global.API_SETTING.using}_${this.id}${
-							this.chapter ? "_ch" + this.chapter : ""
-						}_p${page}`
-					),
-					responseType: "file",
-					success: (response) => {
-						if (response.data) {
-							file.move({
-								srcUri: response.data,
-								dstUri: fileUri,
-								success: () => {
-									console.log(`图片保存成功: ${fileUri}`);
-									resolve();
-								},
-								fail: (data, code) => {
-									reject(this.$t("download.moveImageFailed", { code: code }));
-								},
-							});
-						} else {
-							reject(this.$t("download.emptyImageData"));
-						}
-					},
-					fail: (data, code) => {
-						this.retryOnFail(code, retryCount, {
-							label: "下载图片失败",
-							retry: (count) => this.downloadPage(page, folderUri, count),
-							timeoutMessage: this.$t("download.downloadTimeoutFailed"),
-							failMessage: (errCode) =>
-								this.$t("download.downloadFailed") + errCode,
-						})
-							.then(resolve)
-							.catch(reject);
-					},
-				});
-			};
+      const startFetch = () => {
+        apiFetch({
+          url: appendLvglSuffix(
+            imageUrl,
+            `${global.API_SETTING.using}_${this.id}${
+              this.chapter ? "_ch" + this.chapter : ""
+            }_p${page}`
+          ),
+          responseType: "file",
+          success: (response) => {
+            if (response.data) {
+              file.move({
+                srcUri: response.data,
+                dstUri: fileUri,
+                success: () => {
+                  console.debug(`图片保存成功: ${fileUri}`);
+                  resolve();
+                },
+                fail: (data, code) => {
+                  reject(this.$t("download.moveImageFailed", { code: code }));
+                },
+              });
+            } else {
+              reject(this.$t("download.emptyImageData"));
+            }
+          },
+          fail: (data, code) => {
+            this.retryOnFail(code, retryCount, {
+              label: "下载图片失败",
+              retry: (count) => this.downloadPage(page, folderUri, count),
+              timeoutMessage: this.$t("download.downloadTimeoutFailed"),
+              failMessage: (errCode) => this.$t("download.downloadFailed") + errCode,
+            })
+              .then(resolve)
+              .catch(reject);
+          },
+        });
+      };
 
-			file.access({
-				uri: fileUri,
-				success: () => {
-					console.log(`图片已存在，跳过下载: ${fileUri}`);
-					resolve();
-				},
-				fail: () => {
-					startFetch();
-				},
-			});
-		});
-	},
+      file.access({
+        uri: fileUri,
+        success: () => {
+          console.debug(`图片已存在，跳过下载: ${fileUri}`);
+          resolve();
+        },
+        fail: () => {
+          startFetch();
+        },
+      });
+    });
+  },
 
-	downloadCover(folderUri, retryCount = 0) {
-		return new Promise((resolve, reject) => {
-			const imageUrl = addCoverParams(this.cover);
+  downloadCover(folderUri, retryCount = 0) {
+    return new Promise((resolve, reject) => {
+      const imageUrl = addCoverParams(this.cover);
 
-			const fileUri = `${folderUri}/cover`;
+      const fileUri = `${folderUri}/cover`;
 
-			apiFetch({
-				url: appendLvglSuffix(
-					imageUrl,
-					`${global.API_SETTING.using}_${this.id}_cover`
-				),
-				responseType: "file",
-				success: (response) => {
-					if (response.data) {
-						file.move({
-							srcUri: response.data,
-							dstUri: fileUri,
-							success: () => {
-								console.log(`封面保存成功: ${fileUri}`);
-								resolve();
-							},
-							fail: (data, code) => {
-								reject(this.$t("download.moveImageFailed", { code: code }));
-							},
-						});
-					} else {
-						reject(this.$t("download.emptyImageData"));
-					}
-				},
-				fail: (data, code) => {
-					this.retryOnFail(code, retryCount, {
-						label: "下载封面失败",
-						retry: (count) => this.downloadCover(folderUri, count),
-						timeoutMessage: this.$t("download.coverTimeoutFailed"),
-						failMessage: (errCode) =>
-							this.$t("download.coverFailed", { code: errCode }),
-					})
-						.then(resolve)
-						.catch(reject);
-				},
-			});
-		});
-	},
+      apiFetch({
+        url: appendLvglSuffix(imageUrl, `${global.API_SETTING.using}_${this.id}_cover`),
+        responseType: "file",
+        success: (response) => {
+          if (response.data) {
+            file.move({
+              srcUri: response.data,
+              dstUri: fileUri,
+              success: () => {
+                console.debug(`封面保存成功: ${fileUri}`);
+                resolve();
+              },
+              fail: (data, code) => {
+                reject(this.$t("download.moveImageFailed", { code: code }));
+              },
+            });
+          } else {
+            reject(this.$t("download.emptyImageData"));
+          }
+        },
+        fail: (data, code) => {
+          this.retryOnFail(code, retryCount, {
+            label: "下载封面失败",
+            retry: (count) => this.downloadCover(folderUri, count),
+            timeoutMessage: this.$t("download.coverTimeoutFailed"),
+            failMessage: (errCode) => this.$t("download.coverFailed", { code: errCode }),
+          })
+            .then(resolve)
+            .catch(reject);
+        },
+      });
+    });
+  },
 
-	routeBack() {
-		router.back();
-	},
+  routeBack() {
+    router.back();
+  },
 };
 </script>
 
@@ -726,213 +689,213 @@ export default {
 @import "../../common/base.css";
 
 .container {
-	flex-direction: column;
-	justify-content: flex-start;
-	align-items: center;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 .content {
-	font-size: 32px;
-	color: #ffffff;
-	font-weight: bold;
+  font-size: 32px;
+  color: #ffffff;
+  font-weight: bold;
 }
 
 .per {
-	font-size: 32px;
-	color: rgba(255, 255, 255, 0.6);
-	font-weight: bold;
+  font-size: 32px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: bold;
 }
 
 .dl-text {
-	margin-top: 24px;
-	font-size: 32px;
-	color: #ffffff;
-	font-weight: bold;
-	margin-bottom: 80px;
-	margin-left: 40px;
-	margin-right: 40px;
+  margin-top: 24px;
+  font-size: 32px;
+  color: #ffffff;
+  font-weight: bold;
+  margin-bottom: 80px;
+  margin-left: 40px;
+  margin-right: 40px;
 }
 
 /* 章节选择界面样式 */
 .chapter-select {
-	width: 100%;
-	flex: 1;
-	flex-direction: column;
-	align-items: center;
-	padding: 20px;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
 }
 
 .chapter-list {
-	width: 100%;
-	flex: 1;
-	flex-wrap: wrap;
+  width: 100%;
+  flex: 1;
+  flex-wrap: wrap;
 }
 
 .chapter-item {
-	width: 31%;
-	background-color: #262626;
-	border-radius: 12px;
-	justify-content: center;
-	align-items: center;
-	margin: 3.33%;
-	border: 3px solid rgba(255, 255, 255, 0.24);
-	flex-direction: column;
+  width: 31%;
+  background-color: #262626;
+  border-radius: 12px;
+  justify-content: center;
+  align-items: center;
+  margin: 3.33%;
+  border: 3px solid rgba(255, 255, 255, 0.24);
+  flex-direction: column;
 }
 
 .selected {
-	background-color: #4caf50;
-	border-color: #4caf50;
+  background-color: #4caf50;
+  border-color: #4caf50;
 }
 
 .chapter-text {
-	font-size: 24px;
-	color: #ffffff;
-	font-weight: bold;
-	text-align: center;
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
 }
 
 .select-text {
-	font-size: 24px;
-	color: #ffffff;
-	font-weight: bold;
-	text-align: center;
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
+  text-align: center;
 }
 
 .select-buttons {
-	margin-top: 20px;
-	width: 100%;
-	flex-direction: row;
-	justify-content: space-between;
+  margin-top: 20px;
+  width: 100%;
+  flex-direction: row;
+  justify-content: space-between;
 }
 
 .button {
-	min-width: auto;
-	height: 100%;
-	border: 3px solid rgba(255, 255, 255, 0.24);
-	background-color: #262626;
-	padding: 10px 6px;
-	border-radius: 100%;
-	justify-content: center;
-	align-items: center;
+  min-width: auto;
+  height: 100%;
+  border: 3px solid rgba(255, 255, 255, 0.24);
+  background-color: #262626;
+  padding: 10px 6px;
+  border-radius: 100%;
+  justify-content: center;
+  align-items: center;
 }
 
 /* 方形手表适配 */
 @media (shape: rect) {
-	#process {
-		position: absolute;
-		bottom: 6px;
-		width: 95%;
-		height: 92px;
-		background-color: #262626;
-		border-radius: 36px;
-		justify-content: space-around;
-	}
+  #process {
+    position: absolute;
+    bottom: 6px;
+    width: 95%;
+    height: 92px;
+    background-color: #262626;
+    border-radius: 36px;
+    justify-content: space-around;
+  }
 
-	.downloading {
-		justify-content: center;
-		align-items: center;
-		width: 100%;
-		flex: 1;
-		flex-direction: column;
-	}
+  .downloading {
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    flex: 1;
+    flex-direction: column;
+  }
 
-	.select-buttons {
-		width: 95%;
-	}
+  .select-buttons {
+    width: 95%;
+  }
 }
 
 /* 圆形手表适配 */
 @media (device-type: watch) and (shape: circle) {
-	.container {
-		justify-content: center;
-	}
+  .container {
+    justify-content: center;
+  }
 
-	.downloading {
-		justify-content: center;
-		align-items: center;
-		width: 100%;
-		flex-direction: column;
-		position: absolute;
-		bottom: 40px;
-	}
+  .downloading {
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    flex-direction: column;
+    position: absolute;
+    bottom: 40px;
+  }
 
-	.title {
-		position: absolute;
-		top: 32px;
-	}
+  .title {
+    position: absolute;
+    top: 32px;
+  }
 
-	.time {
-		position: absolute;
-		top: 10px;
-	}
+  .time {
+    position: absolute;
+    top: 10px;
+  }
 
-	#mask {
-		position: absolute;
-		width: 100%;
-		height: 100%;
-		align-items: center;
-		overflow: hidden;
-	}
+  #mask {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    align-items: center;
+    overflow: hidden;
+  }
 
-	.dl-text {
-		margin-top: 24px;
-		font-size: 32px;
-		color: #ffffff;
-		font-weight: bold;
-		margin-bottom: 20px;
-	}
+  .dl-text {
+    margin-top: 24px;
+    font-size: 32px;
+    color: #ffffff;
+    font-weight: bold;
+    margin-bottom: 20px;
+  }
 
-	#process {
-		position: absolute;
-		width: 80%;
-		height: 92px;
-		background-color: #262626;
-		border-radius: 100%;
-		justify-content: space-around;
-	}
+  #process {
+    position: absolute;
+    width: 80%;
+    height: 92px;
+    background-color: #262626;
+    border-radius: 100%;
+    justify-content: space-around;
+  }
 
-	#process-s4 {
-		position: absolute;
-		width: 80%;
-		padding: 10px 25px;
-		background-color: #262626;
-		border-radius: 100%;
-		justify-content: space-around;
-	}
+  #process-s4 {
+    position: absolute;
+    width: 80%;
+    padding: 10px 25px;
+    background-color: #262626;
+    border-radius: 100%;
+    justify-content: space-around;
+  }
 
-	.chapter-list {
-		margin-top: 72px;
-		width: 90%;
-	}
+  .chapter-list {
+    margin-top: 72px;
+    width: 90%;
+  }
 
-	.select-buttons {
-		flex-direction: column;
-		width: 50%;
-		height: 160px;
-	}
+  .select-buttons {
+    flex-direction: column;
+    width: 50%;
+    height: 160px;
+  }
 
-	.button {
-		margin-bottom: 10px;
-		padding: 5px;
-	}
+  .button {
+    margin-bottom: 10px;
+    padding: 5px;
+  }
 }
 
 /* 看看是不是小米手环Pro */
 @media (device-type: band) and (shape: rect) {
-	.title {
-		width: 180px;
-	}
+  .title {
+    width: 180px;
+  }
 }
 /* 看看是不是红米手表 */
 @media (device-type: watch) and (shape: rect) {
-	.title {
-		width: 248px;
-	}
+  .title {
+    width: 248px;
+  }
 }
 
 @media (device-type: watch) and (shape: circle) {
-	.title {
-		width: 240px;
-	}
+  .title {
+    width: 240px;
+  }
 }
 </style>

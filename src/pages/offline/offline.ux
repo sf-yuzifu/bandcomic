@@ -1,170 +1,170 @@
 <template>
-	<div class="container">
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="leftButton top"
-			src="/common/back.png"
-			@click="routeBack"
-		/>
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="rightButton top"
-			src="/common/trans.png"
-			@click="changeTab"
-		/>
-		<text class="time">{{ time }}</text>
-		<text @click="routeBack" class="title">
-			<span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
-			<span>{{ currentTab === 'offline' ? $t("offline.offline") : $t("offline.historyTitle") }}</span>
-		</text>
+  <div class="container">
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="leftButton top"
+      src="/common/back.png"
+      @click="routeBack"
+    />
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="rightButton top"
+      src="/common/trans.png"
+      @click="changeTab"
+    />
+    <text class="time">{{ time }}</text>
+    <text @click="routeBack" class="title">
+      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span>{{ currentTab === 'offline' ? $t("offline.offline") : $t("offline.historyTitle") }}</span>
+    </text>
 
-		<swiper index="{{currentTab === 'offline' ? 0 : 1}}" class="swiper" @change="switchTab" enableswipe="{{enableSwipe}}">
-			<!-- 本地漫画标签页 -->
-			<div class="tab-switcher">
-				<div if="{{ storageLoaded }}" class="storage-container">
-					<text class="storage-label">{{ $t("offline.storage") }}</text>
-					<div class="storage-bar">
-						<div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
-						<div class="storage-bar-segment-comics" style="width: {{ comicsUsedPercent }}%"></div>
-						<div class="storage-bar-segment-other" style="width: {{ actualUsedPercent - comicsUsedPercent }}%"></div>
-						<div class="storage-bar-segment-remaining" style="width: {{ 100 - actualUsedPercent - systemReservedPercent }}%"></div>
-					</div>
-					<div class="storage-list">
-						<div class="storage-list-item" @click="toggleStorageList">
-							<div class="storage-list-color storage-list-color-remaining"></div>
-							<text class="storage-list-label">{{ $t("offline.remaining") }}</text>
-							<text class="storage-list-value">{{ remaining }}</text>
-							<text class="storage-list-arrow">{{ storageListExpanded ? '&#xe686' : '&#xe685' }}</text>
-						</div>
-						<div if="{{ storageListExpanded && systemReservedPercent }}" class="storage-list-item">
-							<div class="storage-list-color storage-list-color-reserved"></div>
-							<text class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
-							<text class="storage-list-value">{{ systemReserved }}</text>
-							<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
-						</div>
-						<div if="{{ storageListExpanded }}" class="storage-list-item">
-							<div class="storage-list-color storage-list-color-comics"></div>
-							<text class="storage-list-label">{{ $t("offline.comicsUsed") }}</text>
-							<text class="storage-list-value">{{ comicsUsed }}</text>
-							<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
-						</div>
-						<div if="{{ storageListExpanded }}" class="storage-list-item">
-							<div class="storage-list-color storage-list-color-other"></div>
-							<text class="storage-list-label">{{ $t("offline.otherUsed") }}</text>
-							<text class="storage-list-value">{{ otherUsed }}</text>
-							<text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
-						</div>
-					</div>
-				</div>
-				<div style="height: 10px"></div>
+    <swiper index="{{currentTab === 'offline' ? 0 : 1}}" class="swiper" @change="switchTab" enableswipe="{{enableSwipe}}">
+      <!-- 本地漫画标签页 -->
+      <div class="tab-switcher">
+        <div if="{{ storageLoaded }}" class="storage-container">
+          <text class="storage-label">{{ $t("offline.storage") }}</text>
+          <div class="storage-bar">
+            <div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
+            <div class="storage-bar-segment-comics" style="width: {{ comicsUsedPercent }}%"></div>
+            <div class="storage-bar-segment-other" style="width: {{ actualUsedPercent - comicsUsedPercent }}%"></div>
+            <div class="storage-bar-segment-remaining" style="width: {{ 100 - actualUsedPercent - systemReservedPercent }}%"></div>
+          </div>
+          <div class="storage-list">
+            <div class="storage-list-item" @click="toggleStorageList">
+              <div class="storage-list-color storage-list-color-remaining"></div>
+              <text class="storage-list-label">{{ $t("offline.remaining") }}</text>
+              <text class="storage-list-value">{{ remaining }}</text>
+              <text class="storage-list-arrow">{{ storageListExpanded ? '&#xe686' : '&#xe685' }}</text>
+            </div>
+            <div if="{{ storageListExpanded && systemReservedPercent }}" class="storage-list-item">
+              <div class="storage-list-color storage-list-color-reserved"></div>
+              <text class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
+              <text class="storage-list-value">{{ systemReserved }}</text>
+              <text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+            </div>
+            <div if="{{ storageListExpanded }}" class="storage-list-item">
+              <div class="storage-list-color storage-list-color-comics"></div>
+              <text class="storage-list-label">{{ $t("offline.comicsUsed") }}</text>
+              <text class="storage-list-value">{{ comicsUsed }}</text>
+              <text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+            </div>
+            <div if="{{ storageListExpanded }}" class="storage-list-item">
+              <div class="storage-list-color storage-list-color-other"></div>
+              <text class="storage-list-label">{{ $t("offline.otherUsed") }}</text>
+              <text class="storage-list-value">{{ otherUsed }}</text>
+              <text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+            </div>
+          </div>
+        </div>
+        <div style="height: 10px"></div>
 
-				<list if="{{ comicsList.length != 0 }}" id="comicsScroll" class="box" bounces="true">
-					<list-item for="{{ comicsList }}" class="item" type="list-item">
-						<scroll class="swipe-item" scroll-x="true" id="scroll_{{ $idx }}" @scroll="(event) => onScroll(event.scrollX, $idx)">
-							<div class="swipe-content" @click="toPhoto($item)">
-								<div class="cover-mask">
-									<image class="cover" src="internal://files/{{ $item.id }}/cover"></image>
-								    <image class="corner-mask" src="/common/coverMask.png"></image>
-								</div>
-								<div class="text-content">
-									<text class="itemText">{{ $item.name }}</text>
-									<text class="meta">{{ $t("offline.size") }} {{ $item.size }}</text>
-								</div>
-							</div>
-							<div class="delete-btn" @click="del($item.id)">
-								<image src="/common/del.png" class="delete-icon"></image>
-							</div>
-						</scroll>
-					</list-item>
-					<list-item type="pagination" class="pagination-wrapper" if="{{ comicsTotalPages() > 1 }}">
-						<div class="pagination-controls">
-							<div
-								class="{{ comicsPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
-								@click="changeComicsPage(comicsPage - 1)"
-							>
-								<text class="{{ comicsPage > 1 ? 'text-normal' : 'text-disabled' }}">
-									{{ $t("offline.up") }}
-								</text>
-							</div>
-							<text class="page-indicator">
-								{{ $t("offline.pageIndicator", { page: comicsPage }) }}
-							</text>
-							<div
-								class="{{ comicsPage < comicsTotalPages() ? 'pagination-button' : 'pagination-button-disabled' }}"
-								@click="changeComicsPage(comicsPage + 1)"
-							>
-								<text class="{{ comicsPage < comicsTotalPages() ? 'text-normal' : 'text-disabled' }}">
-									{{ $t("offline.down") }}
-								</text>
-							</div>
-						</div>
-					</list-item>
-					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
-				</list>
+        <list if="{{ comicsList.length != 0 }}" id="comicsScroll" class="box" bounces="true">
+          <list-item for="{{ comicsList }}" class="item" type="list-item">
+            <scroll class="swipe-item" scroll-x="true" id="scroll_{{ $idx }}" @scroll="(event) => onScroll(event.scrollX, $idx)">
+              <div class="swipe-content" @click="toPhoto($item)">
+                <div class="cover-mask">
+                  <image class="cover" src="internal://files/{{ $item.id }}/cover"></image>
+                    <image class="corner-mask" src="/common/coverMask.png"></image>
+                </div>
+                <div class="text-content">
+                  <text class="itemText">{{ $item.name }}</text>
+                  <text class="meta">{{ $t("offline.size") }} {{ $item.size }}</text>
+                </div>
+              </div>
+              <div class="delete-btn" @click="del($item.id)">
+                <image src="/common/del.png" class="delete-icon"></image>
+              </div>
+            </scroll>
+          </list-item>
+          <list-item type="pagination" class="pagination-wrapper" if="{{ comicsTotalPages() > 1 }}">
+            <div class="pagination-controls">
+              <div
+                class="{{ comicsPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
+                @click="changeComicsPage(comicsPage - 1)"
+              >
+                <text class="{{ comicsPage > 1 ? 'text-normal' : 'text-disabled' }}">
+                  {{ $t("offline.up") }}
+                </text>
+              </div>
+              <text class="page-indicator">
+                {{ $t("offline.pageIndicator", { page: comicsPage }) }}
+              </text>
+              <div
+                class="{{ comicsPage < comicsTotalPages() ? 'pagination-button' : 'pagination-button-disabled' }}"
+                @click="changeComicsPage(comicsPage + 1)"
+              >
+                <text class="{{ comicsPage < comicsTotalPages() ? 'text-normal' : 'text-disabled' }}">
+                  {{ $t("offline.down") }}
+                </text>
+              </div>
+            </div>
+          </list-item>
+          <div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
+        </list>
 
-				<div class="empty" if="{{ comicsList.length == 0 }}">
-					<image src="/common/empty.png"></image>
-					<text class="empty-text">{{ isLoading ? $t("offline.loading") : $t("offline.empty") }}</text>
-				</div>
-			</div>
+        <div class="empty" if="{{ comicsList.length == 0 }}">
+          <image src="/common/empty.png"></image>
+          <text class="empty-text">{{ isLoading ? $t("offline.loading") : $t("offline.empty") }}</text>
+        </div>
+      </div>
 
-			<!-- 历史记录标签页 -->
-			<div class="tab-switcher">
-				<div style="height: 10px"></div>
-				<list if="{{ historyList.length != 0 }}" id="historyScroll" class="box" bounces="true">
-					<list-item for="{{ historyList }}" class="item" type="list-item">
-						<scroll class="swipe-item" scroll-x="true" id="history_scroll_{{ $idx }}" @scroll="(event) => onHistoryScroll(event.scrollX, $idx)">
-							<div class="swipe-content" @click="toHistoryPhoto($item)">
-								<div class="cover-mask">
-									<image class="cover" src="{{ $item.cover }}"></image>
-								    <image class="corner-mask" src="/common/coverMask.png"></image>
-								</div>
-								<div class="text-content">
-									<text class="itemText">{{ $item.title }}</text>
-									<text class="meta" if="{{ $item.is_serial }}">
-										{{ $t("offline.chapter", { chapter: $item.chapter }) }} {{ formatTime($item.last_read_time) }}
-									</text>
-									<text class="meta" else>{{ $t("offline.page", { page: $item.page }) }} {{ formatTime($item.last_read_time) }}</text>
-								</div>
-							</div>
-							<div class="delete-btn" @click="delHistory($item.id)">
-								<image src="/common/del.png" class="delete-icon"></image>
-							</div>
-						</scroll>
-					</list-item>
-					<list-item type="pagination" class="pagination-wrapper" if="{{ historyTotalPages() > 1 }}">
-						<div class="pagination-controls">
-							<div
-								class="{{ historyPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
-								@click="changeHistoryPage(historyPage - 1)"
-							>
-								<text class="{{ historyPage > 1 ? 'text-normal' : 'text-disabled' }}">
-									{{ $t("offline.up") }}
-								</text>
-							</div>
-							<text class="page-indicator">
-								{{ $t("offline.pageIndicator", { page: historyPage }) }}
-							</text>
-							<div
-								class="{{ historyPage < historyTotalPages() ? 'pagination-button' : 'pagination-button-disabled' }}"
-								@click="changeHistoryPage(historyPage + 1)"
-							>
-								<text class="{{ historyPage < historyTotalPages() ? 'text-normal' : 'text-disabled' }}">
-									{{ $t("offline.down") }}
-								</text>
-							</div>
-						</div>
-					</list-item>
-					<div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
-				</list>
+      <!-- 历史记录标签页 -->
+      <div class="tab-switcher">
+        <div style="height: 10px"></div>
+        <list if="{{ historyList.length != 0 }}" id="historyScroll" class="box" bounces="true">
+          <list-item for="{{ historyList }}" class="item" type="list-item">
+            <scroll class="swipe-item" scroll-x="true" id="history_scroll_{{ $idx }}" @scroll="(event) => onHistoryScroll(event.scrollX, $idx)">
+              <div class="swipe-content" @click="toHistoryPhoto($item)">
+                <div class="cover-mask">
+                  <image class="cover" src="{{ $item.cover }}"></image>
+                    <image class="corner-mask" src="/common/coverMask.png"></image>
+                </div>
+                <div class="text-content">
+                  <text class="itemText">{{ $item.title }}</text>
+                  <text class="meta" if="{{ $item.is_serial }}">
+                    {{ $t("offline.chapter", { chapter: $item.chapter }) }} {{ formatTime($item.last_read_time) }}
+                  </text>
+                  <text class="meta" else>{{ $t("offline.page", { page: $item.page }) }} {{ formatTime($item.last_read_time) }}</text>
+                </div>
+              </div>
+              <div class="delete-btn" @click="delHistory($item.id)">
+                <image src="/common/del.png" class="delete-icon"></image>
+              </div>
+            </scroll>
+          </list-item>
+          <list-item type="pagination" class="pagination-wrapper" if="{{ historyTotalPages() > 1 }}">
+            <div class="pagination-controls">
+              <div
+                class="{{ historyPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
+                @click="changeHistoryPage(historyPage - 1)"
+              >
+                <text class="{{ historyPage > 1 ? 'text-normal' : 'text-disabled' }}">
+                  {{ $t("offline.up") }}
+                </text>
+              </div>
+              <text class="page-indicator">
+                {{ $t("offline.pageIndicator", { page: historyPage }) }}
+              </text>
+              <div
+                class="{{ historyPage < historyTotalPages() ? 'pagination-button' : 'pagination-button-disabled' }}"
+                @click="changeHistoryPage(historyPage + 1)"
+              >
+                <text class="{{ historyPage < historyTotalPages() ? 'text-normal' : 'text-disabled' }}">
+                  {{ $t("offline.down") }}
+                </text>
+              </div>
+            </div>
+          </list-item>
+          <div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
+        </list>
 
-				<div class="empty" if="{{ historyList.length == 0 }}">
-					<image src="/common/empty.png"></image>
-					<text class="empty-text">{{ isLoadingHistory ? $t("offline.historyLoading") : $t("offline.historyEmpty") }}</text>
-				</div>
-			</div>
-		</swiper>
-	</div>
+        <div class="empty" if="{{ historyList.length == 0 }}">
+          <image src="/common/empty.png"></image>
+          <text class="empty-text">{{ isLoadingHistory ? $t("offline.historyLoading") : $t("offline.historyEmpty") }}</text>
+        </div>
+      </div>
+    </swiper>
+  </div>
 </template>
 
 <script>
@@ -182,591 +182,591 @@ const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10;
 let del;
 
 function formatFileSize(size) {
-	if (size < 0) {
-		return "0B";
-	}
-	if (size < 1024) {
-		return size + "B";
-	} else if (size < 1024 * 1024) {
-		return (size / 1024).toFixed(2) + "KB";
-	} else if (size < 1024 * 1024 * 1024) {
-		return (size / (1024 * 1024)).toFixed(2) + "MB";
-	} else {
-		return (size / (1024 * 1024 * 1024)).toFixed(2) + "GB";
-	}
+  if (size < 0) {
+    return "0B";
+  }
+  if (size < 1024) {
+    return size + "B";
+  } else if (size < 1024 * 1024) {
+    return (size / 1024).toFixed(2) + "KB";
+  } else if (size < 1024 * 1024 * 1024) {
+    return (size / (1024 * 1024)).toFixed(2) + "MB";
+  } else {
+    return (size / (1024 * 1024 * 1024)).toFixed(2) + "GB";
+  }
 }
 
 let delHistoryId;
 
 export default {
-	private: {
-		time: "",
-		allComics: [],
-		comicsList: [],
-		comicsPage: 1,
-		allHistory: [],
-		historyList: [],
-		historyPage: 1,
-		storage: "",
-		storagePercent: 0,
-		storageUsed: "",
-		storageTotal: "",
-		totalStorage: 0,
-		systemReserved: "",
-		actualTotal: "",
-		systemReservedPercent: 25,
-		actualUsedPercent: 0,
-		comicsUsed: "",
-		comicsUsedPercent: 0,
-		otherUsed: "",
-		remaining: "",
-		storageListExpanded: false,
-		storageLoaded: false,
-		isLoading: false,
-		currentTab: "offline",
-		isLoadingHistory: false,
-		openedComicsIndex: -1,
-		openedHistoryIndex: -1,
-		enableSwipe: true,
-	},
+  private: {
+    time: "",
+    allComics: [],
+    comicsList: [],
+    comicsPage: 1,
+    allHistory: [],
+    historyList: [],
+    historyPage: 1,
+    storage: "",
+    storagePercent: 0,
+    storageUsed: "",
+    storageTotal: "",
+    totalStorage: 0,
+    systemReserved: "",
+    actualTotal: "",
+    systemReservedPercent: 25,
+    actualUsedPercent: 0,
+    comicsUsed: "",
+    comicsUsedPercent: 0,
+    otherUsed: "",
+    remaining: "",
+    storageListExpanded: false,
+    storageLoaded: false,
+    isLoading: false,
+    currentTab: "offline",
+    isLoadingHistory: false,
+    openedComicsIndex: -1,
+    openedHistoryIndex: -1,
+    enableSwipe: true,
+  },
 
-	onShow() {
-		this.time = getTime();
-	},
+  onShow() {
+    this.time = getTime();
+  },
 
-	onInit() {
-		device.getInfo({
-			success: (data) => {
-				this.enableSwipe = data.product !== 'Xiaomi Smart Band 9 Pro';
-			}
-		});
-		this.loadingComic();
-		this.loadHistory();
-	},
+  onInit() {
+    device.getInfo({
+      success: (data) => {
+        this.enableSwipe = data.product !== 'Xiaomi Smart Band 9 Pro';
+      }
+    });
+    this.loadingComic();
+    this.loadHistory();
+  },
 
-	switchTab(tab) {
-		this.currentTab = tab.index ? 'history' : 'offline';
-	},
+  switchTab(tab) {
+    this.currentTab = tab.index ? 'history' : 'offline';
+  },
 
-	changeTab() {
-		this.currentTab = this.currentTab === 'offline' ? 'history' : 'offline';
-	},
+  changeTab() {
+    this.currentTab = this.currentTab === 'offline' ? 'history' : 'offline';
+  },
 
-	onScroll(scrollLeft, index) {
-		if (scrollLeft === 0) return;
-		this.comicsList[index].scrollLeft = scrollLeft;
-		// 如果有其他已滑出的卡片，回滚它
-		if (this.openedComicsIndex !== -1 && this.openedComicsIndex !== index) {
-			const scrollEl = this.$element('scroll_' + this.openedComicsIndex);
-			if (scrollEl) {
-				scrollEl.scrollBy({ left: -100 });
-			}
-			this.comicsList[this.openedComicsIndex].scrollLeft = 0;
-		}
-		// 更新当前滑出的卡片索引
-		this.openedComicsIndex = scrollLeft > 0 ? index : -1;
-	},
+  onScroll(scrollLeft, index) {
+    if (scrollLeft === 0) return;
+    this.comicsList[index].scrollLeft = scrollLeft;
+    // 如果有其他已滑出的卡片，回滚它
+    if (this.openedComicsIndex !== -1 && this.openedComicsIndex !== index) {
+      const scrollEl = this.$element('scroll_' + this.openedComicsIndex);
+      if (scrollEl) {
+        scrollEl.scrollBy({ left: -100 });
+      }
+      this.comicsList[this.openedComicsIndex].scrollLeft = 0;
+    }
+    // 更新当前滑出的卡片索引
+    this.openedComicsIndex = scrollLeft > 0 ? index : -1;
+  },
 
-	onHistoryScroll(scrollLeft, index) {
-		if (scrollLeft === 0) return;
-		this.historyList[index].scrollLeft = scrollLeft;
-		// 如果有其他已滑出的历史记录卡片，回滚它
-		if (this.openedHistoryIndex !== -1 && this.openedHistoryIndex !== index) {
-			const scrollEl = this.$element('history_scroll_' + this.openedHistoryIndex);
-			if (scrollEl) {
-				scrollEl.scrollBy({ left: -100 });
-			}
-			this.historyList[this.openedHistoryIndex].scrollLeft = 0;
-		}
-		// 更新当前滑出的卡片索引
-		this.openedHistoryIndex = scrollLeft > 0 ? index : -1;
-	},
+  onHistoryScroll(scrollLeft, index) {
+    if (scrollLeft === 0) return;
+    this.historyList[index].scrollLeft = scrollLeft;
+    // 如果有其他已滑出的历史记录卡片，回滚它
+    if (this.openedHistoryIndex !== -1 && this.openedHistoryIndex !== index) {
+      const scrollEl = this.$element('history_scroll_' + this.openedHistoryIndex);
+      if (scrollEl) {
+        scrollEl.scrollBy({ left: -100 });
+      }
+      this.historyList[this.openedHistoryIndex].scrollLeft = 0;
+    }
+    // 更新当前滑出的卡片索引
+    this.openedHistoryIndex = scrollLeft > 0 ? index : -1;
+  },
 
-	loadHistory() {
-		this.isLoadingHistory = true;
-		readHistory().then(
-			(historyList) => {
-				if (!Array.isArray(historyList)) {
-					historyList = [];
-				}
-				this.allHistory = historyList.filter(item => !item.local);
-				if (this.historyPage > this.historyTotalPages()) {
-					this.historyPage = this.historyTotalPages();
-				}
-				this.updateHistoryList();
-				this.isLoadingHistory = false;
-			},
-			() => {
-				this.allHistory = [];
-				this.historyPage = 1;
-				this.updateHistoryList();
-				this.isLoadingHistory = false;
-			}
-		);
-	},
+  loadHistory() {
+    this.isLoadingHistory = true;
+    readHistory().then(
+      (historyList) => {
+        if (!Array.isArray(historyList)) {
+          historyList = [];
+        }
+        this.allHistory = historyList.filter(item => !item.local);
+        if (this.historyPage > this.historyTotalPages()) {
+          this.historyPage = this.historyTotalPages();
+        }
+        this.updateHistoryList();
+        this.isLoadingHistory = false;
+      },
+      () => {
+        this.allHistory = [];
+        this.historyPage = 1;
+        this.updateHistoryList();
+        this.isLoadingHistory = false;
+      }
+    );
+  },
 
-	historyTotalPages() {
-		return Math.max(1, Math.ceil(this.allHistory.length / PAGE_SIZE));
-	},
+  historyTotalPages() {
+    return Math.max(1, Math.ceil(this.allHistory.length / PAGE_SIZE));
+  },
 
-	comicsTotalPages() {
-		return Math.max(1, Math.ceil(this.allComics.length / PAGE_SIZE));
-	},
+  comicsTotalPages() {
+    return Math.max(1, Math.ceil(this.allComics.length / PAGE_SIZE));
+  },
 
-	updateHistoryList() {
-		const start = (this.historyPage - 1) * PAGE_SIZE;
-		this.historyList = this.allHistory.slice(start, start + PAGE_SIZE);
-		this.openedHistoryIndex = -1;
-		this.scrollListToTop("historyScroll");
-	},
+  updateHistoryList() {
+    const start = (this.historyPage - 1) * PAGE_SIZE;
+    this.historyList = this.allHistory.slice(start, start + PAGE_SIZE);
+    this.openedHistoryIndex = -1;
+    this.scrollListToTop("historyScroll");
+  },
 
-	updateComicsList() {
-		const start = (this.comicsPage - 1) * PAGE_SIZE;
-		this.comicsList = this.allComics.slice(start, start + PAGE_SIZE);
-		this.openedComicsIndex = -1;
-		this.scrollListToTop("comicsScroll");
-	},
+  updateComicsList() {
+    const start = (this.comicsPage - 1) * PAGE_SIZE;
+    this.comicsList = this.allComics.slice(start, start + PAGE_SIZE);
+    this.openedComicsIndex = -1;
+    this.scrollListToTop("comicsScroll");
+  },
 
-	scrollListToTop(id) {
-		const scrollToTop = () => {
-			const el = this.$element(id);
-			if (el && typeof el.scrollTo === "function") {
-				el.scrollTo({ index: 0, behavior: "instant" });
-			}
-		};
-		if (typeof this.$nextTick === "function") {
-			this.$nextTick(scrollToTop);
-		} else {
-			setTimeout(scrollToTop, 50);
-		}
-	},
+  scrollListToTop(id) {
+    const scrollToTop = () => {
+      const el = this.$element(id);
+      if (el && typeof el.scrollTo === "function") {
+        el.scrollTo({ index: 0, behavior: "instant" });
+      }
+    };
+    if (typeof this.$nextTick === "function") {
+      this.$nextTick(scrollToTop);
+    } else {
+      setTimeout(scrollToTop, 50);
+    }
+  },
 
-	changeHistoryPage(targetPage) {
-		if (targetPage < 1 || targetPage > this.historyTotalPages() || targetPage === this.historyPage) {
-			return;
-		}
-		this.historyPage = targetPage;
-		this.updateHistoryList();
-	},
+  changeHistoryPage(targetPage) {
+    if (targetPage < 1 || targetPage > this.historyTotalPages() || targetPage === this.historyPage) {
+      return;
+    }
+    this.historyPage = targetPage;
+    this.updateHistoryList();
+  },
 
-	changeComicsPage(targetPage) {
-		if (targetPage < 1 || targetPage > this.comicsTotalPages() || targetPage === this.comicsPage) {
-			return;
-		}
-		this.comicsPage = targetPage;
-		this.updateComicsList();
-	},
+  changeComicsPage(targetPage) {
+    if (targetPage < 1 || targetPage > this.comicsTotalPages() || targetPage === this.comicsPage) {
+      return;
+    }
+    this.comicsPage = targetPage;
+    this.updateComicsList();
+  },
 
-	formatTime(timestamp) {
-		const date = new Date(timestamp);
-		const now = new Date();
-		const diff = now - date;
+  formatTime(timestamp) {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
 
-		// 小于1小时
-		if (diff < 60 * 60 * 1000) {
-			const minutes = Math.floor(diff / (60 * 1000));
-			if (minutes < 1) {
-				return this.$t("offline.justNow");
-			}
-			return this.$t("offline.minutesAgo", { minutes });
-		}
-		// 小于24小时
-		if (diff < 24 * 60 * 60 * 1000) {
-			const hours = Math.floor(diff / (60 * 60 * 1000));
-			return this.$t("offline.hoursAgo", { hours });
-		}
-		// 小于7天
-		if (diff < 7 * 24 * 60 * 60 * 1000) {
-			const days = Math.floor(diff / (24 * 60 * 60 * 1000));
-			return this.$t("offline.daysAgo", { days });
-		}
-		// 显示具体日期
-		const month = (date.getMonth() + 1).toString().padStart(2, '0');
-		const day = date.getDate().toString().padStart(2, '0');
-		return `${month}-${day}`;
-	},
+    // 小于1小时
+    if (diff < 60 * 60 * 1000) {
+      const minutes = Math.floor(diff / (60 * 1000));
+      if (minutes < 1) {
+        return this.$t("offline.justNow");
+      }
+      return this.$t("offline.minutesAgo", { minutes });
+    }
+    // 小于24小时
+    if (diff < 24 * 60 * 60 * 1000) {
+      const hours = Math.floor(diff / (60 * 60 * 1000));
+      return this.$t("offline.hoursAgo", { hours });
+    }
+    // 小于7天
+    if (diff < 7 * 24 * 60 * 60 * 1000) {
+      const days = Math.floor(diff / (24 * 60 * 60 * 1000));
+      return this.$t("offline.daysAgo", { days });
+    }
+    // 显示具体日期
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${month}-${day}`;
+  },
 
-	toHistoryPhoto(item) {
-		router.push({
-			uri: "/pages/photo",
-			params: {
-				id: item.originalId,
-				page_count: item.page_count,
-				total_chapters: item.total_chapters,
-				title: item.title,
-				cover: item.cover,
-				source: item.source,
-			},
-		});
-	},
+  toHistoryPhoto(item) {
+    router.push({
+      uri: "/pages/photo",
+      params: {
+        id: item.originalId,
+        page_count: item.page_count,
+        total_chapters: item.total_chapters,
+        title: item.title,
+        cover: item.cover,
+        source: item.source,
+      },
+    });
+  },
 
-	delHistory(id) {
-		if (delHistoryId === id) {
-			// 第二次点击，执行删除
-			prompt.showToast({
-				message: this.$t("offline.historySecondDel"),
-			});
+  delHistory(id) {
+    if (delHistoryId === id) {
+      // 第二次点击，执行删除
+      prompt.showToast({
+        message: this.$t("offline.historySecondDel"),
+      });
 
-			// 从列表中删除
-			const newList = this.allHistory.filter(item => item.id !== id);
-			this.allHistory = newList;
-			if (this.historyPage > this.historyTotalPages()) {
-				this.historyPage = this.historyTotalPages();
-			}
-			this.updateHistoryList();
+      // 从列表中删除
+      const newList = this.allHistory.filter(item => item.id !== id);
+      this.allHistory = newList;
+      if (this.historyPage > this.historyTotalPages()) {
+        this.historyPage = this.historyTotalPages();
+      }
+      this.updateHistoryList();
 
-			// 保存到文件
-			writeHistory(newList).then(
-				() => {
-					prompt.showToast({
-						message: this.$t("offline.historyDelComplete"),
-					});
-				},
-				({ code }) => {
-					prompt.showToast({
-						message: this.$t("offline.historyDeleteFailed", { code }),
-					});
-				}
-			);
+      // 保存到文件
+      writeHistory(newList).then(
+        () => {
+          prompt.showToast({
+            message: this.$t("offline.historyDelComplete"),
+          });
+        },
+        ({ code }) => {
+          prompt.showToast({
+            message: this.$t("offline.historyDeleteFailed", { code }),
+          });
+        }
+      );
 
-			delHistoryId = null;
-		} else {
-			// 第一次点击
-			delHistoryId = id;
-			prompt.showToast({
-				message: this.$t("offline.historyDel"),
-			});
-			// 3秒后重置
-			setTimeout(() => {
-				if (delHistoryId === id) {
-					delHistoryId = null;
-				}
-			}, 3000);
-		}
-	},
+      delHistoryId = null;
+    } else {
+      // 第一次点击
+      delHistoryId = id;
+      prompt.showToast({
+        message: this.$t("offline.historyDel"),
+      });
+      // 3秒后重置
+      setTimeout(() => {
+        if (delHistoryId === id) {
+          delHistoryId = null;
+        }
+      }, 3000);
+    }
+  },
 
-	async loadingComic() {
-		this.isLoading = true;
-		let comics = [];
-		try {
-			comics = await readComics();
-			if (!Array.isArray(comics)) {
-				comics = [];
-			}
-		} catch (err) {
-			console.log(`读取comics.json失败, code = ${err.code}`);
-			comics = [];
-		}
-		const stats = await this.getStorage(comics);
-		this.allComics = comics;
-		if (this.comicsPage > this.comicsTotalPages()) {
-			this.comicsPage = this.comicsTotalPages();
-		}
-		this.updateComicsList();
-		this.totalStorage = stats.totalStorage;
-		this.storageTotal = stats.storageTotal;
-		this.systemReserved = stats.systemReserved;
-		this.actualTotal = stats.actualTotal;
-		this.storage = stats.storage;
-		this.comicsUsed = stats.comicsUsed;
-		this.comicsUsedPercent = stats.comicsUsedPercent;
-		this.storageUsed = stats.storageUsed;
-		this.actualUsedPercent = stats.actualUsedPercent;
-		this.otherUsed = stats.otherUsed;
-		this.remaining = stats.remaining;
-		this.systemReservedPercent = stats.systemReservedPercent;
-		this.storageLoaded = true;
-		this.isLoading = false;
-	},
+  async loadingComic() {
+    this.isLoading = true;
+    let comics = [];
+    try {
+      comics = await readComics();
+      if (!Array.isArray(comics)) {
+        comics = [];
+      }
+    } catch (err) {
+      console.debug(`读取comics.json失败, code = ${err.code}`);
+      comics = [];
+    }
+    const stats = await this.getStorage(comics);
+    this.allComics = comics;
+    if (this.comicsPage > this.comicsTotalPages()) {
+      this.comicsPage = this.comicsTotalPages();
+    }
+    this.updateComicsList();
+    this.totalStorage = stats.totalStorage;
+    this.storageTotal = stats.storageTotal;
+    this.systemReserved = stats.systemReserved;
+    this.actualTotal = stats.actualTotal;
+    this.storage = stats.storage;
+    this.comicsUsed = stats.comicsUsed;
+    this.comicsUsedPercent = stats.comicsUsedPercent;
+    this.storageUsed = stats.storageUsed;
+    this.actualUsedPercent = stats.actualUsedPercent;
+    this.otherUsed = stats.otherUsed;
+    this.remaining = stats.remaining;
+    this.systemReservedPercent = stats.systemReservedPercent;
+    this.storageLoaded = true;
+    this.isLoading = false;
+  },
 
-	checkFileExists() {
-		return readComics().then(
-			() => true,
-			() => false
-		);
-	},
+  checkFileExists() {
+    return readComics().then(
+      () => true,
+      () => false
+    );
+  },
 
-	async getStorage(comics) {
-		let totalStorage = 0;
-		let availableStorage = 0;
+  async getStorage(comics) {
+    let totalStorage = 0;
+    let availableStorage = 0;
 
-		const [totalResult, availableResult] = await Promise.all([
-			new Promise((resolve) => {
-				device.getTotalStorage({
-					success: (data) => resolve(data),
-					fail: (data, code) => {
-						console.log(`获取总存储空间失败, code = ${code}`);
-						resolve(null);
-					},
-				});
-			}),
-			new Promise((resolve) => {
-				device.getAvailableStorage({
-					success: (data) => resolve(data),
-					fail: (data, code) => {
-						console.log(`获取可用存储空间失败, code = ${code}`);
-						resolve(null);
-					},
-				});
-			}),
-		]);
+    const [totalResult, availableResult] = await Promise.all([
+      new Promise((resolve) => {
+        device.getTotalStorage({
+          success: (data) => resolve(data),
+          fail: (data, code) => {
+            console.debug(`获取总存储空间失败, code = ${code}`);
+            resolve(null);
+          },
+        });
+      }),
+      new Promise((resolve) => {
+        device.getAvailableStorage({
+          success: (data) => resolve(data),
+          fail: (data, code) => {
+            console.debug(`获取可用存储空间失败, code = ${code}`);
+            resolve(null);
+          },
+        });
+      }),
+    ]);
 
-		const stats = {
-			totalStorage: 0,
-			storageTotal: "",
-			systemReserved: "",
-			actualTotal: "",
-			storage: "",
-			comicsUsed: "",
-			comicsUsedPercent: 0,
-			storageUsed: "",
-			actualUsedPercent: 0,
-			otherUsed: "",
-			remaining: "",
-			systemReservedPercent: 25,
-		};
+    const stats = {
+      totalStorage: 0,
+      storageTotal: "",
+      systemReserved: "",
+      actualTotal: "",
+      storage: "",
+      comicsUsed: "",
+      comicsUsedPercent: 0,
+      storageUsed: "",
+      actualUsedPercent: 0,
+      otherUsed: "",
+      remaining: "",
+      systemReservedPercent: 25,
+    };
 
-		if (totalResult) {
-			totalStorage = totalResult.totalStorage;
-			const systemReserved = global.getReservedSpace(totalStorage);
-			stats.totalStorage = totalStorage;
-			stats.storageTotal = formatFileSize(totalStorage);
-			stats.systemReserved = formatFileSize(systemReserved);
-			stats.actualTotal = formatFileSize(totalStorage - systemReserved);
-		}
+    if (totalResult) {
+      totalStorage = totalResult.totalStorage;
+      const systemReserved = global.getReservedSpace(totalStorage);
+      stats.totalStorage = totalStorage;
+      stats.storageTotal = formatFileSize(totalStorage);
+      stats.systemReserved = formatFileSize(systemReserved);
+      stats.actualTotal = formatFileSize(totalStorage - systemReserved);
+    }
 
-		if (availableResult) {
-			availableStorage = availableResult.availableStorage;
-			stats.storage = formatFileSize(availableStorage);
-		}
+    if (availableResult) {
+      availableStorage = availableResult.availableStorage;
+      stats.storage = formatFileSize(availableStorage);
+    }
 
-		const comicsSizeResults = await Promise.all(
-			comics.map((comic, index) => {
-				return new Promise((resolve) => {
-					file.get({
-						uri: `internal://files/${comic.id}`,
-						recursive: true,
-						success: (data) => {
-							let length = 0;
-							for (const i of data.subFiles) {
-								if (i.type === "dir" && i.subFiles.length != 0) {
-									if (!comic.totalChapter) {
-										comic.totalChapter = [];
-									}
-									const folderName = i.uri.split("/").pop();
-									const parts = folderName.split("　");
-									const chapterNum = parts[0];
-									const chapterName = parts.slice(1).join("　");
-									comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
-									for (const m of i.subFiles) {
-										length += m.length;
-									}
-								} else {
-									length += i.length;
-								}
-							}
-							if (comic.totalChapter) {
-								comic.totalChapter.sort((a, b) => a[2] - b[2]);
-							}
-							comic.size = formatFileSize(length);
-							resolve({ index, length });
-						},
-						fail: (data, code) => {
-							console.log(`获取漫画大小失败, code = ${code}`);
-							resolve({ index, length: 0 });
-						},
-					});
-				});
-			})
-		);
+    const comicsSizeResults = await Promise.all(
+      comics.map((comic, index) => {
+        return new Promise((resolve) => {
+          file.get({
+            uri: `internal://files/${comic.id}`,
+            recursive: true,
+            success: (data) => {
+              let length = 0;
+              for (const i of data.subFiles) {
+                if (i.type === "dir" && i.subFiles.length != 0) {
+                  if (!comic.totalChapter) {
+                    comic.totalChapter = [];
+                  }
+                  const folderName = i.uri.split("/").pop();
+                  const parts = folderName.split("　");
+                  const chapterNum = parts[0];
+                  const chapterName = parts.slice(1).join("　");
+                  comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
+                  for (const m of i.subFiles) {
+                    length += m.length;
+                  }
+                } else {
+                  length += i.length;
+                }
+              }
+              if (comic.totalChapter) {
+                comic.totalChapter.sort((a, b) => a[2] - b[2]);
+              }
+              comic.size = formatFileSize(length);
+              resolve({ index, length });
+            },
+            fail: (data, code) => {
+              console.debug(`获取漫画大小失败, code = ${code}`);
+              resolve({ index, length: 0 });
+            },
+          });
+        });
+      })
+    );
 
-		const comicsTotalSize = comicsSizeResults.reduce((sum, r) => sum + r.length, 0);
+    const comicsTotalSize = comicsSizeResults.reduce((sum, r) => sum + r.length, 0);
 
-		if (totalStorage > 0) {
-			const systemReserved = global.getReservedSpace(totalStorage);
-			const actualTotal = totalStorage - systemReserved;
-			const actualAvailable = Math.max(0, availableStorage - systemReserved);
-			stats.comicsUsed = formatFileSize(comicsTotalSize);
-			// 统一基于 totalStorage 计算百分比，确保进度条显示正确
-			stats.comicsUsedPercent = Math.floor((comicsTotalSize / totalStorage) * 100);
-			stats.storageUsed = formatFileSize(actualTotal - actualAvailable);
-			stats.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / totalStorage) * 100);
-			stats.otherUsed = formatFileSize(Math.max(0, actualTotal - actualAvailable - comicsTotalSize));
-			stats.remaining = formatFileSize(actualAvailable);
-			stats.systemReservedPercent = Math.floor((systemReserved / totalStorage) * 100);
-		}
+    if (totalStorage > 0) {
+      const systemReserved = global.getReservedSpace(totalStorage);
+      const actualTotal = totalStorage - systemReserved;
+      const actualAvailable = Math.max(0, availableStorage - systemReserved);
+      stats.comicsUsed = formatFileSize(comicsTotalSize);
+      // 统一基于 totalStorage 计算百分比，确保进度条显示正确
+      stats.comicsUsedPercent = Math.floor((comicsTotalSize / totalStorage) * 100);
+      stats.storageUsed = formatFileSize(actualTotal - actualAvailable);
+      stats.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / totalStorage) * 100);
+      stats.otherUsed = formatFileSize(Math.max(0, actualTotal - actualAvailable - comicsTotalSize));
+      stats.remaining = formatFileSize(actualAvailable);
+      stats.systemReservedPercent = Math.floor((systemReserved / totalStorage) * 100);
+    }
 
-		return stats;
-	},
+    return stats;
+  },
 
-	toPhoto(val) {
-		router.push({
-			uri: "/pages/photo",
-			params: serializeParams({
-				id: val.id,
-				page_count: val.page_count,
-				is_serial: val.is_serial ? 1 : "",
-				downloadChapter: val.totalChapter,
-				local: true,
-			}),
-		});
-	},
+  toPhoto(val) {
+    router.push({
+      uri: "/pages/photo",
+      params: serializeParams({
+        id: val.id,
+        page_count: val.page_count,
+        is_serial: val.is_serial ? 1 : "",
+        downloadChapter: val.totalChapter,
+        local: true,
+      }),
+    });
+  },
 
-	del(id) {
-		if (id != del) {
-			del = id;
-			prompt.showToast({
-				message: this.$t("offline.del"),
-				duration: 2000,
-			});
-		} else {
-			del = null;
-			prompt.showToast({
-				message: this.$t("offline.secondDel"),
-				duration: 1000,
-			});
+  del(id) {
+    if (id != del) {
+      del = id;
+      prompt.showToast({
+        message: this.$t("offline.del"),
+        duration: 2000,
+      });
+    } else {
+      del = null;
+      prompt.showToast({
+        message: this.$t("offline.secondDel"),
+        duration: 1000,
+      });
 
-			const folderUri = "internal://files/" + id + "/";
+      const folderUri = "internal://files/" + id + "/";
 
-			file.access({
-				uri: folderUri,
-				success: () => {
-					file.rmdir({
-						uri: folderUri,
-						recursive: true,
-						success: () => {
-							this.updateComicsIndex(id);
-						},
-						fail: (data, code) => {
-							console.log(`递归删除失败(code=${code})，尝试逐文件删除`);
-							this.deleteFilesOneByOne(id, folderUri);
-						},
-					});
-				},
-				fail: () => {
-					console.log(`文件夹不存在，直接删除索引`);
-					this.updateComicsIndex(id);
-				},
-			});
-		}
-	},
+      file.access({
+        uri: folderUri,
+        success: () => {
+          file.rmdir({
+            uri: folderUri,
+            recursive: true,
+            success: () => {
+              this.updateComicsIndex(id);
+            },
+            fail: (data, code) => {
+              console.debug(`递归删除失败(code=${code})，尝试逐文件删除`);
+              this.deleteFilesOneByOne(id, folderUri);
+            },
+          });
+        },
+        fail: () => {
+          console.debug(`文件夹不存在，直接删除索引`);
+          this.updateComicsIndex(id);
+        },
+      });
+    }
+  },
 
-	deleteFilesOneByOne(id, folderUri) {
-		file.get({
-			uri: folderUri,
-			recursive: true,
-			success: (data) => {
-				const allFiles = [];
-				const flatten = (entries) => {
-					for (const entry of entries) {
-						if (entry.type === "dir" && entry.subFiles && entry.subFiles.length) {
-							flatten(entry.subFiles);
-						} else if (entry.type !== "dir") {
-							allFiles.push(entry.uri);
-						}
-					}
-				};
-				flatten(data.subFiles || []);
+  deleteFilesOneByOne(id, folderUri) {
+    file.get({
+      uri: folderUri,
+      recursive: true,
+      success: (data) => {
+        const allFiles = [];
+        const flatten = (entries) => {
+          for (const entry of entries) {
+            if (entry.type === "dir" && entry.subFiles && entry.subFiles.length) {
+              flatten(entry.subFiles);
+            } else if (entry.type !== "dir") {
+              allFiles.push(entry.uri);
+            }
+          }
+        };
+        flatten(data.subFiles || []);
 
-				const deleteNext = (index) => {
-					if (index >= allFiles.length) {
-						file.rmdir({
-							uri: folderUri,
-							recursive: true,
-							success: () => {
-								this.updateComicsIndex(id);
-							},
-							fail: () => {
-								console.log(`清理空目录失败，直接更新索引`);
-								this.updateComicsIndex(id);
-							},
-						});
-						return;
-					}
+        const deleteNext = (index) => {
+          if (index >= allFiles.length) {
+            file.rmdir({
+              uri: folderUri,
+              recursive: true,
+              success: () => {
+                this.updateComicsIndex(id);
+              },
+              fail: () => {
+                console.debug(`清理空目录失败，直接更新索引`);
+                this.updateComicsIndex(id);
+              },
+            });
+            return;
+          }
 
-					file.delete({
-						uri: allFiles[index],
-						success: () => {
-							deleteNext(index + 1);
-						},
-						fail: (data, code) => {
-							console.log(`删除文件失败: ${allFiles[index]}, code=${code}`);
-							deleteNext(index + 1);
-						},
-					});
-				};
+          file.delete({
+            uri: allFiles[index],
+            success: () => {
+              deleteNext(index + 1);
+            },
+            fail: (data, code) => {
+              console.debug(`删除文件失败: ${allFiles[index]}, code=${code}`);
+              deleteNext(index + 1);
+            },
+          });
+        };
 
-				deleteNext(0);
-			},
-			fail: (data, code) => {
-				console.log(`列出文件失败, code=${code}，直接更新索引`);
-				this.updateComicsIndex(id);
-			},
-		});
-	},
+        deleteNext(0);
+      },
+      fail: (data, code) => {
+        console.debug(`列出文件失败, code=${code}，直接更新索引`);
+        this.updateComicsIndex(id);
+      },
+    });
+  },
 
-	updateComicsIndex(id) {
-		const onError = (err) => {
-			if (err.parseError) {
-				console.log(`解析comics.json失败: ${err.parseError}`);
-				prompt.showToast({
-					message: this.$t("offline.indexReadFailed"),
-					duration: 2000,
-				});
-			} else {
-				console.log(`读取comics.json失败, code = ${err.code}`);
-				prompt.showToast({
-					message: this.$t("offline.indexNotExist"),
-					duration: 2000,
-				});
-			}
-			this.loadingComic();
-		};
+  updateComicsIndex(id) {
+    const onError = (err) => {
+      if (err.parseError) {
+        console.debug(`解析comics.json失败: ${err.parseError}`);
+        prompt.showToast({
+          message: this.$t("offline.indexReadFailed"),
+          duration: 2000,
+        });
+      } else {
+        console.debug(`读取comics.json失败, code = ${err.code}`);
+        prompt.showToast({
+          message: this.$t("offline.indexNotExist"),
+          duration: 2000,
+        });
+      }
+      this.loadingComic();
+    };
 
-		readComics(true).then(
-			(comicsData) => {
-				const existingIndex = comicsData.findIndex(
-					(comic) => comic.id === id
-				);
+    readComics(true).then(
+      (comicsData) => {
+        const existingIndex = comicsData.findIndex(
+          (comic) => comic.id === id
+        );
 
-				if (existingIndex !== -1) {
-					comicsData.splice(existingIndex, 1);
-				}
+        if (existingIndex !== -1) {
+          comicsData.splice(existingIndex, 1);
+        }
 
-				writeComics(comicsData).then(
-					() => {
-						console.log("comics.json更新成功");
-						prompt.showToast({
-							message: this.$t("offline.delComplete"),
-							duration: 1000,
-						});
-						this.loadingComic();
-					},
-					({ code }) => {
-						console.log(`写入comics.json失败, code = ${code}`);
-						prompt.showToast({
-							message: this.$t("offline.indexUpdateFailed"),
-							duration: 2000,
-						});
-						this.loadingComic();
-					}
-				);
-			},
-			onError
-		);
-	},
+        writeComics(comicsData).then(
+          () => {
+            console.debug("comics.json更新成功");
+            prompt.showToast({
+              message: this.$t("offline.delComplete"),
+              duration: 1000,
+            });
+            this.loadingComic();
+          },
+          ({ code }) => {
+            console.debug(`写入comics.json失败, code = ${code}`);
+            prompt.showToast({
+              message: this.$t("offline.indexUpdateFailed"),
+              duration: 2000,
+            });
+            this.loadingComic();
+          }
+        );
+      },
+      onError
+    );
+  },
 
-	toggleStorageList() {
-		this.storageListExpanded = !this.storageListExpanded;
-	},
+  toggleStorageList() {
+    this.storageListExpanded = !this.storageListExpanded;
+  },
 
-	routeBack() {
-		router.back();
-	},
+  routeBack() {
+    router.back();
+  },
 
-	onBackPress () {
-			return true;
-	},
+  onBackPress () {
+      return true;
+  },
 };
 </script>
 
@@ -774,320 +774,320 @@ export default {
 @import "../../common/base.css";
 
 .container {
-	flex-direction: column;
-	justify-content: flex-start;
-	align-items: center;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
 }
 
 .storage-container {
-	width: 85%;
-	flex-direction: column;
-	align-items: center;
-	padding: 10px 20px;
-	background-color: #262626;
-	border-radius: 24px;
-	margin-top: 10px;
+  width: 85%;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 20px;
+  background-color: #262626;
+  border-radius: 24px;
+  margin-top: 10px;
 }
 
 .storage-label {
-	font-size: 24px;
-	color: rgba(255, 255, 255, 0.8);
-	font-weight: bold;
-	margin-bottom: 8px;
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
+  margin-bottom: 8px;
 }
 
 .storage-bar {
-	width: 100%;
-	height: 12px;
-	background-color: rgba(255, 255, 255, 0.2);
-	border-radius: 6px;
-	overflow: hidden;
-	margin-bottom: 8px;
-	display: flex;
-	flex-direction: row;
+  width: 100%;
+  height: 12px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: row;
 }
 
 .storage-bar-segment {
-	height: 100%;
-	display: flex;
-	border-radius: 6px;
-	flex-direction: row;
-	align-items: center;
+  height: 100%;
+  display: flex;
+  border-radius: 6px;
+  flex-direction: row;
+  align-items: center;
 }
 
 .storage-bar-segment-reserved {
-	background-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 .storage-bar-segment-comics {
-	background-color: #4CAF50;
+  background-color: #4CAF50;
 }
 
 .storage-bar-segment-other {
-	background-color: rgba(76, 175, 80, 0.3);
+  background-color: rgba(76, 175, 80, 0.3);
 }
 
 .storage-bar-segment-remaining {
-	background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .storage-list {
-	width: 100%;
-	flex-direction: column;
+  width: 100%;
+  flex-direction: column;
 }
 
 .storage-list-item {
-	width: 100%;
-	flex-direction: row;
-	align-items: center;
-	padding: 6px 0;
-	justify-content: space-between;
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  padding: 6px 0;
+  justify-content: space-between;
 }
 
 .storage-list-color {
-	width: 12px;
-	height: 12px;
-	border-radius: 3px;
-	margin-right: 8px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  margin-right: 8px;
 }
 
 .storage-list-color-reserved {
-	background-color: rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 .storage-list-color-comics {
-	background-color: #4CAF50;
+  background-color: #4CAF50;
 }
 
 .storage-list-color-other {
-	background-color: rgba(76, 175, 80, 0.3);
+  background-color: rgba(76, 175, 80, 0.3);
 }
 
 .storage-list-color-remaining {
-	background-color: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.1);
 }
 
 .storage-list-label {
-	font-size: 20px;
-	color: rgba(255, 255, 255, 0.6);
-	flex: 1;
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  flex: 1;
 }
 
 .storage-list-value {
-	font-size: 20px;
-	color: rgba(255, 255, 255, 0.8);
-	font-weight: bold;
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
 }
 
 .storage-list-arrow {
-	font-size: 16px;
-	font-family: "iconfont" !important;
-	font-style: normal;
-	color: rgba(255, 255, 255, 0.8);
-	margin-left: 4px;
+  font-size: 16px;
+  font-family: "iconfont" !important;
+  font-style: normal;
+  color: rgba(255, 255, 255, 0.8);
+  margin-left: 4px;
 }
 
 .storage {
-	text-align: center;
-	font-size: 24px;
-	color: #ffffff;
-	font-weight: bold;
+  text-align: center;
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
 }
 
 .time-text {
-	font-size: 16px;
-	color: rgba(255, 255, 255, 0.4);
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 .empty {
-	justify-content: center;
-	align-items: center;
-	width: 100%;
-	flex: 1;
-	flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
 }
 
 .empty-text {
-	margin-top: 24px;
-	font-size: 32px;
-	color: #ffffff;
-	font-weight: bold;
+  margin-top: 24px;
+  font-size: 32px;
+  color: #ffffff;
+  font-weight: bold;
 }
 
 .box {
-	width: 85%;
-	flex: 1;
+  width: 85%;
+  flex: 1;
 }
 
 .swiper {
-	width: 100%;
-	flex: 1;
-	justify-content: center;
-	indicator-selected-color: #ffffff;
-	indicator-color: rgba(255, 255, 255, 0.3);
-	indicator-size: 10px;
+  width: 100%;
+  flex: 1;
+  justify-content: center;
+  indicator-selected-color: #ffffff;
+  indicator-color: rgba(255, 255, 255, 0.3);
+  indicator-size: 10px;
 }
 
 .tab-switcher {
-	width: 100%;
-	height: 100%;
-	flex-direction: column;
-	align-items: center;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
 }
 
 .item {
-	height: 120px;
-	width: 100%;
-	background-color: transparent;
-	border-radius: 24px;
-	padding: 0;
-	align-items: center;
-	justify-content: space-around;
-	margin-bottom: 10px;
+  height: 120px;
+  width: 100%;
+  background-color: transparent;
+  border-radius: 24px;
+  padding: 0;
+  align-items: center;
+  justify-content: space-around;
+  margin-bottom: 10px;
 }
 
 .swipe-item {
-	width: 100%;
-	height: 100%;
-	indicator-size: 0;
+  width: 100%;
+  height: 100%;
+  indicator-size: 0;
 }
 
 .swipe-content {
-	width: 100%;
-	height: 100%;
-	background-color: #262626;
-	border-radius: 24px;
-	padding: 12px 20px;
-	flex-direction: row;
-	align-items: center;
-	justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  background-color: #262626;
+  border-radius: 24px;
+  padding: 12px 20px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .delete-btn {
-	margin-left: 12px;
-	width: 72px;
-	height: 100%;
-	justify-content: center;
-	align-items: center;
+  margin-left: 12px;
+  width: 72px;
+  height: 100%;
+  justify-content: center;
+  align-items: center;
 }
 
 .delete-icon {
-	width: 72px;
-	height: 72px;
+  width: 72px;
+  height: 72px;
 }
 
 .cover-mask {
-	width: 60px;
-	height: 80px;
-	position: relative;
+  width: 60px;
+  height: 80px;
+  position: relative;
 }
 
 .cover {
-	width: 60px;
-	height: 80px;
+  width: 60px;
+  height: 80px;
 }
 
 .corner-mask {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .text-content {
-	flex: 1;
-	height: 100%;
-	flex-direction: column;
-	justify-content: space-between;
-	margin-left: 10px;
+  flex: 1;
+  height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+  margin-left: 10px;
 }
 
 .itemText {
-	width: 100%;
-	font-size: 24px;
-	color: #ffffff;
-	lines: 2;
-	font-weight: bold;
+  width: 100%;
+  font-size: 24px;
+  color: #ffffff;
+  lines: 2;
+  font-weight: bold;
 }
 
 .meta {
-	font-size: 20px;
-	color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .pagination-wrapper {
-	height: 70px;
-	margin-top: 10px;
-	margin-bottom: 20px;
+  height: 70px;
+  margin-top: 10px;
+  margin-bottom: 20px;
 }
 
 .pagination-controls {
-	display: flex;
-	flex-direction: row;
-	justify-content: space-around;
-	align-items: center;
-	width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+  width: 100%;
 }
 
 .pagination-button {
-	height: 56px;
-	width: 100px;
-	border-radius: 100%;
-	border: 3px rgba(255, 255, 255, 0.24);
-	background-color: #262626;
-	justify-content: center;
-	align-items: center;
+  height: 56px;
+  width: 100px;
+  border-radius: 100%;
+  border: 3px rgba(255, 255, 255, 0.24);
+  background-color: #262626;
+  justify-content: center;
+  align-items: center;
 }
 
 .pagination-button-disabled {
-	height: 56px;
-	width: 100px;
-	border-radius: 100%;
-	border: 3px rgba(255, 255, 255, 0.06);
-	background-color: rgba(38, 38, 38, 0.12);
-	justify-content: center;
-	align-items: center;
+  height: 56px;
+  width: 100px;
+  border-radius: 100%;
+  border: 3px rgba(255, 255, 255, 0.06);
+  background-color: rgba(38, 38, 38, 0.12);
+  justify-content: center;
+  align-items: center;
 }
 
 .text-normal {
-	font-size: 24px;
-	color: #ffffff;
-	font-weight: bold;
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
 }
 
 .text-disabled {
-	font-size: 24px;
-	color: #555555;
+  font-size: 24px;
+  color: #555555;
 }
 
 .page-indicator {
-	font-size: 26px;
-	color: rgba(255, 255, 255, 0.8);
-	font-weight: bold;
+  font-size: 26px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
 }
 
 @media (shape: circle) {
-	.pagination-controls {
-		justify-content: center;
-	}
+  .pagination-controls {
+    justify-content: center;
+  }
 }
 
 /* 圆形手表适配 */
 @media (min-width: 200) and (max-width: 235) and (shape: circle) {
-	.storage-container {
-		width: 75%;
-	}
+  .storage-container {
+    width: 75%;
+  }
 
-	.box {
-		width: 75%;
-	}
+  .box {
+    width: 75%;
+  }
 }
 
 /* 看看是不是红米手表 */
 @media (device-type: watch) and (shape: rect) {
   .title {
-	margin-bottom: 10px;
+  margin-bottom: 10px;
   }
 }
 </style>

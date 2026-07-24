@@ -15,7 +15,7 @@ function normalizeUpdateInfo(data) {
   if (!data) return null;
 
   const latestVersionCode = parseInt(
-    data.latestVersionCode || data.versionCode || data.latest_code || 0,
+    data.latestVersionCode || data.versionCode || data.latest_code || 0
   );
 
   if (!latestVersionCode) return null;
@@ -23,17 +23,13 @@ function normalizeUpdateInfo(data) {
   const current = app.getInfo();
   const currentVersionCode = parseInt(current.versionCode || 0);
   const minSupportedVersionCode = parseInt(
-    data.minSupportedVersionCode ||
-      data.minVersionCode ||
-      data.min_supported_code ||
-      0,
+    data.minSupportedVersionCode || data.minVersionCode || data.min_supported_code || 0
   );
   const needUpdate = latestVersionCode > currentVersionCode;
   const forceUpdate =
     data.force === true ||
     data.forceUpdate === true ||
-    (minSupportedVersionCode > 0 &&
-      currentVersionCode < minSupportedVersionCode);
+    (minSupportedVersionCode > 0 && currentVersionCode < minSupportedVersionCode);
 
   if (!needUpdate) return null;
 
@@ -41,8 +37,7 @@ function normalizeUpdateInfo(data) {
     currentVersionCode: currentVersionCode,
     currentVersionName: current.versionName || "",
     latestVersionCode: latestVersionCode,
-    latestVersionName:
-      data.latestVersionName || data.versionName || data.latest_name || "",
+    latestVersionName: data.latestVersionName || data.versionName || data.latest_name || "",
     minSupportedVersionCode: minSupportedVersionCode,
     forceUpdate: forceUpdate,
     title: data.title || "",

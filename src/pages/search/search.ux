@@ -1,119 +1,104 @@
 <template>
-	<div class="demo-page">
-		<text class="time">{{ time }}</text>
+  <div class="demo-page">
+    <text class="time">{{ time }}</text>
 
-		<div class="title" style="justify-content: center">
-			<text
-				class="iconfont"
-				style="margin-right: 10px"
-				if="{{ global.screenShape == 'circle' }}"
-			>
-				&#xe685;
-			</text>
-			<marquee
-				scrollamount="{{ 20 }}"
-				text-offset="{{ 20 }}"
-				style="font-size: 32px; font-weight: bold"
-				@click="
-					() => {
-						if (global.screenShape == 'circle') {
-							routeBack();
-						}
-					}
-				"
-			>
-				{{ $t("search.search") }}{{ keyword }}
-			</marquee>
-		</div>
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="leftButton top"
-			src="/common/back.png"
-			@click="routeBack"
-		/>
-		<img
-			if="{{ global.screenShape != 'circle' }}"
-			class="rightButton top"
-			src="/common/info.png"
-			@click="routeAbout"
-		/>
+    <div class="title" style="justify-content: center">
+      <text class="iconfont" style="margin-right: 10px" if="{{ global.screenShape == 'circle' }}">
+        &#xe685;
+      </text>
+      <marquee
+        scrollamount="{{ 20 }}"
+        text-offset="{{ 20 }}"
+        style="font-size: 32px; font-weight: bold"
+        @click="
+          () => {
+            if (global.screenShape == 'circle') {
+              routeBack();
+            }
+          }
+        "
+      >
+        {{ $t("search.search") }}{{ keyword }}
+      </marquee>
+    </div>
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="leftButton top"
+      src="/common/back.png"
+      @click="routeBack"
+    />
+    <img
+      if="{{ global.screenShape != 'circle' }}"
+      class="rightButton top"
+      src="/common/info.png"
+      @click="routeAbout"
+    />
 
-		<div class="loading-container" if="{{ loading }}">
-			<text class="loading-text">{{ $t("search.searching") }}</text>
-		</div>
+    <div class="loading-container" if="{{ loading }}">
+      <text class="loading-text">{{ $t("search.searching") }}</text>
+    </div>
 
-		<list
-			id="scrollId"
-			class="search-results"
-			bounces="true"
-			if="{{ searchResults.length > 0 }}"
-		>
-			<list-item
-				for="{{ searchResults }}"
-				type="result-item"
-				class="result-item"
-				@click="selectResult($item)"
-			>
-				<div class="result-content">
-					<div
-						class="cover-mask"
-						if="{{ global.APP_SETTING.showCoverInSearch == 'true' ||
-global.APP_SETTING.showCoverInSearch === true }}"
-					>
-						<image
-							class="result-image"
-							src="{{ $item.thumb || '/common/loading.png' }}"
-							alt="/common/empty.png"
-						></image>
-						<image class="corner-mask" src="/common/coverMask.png"></image>
-					</div>
-					<div class="result-text-content">
-						<text class="result-title">{{ $item.title }}</text>
-						<text if="{{ $item.pages }}" class="result-meta">
-							{{ $t("search.totalPage", { page: $item.pages }) }}
-						</text>
-					</div>
-				</div>
-			</list-item>
+    <list id="scrollId" class="search-results" bounces="true" if="{{ searchResults.length > 0 }}">
+      <list-item
+        for="{{ searchResults }}"
+        type="result-item"
+        class="result-item"
+        @click="selectResult($item)"
+      >
+        <div class="result-content">
+          <div
+            class="cover-mask"
+            if="{{ global.APP_SETTING.showCoverInSearch == 'true' || global.APP_SETTING.showCoverInSearch === true }}"
+          >
+            <image
+              class="result-image"
+              src="{{ $item.thumb || '/common/loading.png' }}"
+              alt="/common/empty.png"
+            ></image>
+            <image class="corner-mask" src="/common/coverMask.png"></image>
+          </div>
+          <div class="result-text-content">
+            <text class="result-title">{{ $item.title }}</text>
+            <text if="{{ $item.pages }}" class="result-meta">
+              {{ $t("search.totalPage", { page: $item.pages }) }}
+            </text>
+          </div>
+        </div>
+      </list-item>
 
-			<list-item type="pagination" class="pagination-wrapper">
-				<div class="pagination-controls">
-					<div
-						class="{{ displayPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
-						@click="changeDisplayPage(displayPage - 1)"
-					>
-						<text
-							class="{{ displayPage > 1 ? 'text-normal' : 'text-disabled' }}"
-						>
-							{{ $t("search.up") }}
-						</text>
-					</div>
-					<text class="page-indicator">
-						{{ $t("search.page", { page: displayPage }) }}
-					</text>
-					<div
-						class="{{ canGoNext() ? 'pagination-button' : 'pagination-button-disabled' }}"
-						@click="changeDisplayPage(displayPage + 1)"
-					>
-						<text class="{{ canGoNext() ? 'text-normal' : 'text-disabled' }}">
-							{{ loadingMore ? "..." : $t("search.down") }}
-						</text>
-					</div>
-				</div>
-			</list-item>
-		</list>
+      <list-item type="pagination" class="pagination-wrapper">
+        <div class="pagination-controls">
+          <div
+            class="{{ displayPage > 1 ? 'pagination-button' : 'pagination-button-disabled' }}"
+            @click="changeDisplayPage(displayPage - 1)"
+          >
+            <text class="{{ displayPage > 1 ? 'text-normal' : 'text-disabled' }}">
+              {{ $t("search.up") }}
+            </text>
+          </div>
+          <text class="page-indicator">
+            {{ $t("search.page", { page: displayPage }) }}
+          </text>
+          <div
+            class="{{ canGoNext() ? 'pagination-button' : 'pagination-button-disabled' }}"
+            @click="changeDisplayPage(displayPage + 1)"
+          >
+            <text class="{{ canGoNext() ? 'text-normal' : 'text-disabled' }}">
+              {{ loadingMore ? "..." : $t("search.down") }}
+            </text>
+          </div>
+        </div>
+      </list-item>
+    </list>
 
-		<div
-			class="no-results"
-			if="{{ !loading && searchResults.length === 0 && searched && !error }}"
-		>
-			<text class="no-results-text">{{ $t("search.noFound") }}</text>
-		</div>
-		<div class="error-state" if="{{ error && searchResults.length === 0 }}">
-			<text class="error-text">{{ $t("search.fail") }}{{ errorMsg }}</text>
-			<text class="no-results-subtext">{{ $t("search.noFound") }}</text>
-		</div>
-	</div>
+    <div class="no-results" if="{{ !loading && searchResults.length === 0 && searched && !error }}">
+      <text class="no-results-text">{{ $t("search.noFound") }}</text>
+    </div>
+    <div class="error-state" if="{{ error && searchResults.length === 0 }}">
+      <text class="error-text">{{ $t("search.fail") }}{{ errorMsg }}</text>
+      <text class="no-results-subtext">{{ $t("search.noFound") }}</text>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -128,281 +113,272 @@ const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端�
 const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页
 
 export default {
-	protected: {
-		keyword: "",
-	},
-	private: {
-		apiResults: [], // 数据仓库，存储当前缓存的API数据
-		apiDroppedCount: 0, // 因缓存上限被丢弃的前部数据条数
-		apiPageMap: [], // 每个服务器页对应的全局起始下标，用于回翻已丢弃页时重新请求
-		searchResults: [], // 当前显示的10项数据
-		displayPage: 1, // 前端显示的页码
+  protected: {
+    keyword: "",
+  },
+  private: {
+    apiResults: [], // 数据仓库，存储当前缓存的API数据
+    apiDroppedCount: 0, // 因缓存上限被丢弃的前部数据条数
+    apiPageMap: [], // 每个服务器页对应的全局起始下标，用于回翻已丢弃页时重新请求
+    searchResults: [], // 当前显示的10项数据
+    displayPage: 1, // 前端显示的页码
 
-		apiNextCursor: null, // 下一次网络请求的游标
-		apiHasNext: true, // API是否还有更多数据
+    apiNextCursor: null, // 下一次网络请求的游标
+    apiHasNext: true, // API是否还有更多数据
 
-		loading: true,
-		loadingMore: false,
-		searched: false,
-		error: false,
-		errorMsg: "",
-		time: "",
-	},
+    loading: true,
+    loadingMore: false,
+    searched: false,
+    error: false,
+    errorMsg: "",
+    time: "",
+  },
 
-	onInit() {
-		this.time = getTime();
-		this.fetchMore(); // 初始化时，获取第一批数据
-	},
+  onInit() {
+    this.time = getTime();
+    this.fetchMore(); // 初始化时，获取第一批数据
+  },
 
-	// 网络请求模块：只负责获取数据并追加到仓库
-	fetchMore() {
-		if (this.loadingMore || !this.apiHasNext) return;
+  // 网络请求模块：只负责获取数据并追加到仓库
+  fetchMore() {
+    if (this.loadingMore || !this.apiHasNext) return;
 
-		this.loadingMore = true;
-		this.error = false;
-		const apiKey = {
-			search: true,
-		};
+    this.loadingMore = true;
+    this.error = false;
+    const apiKey = {
+      search: true,
+    };
 
-		apiKey.text = this.keyword;
-		if (this.apiNextCursor) {
-			apiKey.page = this.apiNextCursor;
-		}
+    apiKey.text = this.keyword;
+    if (this.apiNextCursor) {
+      apiKey.page = this.apiNextCursor;
+    }
 
-		if (apiKey.search) {
-			apiFetch({
-				url: buildSearchUrl(apiKey.text, apiKey.page),
-				responseType: "json",
-				success: (response) => {
-					this.ComicHandleSearchSuccess(response);
-				},
-				fail: (data, code) => {
-					this.error = true;
-					this.errorMsg =
-						getFetchErrorType(code) === "timeout"
-							? this.$t("search.networkError")
-							: this.$t("search.requestError");
-				},
-				complete: () => {
-					this.loading = false;
-					this.loadingMore = false;
-					this.searched = true;
-				},
-			});
-		}
-	},
+    if (apiKey.search) {
+      apiFetch({
+        url: buildSearchUrl(apiKey.text, apiKey.page),
+        responseType: "json",
+        success: (response) => {
+          this.ComicHandleSearchSuccess(response);
+        },
+        fail: (data, code) => {
+          this.error = true;
+          this.errorMsg =
+            getFetchErrorType(code) === "timeout"
+              ? this.$t("search.networkError")
+              : this.$t("search.requestError");
+        },
+        complete: () => {
+          this.loading = false;
+          this.loadingMore = false;
+          this.searched = true;
+        },
+      });
+    }
+  },
 
-	ComicHandleSearchSuccess(response) {
-		const data = response.data;
+  ComicHandleSearchSuccess(response) {
+    const data = response.data;
 
-		if (!data || !Array.isArray(data.results)) {
-			this.error = true;
-			this.errorMsg = this.$t("error.invalidResponse");
-			return;
-		}
+    if (!data || !Array.isArray(data.results)) {
+      this.error = true;
+      this.errorMsg = this.$t("error.invalidResponse");
+      return;
+    }
 
-		this.error = false;
-		this.errorMsg = "";
-		const results = this.parseResults(data.results);
+    this.error = false;
+    this.errorMsg = "";
+    const results = this.parseResults(data.results);
 
-		this.apiPageMap.push({
-			serverPage: data.page,
-			start: this.apiDroppedCount + this.apiResults.length,
-		});
-		this.apiResults = this.apiResults.concat(results);
-		this.trimCache();
+    this.apiPageMap.push({
+      serverPage: data.page,
+      start: this.apiDroppedCount + this.apiResults.length,
+    });
+    this.apiResults = this.apiResults.concat(results);
+    this.trimCache();
 
-		this.apiHasNext = data.has_more;
-		this.apiNextCursor = data.page + 1;
+    this.apiHasNext = data.has_more;
+    this.apiNextCursor = data.page + 1;
 
-		// 如果是第一次加载，或因为翻页触发了加载，则更新显示
-		if (
-			this.searchResults.length === 0 ||
-			this.apiDroppedCount + this.apiResults.length >=
-				(this.displayPage - 1) * PAGE_SIZE
-		) {
-			this.updateSearchResults();
-		}
-	},
+    // 如果是第一次加载，或因为翻页触发了加载，则更新显示
+    if (
+      this.searchResults.length === 0 ||
+      this.apiDroppedCount + this.apiResults.length >= (this.displayPage - 1) * PAGE_SIZE
+    ) {
+      this.updateSearchResults();
+    }
+  },
 
-	parseResults(results) {
-		return results.map((result) => {
-			return {
-				gid: result.comic_id,
-				title: result.title,
-				thumb: result.cover_url ? addCoverParams(result.cover_url) : "",
-			};
-		});
-	},
+  parseResults(results) {
+    return results.map((result) => {
+      return {
+        gid: result.comic_id,
+        title: result.title,
+        thumb: result.cover_url ? addCoverParams(result.cover_url) : "",
+      };
+    });
+  },
 
-	// 缓存超过上限时，按服务器页粒度丢弃最旧的数据
-	trimCache() {
-		while (this.apiResults.length > MAX_CACHE) {
-			const cached = this.apiPageMap.filter(
-				(entry) => entry.start >= this.apiDroppedCount
-			);
-			if (cached.length <= 1) {
-				break;
-			}
-			const dropCount =
-				cached[1].start - this.apiDroppedCount -
-				(cached[0].start - this.apiDroppedCount);
-			if (dropCount <= 0) {
-				break;
-			}
-			this.apiResults = this.apiResults.slice(dropCount);
-			this.apiDroppedCount += dropCount;
-		}
-	},
+  // 缓存超过上限时，按服务器页粒度丢弃最旧的数据
+  trimCache() {
+    while (this.apiResults.length > MAX_CACHE) {
+      const cached = this.apiPageMap.filter((entry) => entry.start >= this.apiDroppedCount);
+      if (cached.length <= 1) {
+        break;
+      }
+      const dropCount =
+        cached[1].start - this.apiDroppedCount - (cached[0].start - this.apiDroppedCount);
+      if (dropCount <= 0) {
+        break;
+      }
+      this.apiResults = this.apiResults.slice(dropCount);
+      this.apiDroppedCount += dropCount;
+    }
+  },
 
-	// 前端翻页模块：只负责从仓库切片数据并显示
-	changeDisplayPage(targetPage) {
-		if (targetPage < 1) return;
+  // 前端翻页模块：只负责从仓库切片数据并显示
+  changeDisplayPage(targetPage) {
+    if (targetPage < 1) return;
 
-		const startIndex = (targetPage - 1) * PAGE_SIZE;
-		const cachedEnd = this.apiDroppedCount + this.apiResults.length;
+    const startIndex = (targetPage - 1) * PAGE_SIZE;
+    const cachedEnd = this.apiDroppedCount + this.apiResults.length;
 
-		if (startIndex >= this.apiDroppedCount && cachedEnd > startIndex) {
-			// 数据在缓存中，直接更新显示
-			this.displayPage = targetPage;
-			this.updateSearchResults();
-		} else if (startIndex < this.apiDroppedCount) {
-			// 数据已被清理，按服务器页码重新请求
-			this.refetchDroppedPage(targetPage, startIndex);
-		} else if (this.apiHasNext) {
-			// 不足，但API还有数据，则先更新目标页码，然后去请求
-			this.displayPage = targetPage;
-			this.fetchMore();
-		}
-	},
+    if (startIndex >= this.apiDroppedCount && cachedEnd > startIndex) {
+      // 数据在缓存中，直接更新显示
+      this.displayPage = targetPage;
+      this.updateSearchResults();
+    } else if (startIndex < this.apiDroppedCount) {
+      // 数据已被清理，按服务器页码重新请求
+      this.refetchDroppedPage(targetPage, startIndex);
+    } else if (this.apiHasNext) {
+      // 不足，但API还有数据，则先更新目标页码，然后去请求
+      this.displayPage = targetPage;
+      this.fetchMore();
+    }
+  },
 
-	// 回翻到已丢弃的页时，找到覆盖该页的服务器页码并重新请求
-	refetchDroppedPage(targetPage, startIndex) {
-		if (this.loadingMore) return;
+  // 回翻到已丢弃的页时，找到覆盖该页的服务器页码并重新请求
+  refetchDroppedPage(targetPage, startIndex) {
+    if (this.loadingMore) return;
 
-		let target = null;
-		for (const entry of this.apiPageMap) {
-			if (entry.start <= startIndex) {
-				target = entry;
-			} else {
-				break;
-			}
-		}
-		if (!target) return;
+    let target = null;
+    for (const entry of this.apiPageMap) {
+      if (entry.start <= startIndex) {
+        target = entry;
+      } else {
+        break;
+      }
+    }
+    if (!target) return;
 
-		this.loadingMore = true;
-		this.displayPage = targetPage;
+    this.loadingMore = true;
+    this.displayPage = targetPage;
 
-		apiFetch({
-			url: buildSearchUrl(this.keyword, target.serverPage),
-			responseType: "json",
-			success: (response) => {
-				const data = response.data;
-				if (data && Array.isArray(data.results)) {
-					// 丢弃该服务器页之后的旧映射，后续翻页会重新记录
-					this.apiPageMap = this.apiPageMap.filter(
-						(entry) => entry.serverPage < target.serverPage
-					);
-					this.apiPageMap.push({
-						serverPage: target.serverPage,
-						start: target.start,
-					});
-					this.apiDroppedCount = target.start;
-					this.apiResults = this.parseResults(data.results);
-					this.apiHasNext = data.has_more;
-					this.apiNextCursor = data.page + 1;
-					this.trimCache();
-					this.updateSearchResults();
-				} else {
-					prompt.showToast({
-						message: this.$t("error.invalidResponse"),
-						duration: 3000,
-					});
-				}
-			},
-			fail: (data, code) => {
-				prompt.showToast({
-					message:
-						getFetchErrorType(code) === "timeout"
-							? this.$t("search.networkError")
-							: this.$t("search.requestError"),
-					duration: 3000,
-				});
-			},
-			complete: () => {
-				this.loadingMore = false;
-			},
-		});
-	},
+    apiFetch({
+      url: buildSearchUrl(this.keyword, target.serverPage),
+      responseType: "json",
+      success: (response) => {
+        const data = response.data;
+        if (data && Array.isArray(data.results)) {
+          // 丢弃该服务器页之后的旧映射，后续翻页会重新记录
+          this.apiPageMap = this.apiPageMap.filter((entry) => entry.serverPage < target.serverPage);
+          this.apiPageMap.push({
+            serverPage: target.serverPage,
+            start: target.start,
+          });
+          this.apiDroppedCount = target.start;
+          this.apiResults = this.parseResults(data.results);
+          this.apiHasNext = data.has_more;
+          this.apiNextCursor = data.page + 1;
+          this.trimCache();
+          this.updateSearchResults();
+        } else {
+          prompt.showToast({
+            message: this.$t("error.invalidResponse"),
+            duration: 3000,
+          });
+        }
+      },
+      fail: (data, code) => {
+        prompt.showToast({
+          message:
+            getFetchErrorType(code) === "timeout"
+              ? this.$t("search.networkError")
+              : this.$t("search.requestError"),
+          duration: 3000,
+        });
+      },
+      complete: () => {
+        this.loadingMore = false;
+      },
+    });
+  },
 
-	// 更新显示列表的辅助函数
-	updateSearchResults() {
-		const startIndex = (this.displayPage - 1) * PAGE_SIZE - this.apiDroppedCount;
-		const endIndex = startIndex + PAGE_SIZE;
-		this.searchResults = this.apiResults.slice(startIndex, endIndex);
+  // 更新显示列表的辅助函数
+  updateSearchResults() {
+    const startIndex = (this.displayPage - 1) * PAGE_SIZE - this.apiDroppedCount;
+    const endIndex = startIndex + PAGE_SIZE;
+    this.searchResults = this.apiResults.slice(startIndex, endIndex);
 
-		const scrollToTop = () => {
-			const el = this.$element("scrollId");
-			if (el && typeof el.scrollTo === "function") {
-				el.scrollTo({ index: 0, behavior: "instant" });
-			}
-		};
-		if (typeof this.$nextTick === "function") {
-			this.$nextTick(scrollToTop);
-		} else {
-			setTimeout(scrollToTop, 50);
-		}
-	},
+    const scrollToTop = () => {
+      const el = this.$element("scrollId");
+      if (el && typeof el.scrollTo === "function") {
+        el.scrollTo({ index: 0, behavior: "instant" });
+      }
+    };
+    if (typeof this.$nextTick === "function") {
+      this.$nextTick(scrollToTop);
+    } else {
+      setTimeout(scrollToTop, 50);
+    }
+  },
 
-	// 判断是否可以点击下一页
-	canGoNext() {
-		const nextNeededIndex = this.displayPage * PAGE_SIZE;
-		return (
-			this.apiDroppedCount + this.apiResults.length > nextNeededIndex ||
-			this.apiHasNext
-		);
-	},
+  // 判断是否可以点击下一页
+  canGoNext() {
+    const nextNeededIndex = this.displayPage * PAGE_SIZE;
+    return this.apiDroppedCount + this.apiResults.length > nextNeededIndex || this.apiHasNext;
+  },
 
-	selectResult(result) {
-		apiFetch({
-			url: buildDetailUrl(result.gid),
-			responseType: "json",
-			success: (response) => {
-				if (!response.data || typeof response.data !== "object") {
-					prompt.showToast({
-						message: this.$t("error.invalidResponse"),
-						duration: 3000,
-					});
-					return;
-				}
-				router.push({
-					uri: "/pages/album",
-					params: flattenParams(response.data),
-				});
-			},
-			fail: (data, code) => {
-				console.log(data, code);
-				if (getFetchErrorType(code) === "timeout") {
-					prompt.showToast({
-						message: this.$t("error.noComicFound"),
-						duration: 3000,
-					});
-				} else {
-					prompt.showToast({
-						message: this.$t("error.unknownError") + data,
-						duration: 3000,
-					});
-				}
-			},
-		});
-	},
+  selectResult(result) {
+    apiFetch({
+      url: buildDetailUrl(result.gid),
+      responseType: "json",
+      success: (response) => {
+        if (!response.data || typeof response.data !== "object") {
+          prompt.showToast({
+            message: this.$t("error.invalidResponse"),
+            duration: 3000,
+          });
+          return;
+        }
+        router.push({
+          uri: "/pages/album",
+          params: flattenParams(response.data),
+        });
+      },
+      fail: (data, code) => {
+        console.debug(data, code);
+        if (getFetchErrorType(code) === "timeout") {
+          prompt.showToast({
+            message: this.$t("error.noComicFound"),
+            duration: 3000,
+          });
+        } else {
+          prompt.showToast({
+            message: this.$t("error.unknownError") + data,
+            duration: 3000,
+          });
+        }
+      },
+    });
+  },
 
-	routeBack() {
-		router.back();
-	},
-	routeAbout() {
-		router.push({ uri: "/pages/about" });
-	},
+  routeBack() {
+    router.back();
+  },
+  routeAbout() {
+    router.push({ uri: "/pages/about" });
+  },
 };
 </script>
 
@@ -410,192 +386,192 @@ export default {
 @import "../../common/base.css";
 
 .demo-page {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	color: #ffffff;
-	flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: #ffffff;
+  flex: 1;
 }
 .title,
 .time,
 .loading-container,
 .no-results,
 .error-state {
-	align-self: center;
+  align-self: center;
 }
 .loading-container,
 .no-results,
 .error-state {
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	flex: 1;
-	width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  width: 100%;
 }
 .search-results {
-	flex: 1;
-	width: 90%;
-	margin-top: 10px;
-	align-self: center;
+  flex: 1;
+  width: 90%;
+  margin-top: 10px;
+  align-self: center;
 }
 
 .result-item {
-	margin-bottom: 10px;
-	height: 120px;
-	width: 100%;
-	background-color: transparent;
-	border-radius: 24px;
-	padding: 0;
-	align-items: center;
-	justify-content: space-around;
+  margin-bottom: 10px;
+  height: 120px;
+  width: 100%;
+  background-color: transparent;
+  border-radius: 24px;
+  padding: 0;
+  align-items: center;
+  justify-content: space-around;
 }
 
 .result-content {
-	width: 100%;
-	height: 100%;
-	background-color: #262626;
-	border-radius: 24px;
-	padding: 12px 20px;
-	flex-direction: row;
-	align-items: center;
-	justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  background-color: #262626;
+  border-radius: 24px;
+  padding: 12px 20px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .result-image {
-	width: 60px;
-	height: 80px;
-	background-color: #1a1a1a;
-	flex-shrink: 0;
-	object-fit: cover;
+  width: 60px;
+  height: 80px;
+  background-color: #1a1a1a;
+  flex-shrink: 0;
+  object-fit: cover;
 }
 
 .cover-mask {
-	width: 60px;
-	height: 80px;
-	position: relative;
+  width: 60px;
+  height: 80px;
+  position: relative;
 }
 
 .corner-mask {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .result-text-content {
-	flex: 1;
-	height: 100%;
-	flex-direction: column;
-	justify-content: space-between;
-	margin-left: 10px;
+  flex: 1;
+  height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+  margin-left: 10px;
 }
 
 .result-title {
-	width: 100%;
-	font-size: 24px;
-	color: #ffffff;
-	lines: 3;
-	font-weight: bold;
+  width: 100%;
+  font-size: 24px;
+  color: #ffffff;
+  lines: 3;
+  font-weight: bold;
 }
 
 .result-meta {
-	font-size: 20px;
-	color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .loading-text,
 .no-results-text,
 .error-text {
-	font-size: 24px;
+  font-size: 24px;
 }
 
 .error-state {
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 
 .error-text {
-	margin-bottom: 10px;
+  margin-bottom: 10px;
 }
 
 .no-results-subtext {
-	font-size: 24px;
-	color: rgb(255, 255, 255);
+  font-size: 24px;
+  color: rgb(255, 255, 255);
 }
 
 .pagination-wrapper {
-	height: 70px;
-	margin-top: 10px;
-	margin-bottom: 20px;
+  height: 70px;
+  margin-top: 10px;
+  margin-bottom: 20px;
 }
 .pagination-controls {
-	display: flex;
-	flex-direction: row;
-	justify-content: space-around;
-	align-items: center;
-	width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  align-items: center;
+  width: 100%;
 }
 .pagination-button {
-	height: 56px;
-	width: 100px;
-	border-radius: 100%;
-	border: 3px rgba(255, 255, 255, 0.24);
-	background-color: #262626;
-	justify-content: center;
-	align-items: center;
+  height: 56px;
+  width: 100px;
+  border-radius: 100%;
+  border: 3px rgba(255, 255, 255, 0.24);
+  background-color: #262626;
+  justify-content: center;
+  align-items: center;
 }
 .pagination-button-disabled {
-	height: 56px;
-	width: 100px;
-	border-radius: 100%;
-	border: 3px rgba(255, 255, 255, 0.06);
-	background-color: rgba(38, 38, 38, 0.12);
-	justify-content: center;
-	align-items: center;
+  height: 56px;
+  width: 100px;
+  border-radius: 100%;
+  border: 3px rgba(255, 255, 255, 0.06);
+  background-color: rgba(38, 38, 38, 0.12);
+  justify-content: center;
+  align-items: center;
 }
 .text-normal {
-	font-size: 24px;
-	color: #ffffff;
-	font-weight: bold;
+  font-size: 24px;
+  color: #ffffff;
+  font-weight: bold;
 }
 .text-disabled {
-	font-size: 24px;
-	color: #555555;
+  font-size: 24px;
+  color: #555555;
 }
 .page-indicator {
-	font-size: 26px;
-	color: rgba(255, 255, 255, 0.8);
-	font-weight: bold;
+  font-size: 26px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: bold;
 }
 
 @media (shape: circle) {
-	.search-results {
-		width: 80%;
-	}
-	.pagination-controls {
-		justify-content: center;
-	}
+  .search-results {
+    width: 80%;
+  }
+  .pagination-controls {
+    justify-content: center;
+  }
 }
 
 /* 看看是不是小米手环Pro */
 @media (device-type: band) and (shape: rect) {
-	.title {
-		width: 180px;
-	}
+  .title {
+    width: 180px;
+  }
 }
 
 /* 看看是不是红米手表 */
 @media (device-type: watch) and (shape: rect) {
-	.title {
-		width: 248px;
-	}
+  .title {
+    width: 248px;
+  }
 }
 
 @media (device-type: watch) and (shape: circle) {
-	.title {
-		width: 240px;
-	}
+  .title {
+    width: 240px;
+  }
 }
 </style>
