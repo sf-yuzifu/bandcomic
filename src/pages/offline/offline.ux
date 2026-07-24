@@ -317,24 +317,28 @@ export default {
 		const start = (this.historyPage - 1) * PAGE_SIZE;
 		this.historyList = this.allHistory.slice(start, start + PAGE_SIZE);
 		this.openedHistoryIndex = -1;
-		this.$nextTick(() => {
-			const el = this.$element("historyScroll");
-			if (el) {
-				el.scrollTo({ index: 0, smooth: false });
-			}
-		});
+		this.scrollListToTop("historyScroll");
 	},
 
 	updateComicsList() {
 		const start = (this.comicsPage - 1) * PAGE_SIZE;
 		this.comicsList = this.allComics.slice(start, start + PAGE_SIZE);
 		this.openedComicsIndex = -1;
-		this.$nextTick(() => {
-			const el = this.$element("comicsScroll");
-			if (el) {
-				el.scrollTo({ index: 0, smooth: false });
+		this.scrollListToTop("comicsScroll");
+	},
+
+	scrollListToTop(id) {
+		const scrollToTop = () => {
+			const el = this.$element(id);
+			if (el && typeof el.scrollTo === "function") {
+				el.scrollTo({ index: 0, behavior: "instant" });
 			}
-		});
+		};
+		if (typeof this.$nextTick === "function") {
+			this.$nextTick(scrollToTop);
+		} else {
+			setTimeout(scrollToTop, 50);
+		}
 	},
 
 	changeHistoryPage(targetPage) {
@@ -443,38 +447,35 @@ export default {
 
 	async loadingComic() {
 		this.isLoading = true;
-		const fileExists = await this.checkFileExists();
-
-		if (fileExists) {
-			let comics = [];
-			try {
-				comics = await readComics();
-				if (!Array.isArray(comics)) {
-					comics = [];
-				}
-			} catch (err) {
-				console.log(`读取comics.json失败, code = ${err.code}`);
+		let comics = [];
+		try {
+			comics = await readComics();
+			if (!Array.isArray(comics)) {
+				comics = [];
 			}
-			const stats = await this.getStorage(comics);
-			this.allComics = comics;
-			if (this.comicsPage > this.comicsTotalPages()) {
-				this.comicsPage = this.comicsTotalPages();
-			}
-			this.updateComicsList();
-			this.totalStorage = stats.totalStorage;
-			this.storageTotal = stats.storageTotal;
-			this.systemReserved = stats.systemReserved;
-			this.actualTotal = stats.actualTotal;
-			this.storage = stats.storage;
-			this.comicsUsed = stats.comicsUsed;
-			this.comicsUsedPercent = stats.comicsUsedPercent;
-			this.storageUsed = stats.storageUsed;
-			this.actualUsedPercent = stats.actualUsedPercent;
-			this.otherUsed = stats.otherUsed;
-			this.remaining = stats.remaining;
-			this.systemReservedPercent = stats.systemReservedPercent;
-			this.storageLoaded = true;
+		} catch (err) {
+			console.log(`读取comics.json失败, code = ${err.code}`);
+			comics = [];
 		}
+		const stats = await this.getStorage(comics);
+		this.allComics = comics;
+		if (this.comicsPage > this.comicsTotalPages()) {
+			this.comicsPage = this.comicsTotalPages();
+		}
+		this.updateComicsList();
+		this.totalStorage = stats.totalStorage;
+		this.storageTotal = stats.storageTotal;
+		this.systemReserved = stats.systemReserved;
+		this.actualTotal = stats.actualTotal;
+		this.storage = stats.storage;
+		this.comicsUsed = stats.comicsUsed;
+		this.comicsUsedPercent = stats.comicsUsedPercent;
+		this.storageUsed = stats.storageUsed;
+		this.actualUsedPercent = stats.actualUsedPercent;
+		this.otherUsed = stats.otherUsed;
+		this.remaining = stats.remaining;
+		this.systemReservedPercent = stats.systemReservedPercent;
+		this.storageLoaded = true;
 		this.isLoading = false;
 	},
 

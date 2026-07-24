@@ -341,9 +341,17 @@ export default {
 		const endIndex = startIndex + PAGE_SIZE;
 		this.searchResults = this.apiResults.slice(startIndex, endIndex);
 
-		this.$nextTick(() => {
-			this.$element("scrollId").scrollTo({ index: 0, smooth: false });
-		});
+		const scrollToTop = () => {
+			const el = this.$element("scrollId");
+			if (el && typeof el.scrollTo === "function") {
+				el.scrollTo({ index: 0, behavior: "instant" });
+			}
+		};
+		if (typeof this.$nextTick === "function") {
+			this.$nextTick(scrollToTop);
+		} else {
+			setTimeout(scrollToTop, 50);
+		}
 	},
 
 	// 判断是否可以点击下一页
