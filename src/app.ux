@@ -86,6 +86,7 @@ global.APP_SETTING = {
 	keepDefaultZoom: false,
 	imageUsePng: false,
 	imagePreTranscode: false,
+	imagePreload: false,
 };
 
 export default {};

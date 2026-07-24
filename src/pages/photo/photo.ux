@@ -192,6 +192,8 @@ import { apiFetch, buildPhotoUrl } from "../../components/api";
 const { screenSize, getTime } = global;
 
 let ImageCache = [];
+let PreloadCache = {};
+let PreloadInflight = {};
 let originalName;
 
 export default {
@@ -229,6 +231,8 @@ export default {
 
 	onDestroy() {
 		ImageCache = [];
+		PreloadCache = {};
+		PreloadInflight = {};
 	},
 
 	onInit() {
@@ -245,9 +249,7 @@ export default {
 				// 恢复上次阅读的章节和页码
 				this.chapter = historyItem.chapter || 1;
 				this.page = historyItem.page || 1;
-				console.log(
-					`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`
-				);
+				console.log(`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`);
 			}
 		};
 		readHistory().then(
@@ -314,6 +316,8 @@ export default {
 		this.size.width = screenSize.width / 2;
 		this.size.height = screenSize.height / 2;
 		const chapter = this.chapter;
+		PreloadCache = {};
+		PreloadInflight = {};
 
 		apiFetch({
 			url: buildPhotoUrl(this.id, Math.floor(this.chapter)),
@@ -385,6 +389,20 @@ export default {
 			return;
 		}
 
+		if (PreloadCache[this.page]) {
+			const cachedUri = PreloadCache[this.page];
+			delete PreloadCache[this.page];
+			this.images = cachedUri;
+			this.reachedEdge = null;
+			this.pos = [0, 0];
+			this.preloadAdjacentPages();
+			return;
+		}
+
+		if (PreloadInflight[this.page]) {
+			return;
+		}
+
 		imageUrl = appendLvglSuffix(
 			imageUrl,
 			`${global.API_SETTING.using}_${this.id}_ch${this.chapter}_p${page}`
@@ -397,9 +415,10 @@ export default {
 				if (page != this.page) {
 					return;
 				}
-			this.images = response.data;
-			this.reachedEdge = null;
-			this.pos = [0, 0];
+				this.images = response.data;
+				this.reachedEdge = null;
+				this.pos = [0, 0];
+				this.preloadAdjacentPages();
 			},
 			fail: () => {
 				if (page != this.page) {
@@ -408,6 +427,61 @@ export default {
 				this.images = "internal://files/error.png";
 			},
 		});
+	},
+
+	preloadAdjacentPages() {
+		if (this.local || !global.APP_SETTING.imagePreload) {
+			return;
+		}
+		const chapter = this.chapter;
+		const preloadPage = (p) => {
+			if (
+				p < 1 ||
+				p > ImageCache.length ||
+				PreloadCache[p] ||
+				PreloadInflight[p]
+			) {
+				return;
+			}
+			let url = addImageParams(
+				ImageCache[p - 1],
+				parseInt(global.APP_SETTING.imageSize) || 600,
+				parseInt(global.APP_SETTING.imageQuality) || 50
+			);
+			url = appendLvglSuffix(
+				url,
+				`${global.API_SETTING.using}_${this.id}_ch${chapter}_p${p}`
+			);
+			PreloadInflight[p] = true;
+			apiFetch({
+				url: url,
+				responseType: "file",
+				success: (response) => {
+					delete PreloadInflight[p];
+					if (chapter != this.chapter) {
+						return;
+					}
+					if (p == this.page && !this.images) {
+						this.images = response.data;
+						this.reachedEdge = null;
+						this.pos = [0, 0];
+						return;
+					}
+					PreloadCache[p] = response.data;
+				},
+				fail: () => {
+					delete PreloadInflight[p];
+					if (chapter != this.chapter) {
+						return;
+					}
+					if (p == this.page && !this.images) {
+						this.images = "internal://files/error.png";
+					}
+				},
+			});
+		};
+		preloadPage(this.page + 1);
+		preloadPage(this.page - 1);
 	},
 
 	resolveLocalImage(baseUri) {
