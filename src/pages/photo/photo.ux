@@ -327,7 +327,16 @@ export default {
 					return;
 				}
 				const body = response.data;
-				ImageCache = [...body.images.map((img) => img.url)];
+				const urls =
+					body && Array.isArray(body.images)
+						? body.images.filter((img) => img && img.url).map((img) => img.url)
+						: null;
+				if (!urls) {
+					this.images = "internal://files/error.png";
+					console.log("handling fail, invalid response data");
+					return;
+				}
+				ImageCache = urls;
 				this.title = body.title;
 				this.page_count = ImageCache.length;
 				this.getImageForPage();

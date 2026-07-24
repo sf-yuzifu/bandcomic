@@ -175,8 +175,6 @@ export default {
 				responseType: "json",
 				success: (response) => {
 					this.ComicHandleSearchSuccess(response);
-					this.error = false;
-					this.errorMsg = "";
 				},
 				fail: (data, code) => {
 					this.error = true;
@@ -197,27 +195,33 @@ export default {
 	ComicHandleSearchSuccess(response) {
 		const data = response.data;
 
-		if (data.results) {
-			const results = this.parseResults(data.results);
+		if (!data || !Array.isArray(data.results)) {
+			this.error = true;
+			this.errorMsg = this.$t("error.invalidResponse");
+			return;
+		}
 
-			this.apiPageMap.push({
-				serverPage: data.page,
-				start: this.apiDroppedCount + this.apiResults.length,
-			});
-			this.apiResults = this.apiResults.concat(results);
-			this.trimCache();
+		this.error = false;
+		this.errorMsg = "";
+		const results = this.parseResults(data.results);
 
-			this.apiHasNext = data.has_more;
-			this.apiNextCursor = data.page + 1;
+		this.apiPageMap.push({
+			serverPage: data.page,
+			start: this.apiDroppedCount + this.apiResults.length,
+		});
+		this.apiResults = this.apiResults.concat(results);
+		this.trimCache();
 
-			// 如果是第一次加载，或因为翻页触发了加载，则更新显示
-			if (
-				this.searchResults.length === 0 ||
-				this.apiDroppedCount + this.apiResults.length >=
-					(this.displayPage - 1) * PAGE_SIZE
-			) {
-				this.updateSearchResults();
-			}
+		this.apiHasNext = data.has_more;
+		this.apiNextCursor = data.page + 1;
+
+		// 如果是第一次加载，或因为翻页触发了加载，则更新显示
+		if (
+			this.searchResults.length === 0 ||
+			this.apiDroppedCount + this.apiResults.length >=
+				(this.displayPage - 1) * PAGE_SIZE
+		) {
+			this.updateSearchResults();
 		}
 	},
 
@@ -226,7 +230,7 @@ export default {
 			return {
 				gid: result.comic_id,
 				title: result.title,
-				thumb: addCoverParams(result.cover_url),
+				thumb: result.cover_url ? addCoverParams(result.cover_url) : "",
 			};
 		});
 	},
@@ -294,7 +298,7 @@ export default {
 			responseType: "json",
 			success: (response) => {
 				const data = response.data;
-				if (data.results) {
+				if (data && Array.isArray(data.results)) {
 					// 丢弃该服务器页之后的旧映射，后续翻页会重新记录
 					this.apiPageMap = this.apiPageMap.filter(
 						(entry) => entry.serverPage < target.serverPage
@@ -309,6 +313,11 @@ export default {
 					this.apiNextCursor = data.page + 1;
 					this.trimCache();
 					this.updateSearchResults();
+				} else {
+					prompt.showToast({
+						message: this.$t("error.invalidResponse"),
+						duration: 3000,
+					});
 				}
 			},
 			fail: (data, code) => {
@@ -351,6 +360,13 @@ export default {
 			url: buildDetailUrl(result.gid),
 			responseType: "json",
 			success: (response) => {
+				if (!response.data || typeof response.data !== "object") {
+					prompt.showToast({
+						message: this.$t("error.invalidResponse"),
+						duration: 3000,
+					});
+					return;
+				}
 				router.push({
 					uri: "/pages/album",
 					params: flattenParams(response.data),

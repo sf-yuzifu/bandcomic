@@ -308,6 +308,13 @@ export default {
 			url: buildDetailUrl(this.context),
 			responseType: "json",
 			success: (response) => {
+				if (!response.data || typeof response.data !== "object") {
+					prompt.showToast({
+						message: this.$t("error.invalidResponse"),
+						duration: 3000,
+					});
+					return;
+				}
 				this.toAlbum(response.data);
 			},
 			fail: (data, code) => {

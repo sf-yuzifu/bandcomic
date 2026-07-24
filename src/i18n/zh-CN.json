@@ -34,7 +34,8 @@
     "error": {
         "noComicFound": "未找到相关漫画，请检查输入是否正确",
         "networkError": "网络错误，请稍后重试",
-        "unknownError": "发生未知错误，错误："
+        "unknownError": "发生未知错误，错误：",
+        "invalidResponse": "漫画源返回数据格式错误"
     },
     "cookie": {
         "receive": "接收到Cookie！",

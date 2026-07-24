@@ -553,21 +553,39 @@ export default {
 				responseType: "json",
 				success: (response) => {
 					const body = response.data;
-					if (body.images_data) {
-						ImageCache = [
-							...body.images_data.data.picture.map(
-								(img) => getCurrentSource().apiUrl + img.url
-							),
-						];
+					let urls = null;
+					if (
+						body &&
+						body.images_data &&
+						body.images_data.data &&
+						Array.isArray(body.images_data.data.picture)
+					) {
+						urls = body.images_data.data.picture
+							.filter((img) => img && img.url)
+							.map((img) => getCurrentSource().apiUrl + img.url);
 						if (body.chapter_info && body.chapter_info.title) {
 							this.chapterName = body.chapter_info.title;
 						}
-					} else {
-						ImageCache = [...body.images.map((img) => img.url)];
+					} else if (body && Array.isArray(body.images)) {
+						urls = body.images
+							.filter((img) => img && img.url)
+							.map((img) => img.url);
 						if (body.title) {
 							this.chapterName = body.title;
 						}
 					}
+					if (!urls) {
+						this.retryOnFail(0, retryCount, {
+							label: "获取图片列表失败",
+							retry: (count) => this.fetchImageList(count),
+							timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
+							failMessage: () => this.$t("error.invalidResponse"),
+						})
+							.then(resolve)
+							.catch(reject);
+						return;
+					}
+					ImageCache = urls;
 					this.page_count = ImageCache.length;
 					resolve();
 				},
