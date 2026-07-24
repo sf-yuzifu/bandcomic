@@ -19,6 +19,7 @@
         "keepDefaultZoom": "Keep zoom",
         "imageUsePng": "PNG image mode",
         "imagePreTranscode": "Pre-decode",
+        "imagePreload": "Preload pages",
         "info": {
             "searchPageSize": "Number of search results per page",
             "imageQuality": "Image quality percentage",
@@ -26,7 +27,8 @@
             "showCoverInSearch": "Show cover in search results",
             "keepDefaultZoom": "Keep current zoom when switching chapters",
             "imageUsePng": "Request PNG images from the API. Recommended for Xiaomi Smart Band 10 Pro users",
-            "imagePreTranscode": "Pre-decode images for smoother browsing"
+            "imagePreTranscode": "Pre-decode images for smoother browsing",
+            "imagePreload": "Preload adjacent pages when reading online for faster page turns"
         }
     },
     "error": {

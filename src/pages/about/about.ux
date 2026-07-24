@@ -214,13 +214,36 @@
 								{{ $t("settings.info.imagePreTranscode") }}
 							</marquee>
 						</div>
-						<switch
-							checked="{{ global.APP_SETTING.imagePreTranscode }}"
-							class="switch"
-							@change="onPreTranscodeSwitchChange"
-						></switch>
-					</div>
+					<switch
+						checked="{{ global.APP_SETTING.imagePreTranscode }}"
+						class="switch"
+						@change="onPreTranscodeSwitchChange"
+					></switch>
 				</div>
+				<div class="setting-item">
+					<div class="setting-item-content">
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							class="setting-item-title"
+						>
+							{{ $t("settings.imagePreload") }}
+						</marquee>
+						<marquee
+							scrollamount="{{ 20 }}"
+							text-offset="{{ 20 }}"
+							class="setting-item-info"
+						>
+							{{ $t("settings.info.imagePreload") }}
+						</marquee>
+					</div>
+					<switch
+						checked="{{ global.APP_SETTING.imagePreload }}"
+						class="switch"
+						@change="onPreloadSwitchChange"
+					></switch>
+				</div>
+			</div>
 				<text
 					class="bold"
 					style="color: #fff; width: 276px; text-align: center; height: 100%"
@@ -313,6 +336,11 @@ export default {
 
 	onPreTranscodeSwitchChange(value) {
 		global.APP_SETTING.imagePreTranscode = value.checked;
+		this.saveSetting();
+	},
+
+	onPreloadSwitchChange(value) {
+		global.APP_SETTING.imagePreload = value.checked;
 		this.saveSetting();
 	},
 
