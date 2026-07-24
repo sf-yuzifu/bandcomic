@@ -1,33 +1,15 @@
 import prompt from "@system.prompt";
 import file from "@system.file";
-import {
-  readComics,
-  writeComics,
-  readSources,
-  writeSources,
-  writeCookie,
-} from "./storage";
+import { readComics, writeComics, readSources, writeSources, writeCookie } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
 
 function detectImageFormat(bytes) {
-  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff)
-    return "image/jpeg";
-  if (
-    bytes[0] === 0x89 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x4e &&
-    bytes[3] === 0x47
-  )
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47)
     return "image/png";
-  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46)
-    return "image/gif";
-  if (
-    bytes[0] === 0x52 &&
-    bytes[1] === 0x49 &&
-    bytes[2] === 0x46 &&
-    bytes[3] === 0x46
-  )
+  if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "image/gif";
+  if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46)
     return "image/webp";
   if (bytes[0] === 0x42 && bytes[1] === 0x4d) return "image/bmp";
   return "image/jpeg";
@@ -62,9 +44,9 @@ function updateComicsIndexAfterDelete(comicsList, deletedId, comicName) {
       prompt.showToast({ message: "已删除: " + comicName });
     },
     ({ code }) => {
-      console.log("更新索引失败, code=" + code);
+      console.debug("更新索引失败, code=" + code);
       prompt.showToast({ message: "文件已删除，但索引更新失败" });
-    },
+    }
   );
 }
 
@@ -263,7 +245,7 @@ export function createDataBridge(interConnect) {
 
       // 超时保护：5秒未收到 ACK 则继续发下一个（避免死锁）
       ackTimer = setTimeout(function () {
-        console.log("消息 " + msgIndex + " ACK 超时，继续发送");
+        console.debug("消息 " + msgIndex + " ACK 超时，继续发送");
         pendingAckIndex = -1;
         msgIndex++;
         sendNextMessage();
@@ -304,7 +286,7 @@ export function createDataBridge(interConnect) {
       },
       function () {
         sendAppDataBatched(comics, []);
-      },
+      }
     );
   }
 
@@ -340,10 +322,7 @@ export function createDataBridge(interConnect) {
                 fileData.subFiles.forEach(function (f) {
                   if (f.type === "dir" && f.subFiles && f.subFiles.length > 0) {
                     chapterCount++;
-                  } else if (
-                    f.type !== "dir" &&
-                    f.uri.split("/").pop() !== "cover"
-                  ) {
+                  } else if (f.type !== "dir" && f.uri.split("/").pop() !== "cover") {
                     pageCount++;
                   }
                 });
@@ -377,7 +356,7 @@ export function createDataBridge(interConnect) {
       },
       function () {
         readSourcesAndSend([]);
-      },
+      }
     );
   }
 
@@ -401,7 +380,7 @@ export function createDataBridge(interConnect) {
       },
       () => {
         prompt.showToast({ message: "Cookie保存失败" });
-      },
+      }
     );
   }
 
@@ -420,7 +399,7 @@ export function createDataBridge(interConnect) {
         },
         function ({ code }) {
           prompt.showToast({ message: "保存漫画源配置失败: " + code });
-        },
+        }
       );
     }
 
@@ -433,7 +412,7 @@ export function createDataBridge(interConnect) {
       },
       function () {
         applyAndSave(configs);
-      },
+      }
     );
   }
 
@@ -463,8 +442,7 @@ export function createDataBridge(interConnect) {
       return;
     }
 
-    const comicId =
-      "local_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+    const comicId = "local_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
     const dirUri = "internal://files/" + comicId;
 
     let pageCount = 0;
@@ -517,8 +495,7 @@ export function createDataBridge(interConnect) {
     }
 
     prompt.showToast({
-      message:
-        "开始接收: " + comicName + " (" + _importState.totalFiles + "文件)",
+      message: "开始接收: " + comicName + " (" + _importState.totalFiles + "文件)",
     });
 
     function flushPendingWrites() {
@@ -536,11 +513,7 @@ export function createDataBridge(interConnect) {
               _importState.completedFiles === _importState.totalFiles
             ) {
               prompt.showToast({
-                message:
-                  "接收 " +
-                  _importState.completedFiles +
-                  "/" +
-                  _importState.totalFiles,
+                message: "接收 " + _importState.completedFiles + "/" + _importState.totalFiles,
                 duration: 500,
               });
             }
@@ -548,7 +521,7 @@ export function createDataBridge(interConnect) {
           function () {
             _importState.completedFiles++;
             _importState.failedFiles++;
-          },
+          }
         );
       });
     }
@@ -569,7 +542,7 @@ export function createDataBridge(interConnect) {
         if (code === 202) {
           onMkdirReady();
         } else {
-          console.log("创建根目录失败: " + code);
+          console.debug("创建根目录失败: " + code);
           onMkdirReady();
         }
       },
@@ -584,7 +557,7 @@ export function createDataBridge(interConnect) {
           success: function () {},
           fail: function (data, code) {
             if (code !== 202) {
-              console.log("创建章节目录失败: " + chapUri + " code=" + code);
+              console.debug("创建章节目录失败: " + chapUri + " code=" + code);
             }
           },
         });
@@ -597,14 +570,14 @@ export function createDataBridge(interConnect) {
       data: { type: "import_header_ack", name: comicName },
       success: function () {},
       fail: function (data, code) {
-        console.log("import_header_ack 发送失败:", code);
+        console.debug("import_header_ack 发送失败:", code);
       },
     });
   }
 
   function handleImportComicChunk(parsed) {
     if (!_importState) {
-      console.log("收到分片但没有 importState");
+      console.debug("收到分片但没有 importState");
       return;
     }
 
@@ -617,14 +590,12 @@ export function createDataBridge(interConnect) {
     if (comicName !== _importState.comicName) {
       // 漫画名含特殊字符时传输中可能被转义导致不一致
       // _importState 是单例，本身即代表当前唯一导入会话，名不匹配只告警不丢弃
-      console.log(
-        "分片漫画名不匹配: " + comicName + " vs " + _importState.comicName,
-      );
+      console.debug("分片漫画名不匹配: " + comicName + " vs " + _importState.comicName);
     }
 
     // 严格匹配：fileKey 必须在头部声明的文件清单内，否则视为异常分片
     if (_importState.files.indexOf(fileKey) === -1) {
-      console.log("未知分片文件: " + fileKey);
+      console.debug("未知分片文件: " + fileKey);
       // 仍需回 ACK，避免插件端超时重传死循环
       interConnect.send({
         data: {
@@ -688,11 +659,7 @@ export function createDataBridge(interConnect) {
               _importState.completedFiles === _importState.totalFiles
             ) {
               prompt.showToast({
-                message:
-                  "接收 " +
-                  _importState.completedFiles +
-                  "/" +
-                  _importState.totalFiles,
+                message: "接收 " + _importState.completedFiles + "/" + _importState.totalFiles,
                 duration: 500,
               });
             }
@@ -700,7 +667,7 @@ export function createDataBridge(interConnect) {
           function () {
             _importState.completedFiles++;
             _importState.failedFiles++;
-          },
+          }
         );
       } else {
         _importState.pendingWrites.push({
@@ -717,9 +684,7 @@ export function createDataBridge(interConnect) {
     const comicName = parsed.name || "";
     if (comicName !== _importState.comicName) {
       // 与分片同理：名不匹配只告警，按当前导入会话完成收尾
-      console.log(
-        "完成消息漫画名不匹配: " + comicName + " vs " + _importState.comicName,
-      );
+      console.debug("完成消息漫画名不匹配: " + comicName + " vs " + _importState.comicName);
     }
 
     // 等待所有待处理写入完成（简单延迟）
@@ -729,7 +694,7 @@ export function createDataBridge(interConnect) {
       _importState.comicId,
       _importState.comicName,
       _importState.pageCount,
-      _importState.isSerial,
+      _importState.isSerial
     );
 
     let msg =
@@ -754,7 +719,7 @@ export function createDataBridge(interConnect) {
     try {
       const bytes = base64ToBytes(base64Data);
       if (bytes.length === 0) {
-        console.log(fileUri + " 解码后为空");
+        console.debug(fileUri + " 解码后为空");
         prompt.showToast({ message: "解码失败: 数据为空", duration: 1500 });
         onFail && onFail();
         return;
@@ -772,13 +737,8 @@ export function createDataBridge(interConnect) {
             buffer: bytes.buffer,
             success: onSuccess,
             fail: function (data2, code2) {
-              console.log(
-                fileUri +
-                  " 二进制写入失败 code=" +
-                  code2 +
-                  " (回退也失败 code=" +
-                  code +
-                  ")",
+              console.debug(
+                fileUri + " 二进制写入失败 code=" + code2 + " (回退也失败 code=" + code + ")"
               );
               prompt.showToast({
                 message: "文件写入失败 code=" + code2,
@@ -790,7 +750,7 @@ export function createDataBridge(interConnect) {
         },
       });
     } catch (e) {
-      console.log("base64解码/写入失败: " + e + " uri=" + fileUri);
+      console.debug("base64解码/写入失败: " + e + " uri=" + fileUri);
       prompt.showToast({ message: "解码异常: " + e, duration: 2000 });
       onFail && onFail();
     }
@@ -824,32 +784,32 @@ export function createDataBridge(interConnect) {
 
         writeComics(comicsList).then(
           function () {
-            console.log(
+            console.debug(
               "comics.json 更新成功: " +
                 comicName +
                 " (page_count=" +
                 pageCount +
                 ", is_serial=" +
                 isSerial +
-                ")",
+                ")"
             );
           },
           function ({ code }) {
-            console.log("更新 comics.json 失败, code=" + code);
+            console.debug("更新 comics.json 失败, code=" + code);
             prompt.showToast({ message: "索引更新失败，但文件已保存" });
-          },
+          }
         );
       },
       function () {
         writeComics([entry]).then(
           function () {
-            console.log("comics.json 创建成功");
+            console.debug("comics.json 创建成功");
           },
           function ({ code }) {
-            console.log("创建 comics.json 失败, code=" + code);
-          },
+            console.debug("创建 comics.json 失败, code=" + code);
+          }
         );
-      },
+      }
     );
   }
 
@@ -888,20 +848,20 @@ export function createDataBridge(interConnect) {
                 updateComicsIndexAfterDelete(comicsList, target.id, comicName);
               },
               fail: function () {
-                console.log("递归删除失败，直接更新索引");
+                console.debug("递归删除失败，直接更新索引");
                 updateComicsIndexAfterDelete(comicsList, target.id, comicName);
               },
             });
           },
           fail: function () {
-            console.log("文件夹不存在，直接更新索引");
+            console.debug("文件夹不存在，直接更新索引");
             updateComicsIndexAfterDelete(comicsList, target.id, comicName);
           },
         });
       },
       function () {
         prompt.showToast({ message: "读取漫画索引失败" });
-      },
+      }
     );
   }
 
@@ -931,11 +891,9 @@ export function createDataBridge(interConnect) {
             if (global.API_SETTING[sourceName]) {
               delete global.API_SETTING[sourceName];
               if (global.API_SETTING.using === sourceName) {
-                const keys = Object.keys(global.API_SETTING).filter(
-                  function (k) {
-                    return k !== "using";
-                  },
-                );
+                const keys = Object.keys(global.API_SETTING).filter(function (k) {
+                  return k !== "using";
+                });
                 global.API_SETTING.using = keys[0] || "MangaDex";
               }
               bridge.onSourceConfigSaved();
@@ -944,21 +902,21 @@ export function createDataBridge(interConnect) {
             prompt.showToast({ message: "已删除漫画源: " + sourceName });
           },
           function ({ code }) {
-            console.log("更新sources.json失败, code=" + code);
+            console.debug("更新sources.json失败, code=" + code);
             prompt.showToast({ message: "删除失败，请重试" });
-          },
+          }
         );
       },
       function () {
         prompt.showToast({ message: "读取漫画源配置失败" });
-      },
+      }
     );
   }
 
   // 握手应答：新会话建立时清理残缺的导入状态，并回传快应用设置
   function handleHandshakePing(parsed) {
     if (_importState) {
-      console.log("新握手会话，清理未完成的导入状态");
+      console.debug("新握手会话，清理未完成的导入状态");
       _importState = null;
     }
     interConnect.send({
@@ -987,7 +945,6 @@ export function createDataBridge(interConnect) {
     }
 
     const msgType = parsed.type || "(无type)";
-    // prompt.showToast({ message: "type=" + msgType, duration: 2000 });
 
     if (msgType === "hs_ping") {
       handleHandshakePing(parsed);

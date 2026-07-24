@@ -30,6 +30,16 @@ module.exports = {
       env: { node: true },
       parserOptions: { sourceType: "script" },
     },
+    {
+      files: ["quickapp.config.js"],
+      env: { node: true },
+      parserOptions: { sourceType: "script" },
+    },
+    {
+      files: ["tools/**/*.mjs"],
+      env: { node: true },
+      parserOptions: { sourceType: "module", ecmaVersion: 2022 },
+    },
   ],
   rules: {
     "no-var": "error",
