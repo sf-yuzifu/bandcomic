@@ -137,15 +137,23 @@ function updateMultipleSources(sourceArray) {
 	});
 }
 
+function normalizeApiUrl(url) {
+	return url
+		.trim()
+		.replace(/^https?:\/\//i, "")
+		.replace(/\/+$/, "");
+}
+
 function validateApiUrl(url) {
 	if (!url || url.trim() === "") {
 		return "empty";
 	}
 
-	const trimmedUrl = url.trim();
+	const normalized = normalizeApiUrl(url);
 
-	const domainRegex = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/;
-	if (!domainRegex.test(trimmedUrl)) {
+	const domainRegex = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d{1,5})?$/;
+	const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}(:\d{1,5})?$/;
+	if (!domainRegex.test(normalized) && !ipv4Regex.test(normalized)) {
 		return "invalidDomain";
 	}
 
@@ -188,6 +196,7 @@ export default {
 				prompt.showToast({ message: this.$t("edit.validation." + validation) });
 				return;
 			}
+			this.context = normalizeApiUrl(this.context);
 			readSources().then(
 				(datas) => {
 					this.writeSource(datas);
@@ -206,8 +215,12 @@ export default {
 	},
 
 	writeSource(text) {
+		this.fetchSourceConfig("https", text);
+	},
+
+	fetchSourceConfig(protocol, text) {
 		apiFetch({
-			url: "https://" + this.context + "/config",
+			url: protocol + "://" + this.context + "/config",
 			responseType: "text",
 			success: (response) => {
 				let data = safeJsonParse(response.data, null);
@@ -224,7 +237,11 @@ export default {
 				}
 				writeSources(data).then(
 					() => {
-						prompt.showToast({ message: this.$t("edit.complete") });
+						prompt.showToast({
+							message: this.$t(
+								protocol === "http" ? "edit.completeHttp" : "edit.complete"
+							),
+						});
 						updateMultipleSources(data);
 						this.API_SETTING = global.API_SETTING;
 					},
@@ -241,6 +258,13 @@ export default {
 			},
 			fail: (data, code) => {
 				const errorType = getFetchErrorType(code);
+				if (
+					protocol === "https" &&
+					(errorType === "ssl" || errorType === "connection")
+				) {
+					this.fetchSourceConfig("http", text);
+					return;
+				}
 				if (errorType === "domain") {
 					prompt.showToast({ message: this.$t("edit.domainError") });
 				} else if (errorType === "timeout") {

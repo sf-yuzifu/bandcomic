@@ -136,6 +136,7 @@
         "title": "Edit Sources",
         "input": "Enter source",
         "complete": "Added",
+        "completeHttp": "Added (unencrypted connection)",
         "storageError": "Storage full",
         "unknownWriteError": "Write error, Code:",
         "domainError": "Invalid domain",
@@ -148,7 +149,7 @@
         "unknownReadError": "Read error, Code:",
         "validation": {
             "empty": "API URL cannot be empty",
-            "invalidDomain": "Invalid API domain format"
+            "invalidDomain": "Invalid address. Domain or IP expected (port optional)"
         }
     },
     "update": {
