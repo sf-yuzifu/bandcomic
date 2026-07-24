@@ -125,13 +125,16 @@ import { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType } from "../
 
 const { getTime } = global;
 const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项
+const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页
 
 export default {
 	protected: {
 		keyword: "",
 	},
 	private: {
-		apiResults: [], // 数据仓库，存储所有从API获取的数据
+		apiResults: [], // 数据仓库，存储当前缓存的API数据
+		apiDroppedCount: 0, // 因缓存上限被丢弃的前部数据条数
+		apiPageMap: [], // 每个服务器页对应的全局起始下标，用于回翻已丢弃页时重新请求
 		searchResults: [], // 当前显示的10项数据
 		displayPage: 1, // 前端显示的页码
 
@@ -195,15 +198,14 @@ export default {
 		const data = response.data;
 
 		if (data.results) {
-			const results = data.results.map((result) => {
-				return {
-					gid: result.comic_id,
-					title: result.title,
-					thumb: addCoverParams(result.cover_url),
-				};
-			});
+			const results = this.parseResults(data.results);
 
+			this.apiPageMap.push({
+				serverPage: data.page,
+				start: this.apiDroppedCount + this.apiResults.length,
+			});
 			this.apiResults = this.apiResults.concat(results);
+			this.trimCache();
 
 			this.apiHasNext = data.has_more;
 			this.apiNextCursor = data.page + 1;
@@ -211,10 +213,41 @@ export default {
 			// 如果是第一次加载，或因为翻页触发了加载，则更新显示
 			if (
 				this.searchResults.length === 0 ||
-				this.apiResults.length >= (this.displayPage - 1) * PAGE_SIZE
+				this.apiDroppedCount + this.apiResults.length >=
+					(this.displayPage - 1) * PAGE_SIZE
 			) {
 				this.updateSearchResults();
 			}
+		}
+	},
+
+	parseResults(results) {
+		return results.map((result) => {
+			return {
+				gid: result.comic_id,
+				title: result.title,
+				thumb: addCoverParams(result.cover_url),
+			};
+		});
+	},
+
+	// 缓存超过上限时，按服务器页粒度丢弃最旧的数据
+	trimCache() {
+		while (this.apiResults.length > MAX_CACHE) {
+			const cached = this.apiPageMap.filter(
+				(entry) => entry.start >= this.apiDroppedCount
+			);
+			if (cached.length <= 1) {
+				break;
+			}
+			const dropCount =
+				cached[1].start - this.apiDroppedCount -
+				(cached[0].start - this.apiDroppedCount);
+			if (dropCount <= 0) {
+				break;
+			}
+			this.apiResults = this.apiResults.slice(dropCount);
+			this.apiDroppedCount += dropCount;
 		}
 	},
 
@@ -223,12 +256,15 @@ export default {
 		if (targetPage < 1) return;
 
 		const startIndex = (targetPage - 1) * PAGE_SIZE;
+		const cachedEnd = this.apiDroppedCount + this.apiResults.length;
 
-		// 判断仓库数据是否足够
-		if (this.apiResults.length > startIndex) {
-			// 足够，直接更新显示
+		if (startIndex >= this.apiDroppedCount && cachedEnd > startIndex) {
+			// 数据在缓存中，直接更新显示
 			this.displayPage = targetPage;
 			this.updateSearchResults();
+		} else if (startIndex < this.apiDroppedCount) {
+			// 数据已被清理，按服务器页码重新请求
+			this.refetchDroppedPage(targetPage, startIndex);
 		} else if (this.apiHasNext) {
 			// 不足，但API还有数据，则先更新目标页码，然后去请求
 			this.displayPage = targetPage;
@@ -236,9 +272,63 @@ export default {
 		}
 	},
 
+	// 回翻到已丢弃的页时，找到覆盖该页的服务器页码并重新请求
+	refetchDroppedPage(targetPage, startIndex) {
+		if (this.loadingMore) return;
+
+		let target = null;
+		for (const entry of this.apiPageMap) {
+			if (entry.start <= startIndex) {
+				target = entry;
+			} else {
+				break;
+			}
+		}
+		if (!target) return;
+
+		this.loadingMore = true;
+		this.displayPage = targetPage;
+
+		apiFetch({
+			url: buildSearchUrl(this.keyword, target.serverPage),
+			responseType: "json",
+			success: (response) => {
+				const data = response.data;
+				if (data.results) {
+					// 丢弃该服务器页之后的旧映射，后续翻页会重新记录
+					this.apiPageMap = this.apiPageMap.filter(
+						(entry) => entry.serverPage < target.serverPage
+					);
+					this.apiPageMap.push({
+						serverPage: target.serverPage,
+						start: target.start,
+					});
+					this.apiDroppedCount = target.start;
+					this.apiResults = this.parseResults(data.results);
+					this.apiHasNext = data.has_more;
+					this.apiNextCursor = data.page + 1;
+					this.trimCache();
+					this.updateSearchResults();
+				}
+			},
+			fail: (data, code) => {
+				prompt.showToast({
+					message:
+						getFetchErrorType(code) === "timeout"
+							? this.$t("search.networkError")
+							: this.$t("search.requestError"),
+					duration: 3000,
+				});
+			},
+			complete: () => {
+				this.loadingMore = false;
+			},
+		});
+	},
+
 	// 更新显示列表的辅助函数
 	updateSearchResults() {
-		const startIndex = (this.displayPage - 1) * PAGE_SIZE;
+		const startIndex = (this.displayPage - 1) * PAGE_SIZE - this.apiDroppedCount;
 		const endIndex = startIndex + PAGE_SIZE;
 		this.searchResults = this.apiResults.slice(startIndex, endIndex);
 
@@ -250,7 +340,10 @@ export default {
 	// 判断是否可以点击下一页
 	canGoNext() {
 		const nextNeededIndex = this.displayPage * PAGE_SIZE;
-		return this.apiResults.length > nextNeededIndex || this.apiHasNext;
+		return (
+			this.apiDroppedCount + this.apiResults.length > nextNeededIndex ||
+			this.apiHasNext
+		);
 	},
 
 	selectResult(result) {
