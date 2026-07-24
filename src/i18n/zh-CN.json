@@ -137,6 +137,7 @@
         "title": "编辑漫画源",
         "input": "输入漫画源",
         "complete": "已添加",
+        "completeHttp": "已添加（未加密连接）",
         "storageError": "无法写入漫画源，存储已满",
         "unknownWriteError": "无法写入漫画源，错误代码",
         "domainError": "请输入可用域名",
@@ -149,7 +150,7 @@
         "unknownReadError": "无法读取当前已有漫画源，错误代码",
         "validation": {
             "empty": "API地址不能为空",
-            "invalidDomain": "API地址域名格式不正确"
+            "invalidDomain": "API地址格式不正确，支持域名或IP（可带端口）"
         }
     },
     "update": {
