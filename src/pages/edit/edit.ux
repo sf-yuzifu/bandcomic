@@ -230,6 +230,10 @@ export default {
 					});
 					return;
 				}
+				if (typeof data !== "object") {
+					prompt.showToast({ message: this.$t("error.invalidResponse") });
+					return;
+				}
 				if (text) {
 					data = replaceIfDuplicate(text, data);
 				} else {

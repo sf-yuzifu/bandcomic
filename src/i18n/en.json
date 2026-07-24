@@ -34,7 +34,8 @@
     "error": {
         "noComicFound": "No comics found",
         "networkError": "Network error",
-        "unknownError": "Error: "
+        "unknownError": "Error: ",
+        "invalidResponse": "Invalid response from comic source"
     },
     "cookie": {
         "receive": "Cookie received",
