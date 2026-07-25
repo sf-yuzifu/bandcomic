@@ -190,6 +190,7 @@
 <script>
 import router from "@system.router";
 import app from "@system.app";
+import prompt from "@system.prompt";
 import { writeSettings } from "../../components/storage";
 
 const { getTime } = global;
@@ -276,7 +277,12 @@ export default {
   },
 
   saveSetting() {
-    writeSettings(global.APP_SETTING).catch(() => {});
+    writeSettings(global.APP_SETTING).catch(({ code }) => {
+      prompt.showToast({
+        message: this.$t("settings.saveFailed", { code }),
+        duration: 2000,
+      });
+    });
   },
 };
 </script>
