@@ -109,7 +109,9 @@ import { flattenParams } from "../../components/routerParams";
 import { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType } from "../../components/api";
 
 const { getTime } = global;
-const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10; // 前端每页显示10项
+function getPageSize() {
+  return parseInt(global.APP_SETTING.searchPageSize) || 10;
+}
 const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页
 
 export default {
@@ -203,7 +205,7 @@ export default {
     // 如果是第一次加载，或因为翻页触发了加载，则更新显示
     if (
       this.searchResults.length === 0 ||
-      this.apiDroppedCount + this.apiResults.length >= (this.displayPage - 1) * PAGE_SIZE
+      this.apiDroppedCount + this.apiResults.length >= (this.displayPage - 1) * getPageSize()
     ) {
       this.updateSearchResults();
     }
@@ -240,7 +242,7 @@ export default {
   changeDisplayPage(targetPage) {
     if (targetPage < 1) return;
 
-    const startIndex = (targetPage - 1) * PAGE_SIZE;
+    const startIndex = (targetPage - 1) * getPageSize();
     const cachedEnd = this.apiDroppedCount + this.apiResults.length;
 
     if (startIndex >= this.apiDroppedCount && cachedEnd > startIndex) {
@@ -316,8 +318,8 @@ export default {
 
   // 更新显示列表的辅助函数
   updateSearchResults() {
-    const startIndex = (this.displayPage - 1) * PAGE_SIZE - this.apiDroppedCount;
-    const endIndex = startIndex + PAGE_SIZE;
+    const startIndex = (this.displayPage - 1) * getPageSize() - this.apiDroppedCount;
+    const endIndex = startIndex + getPageSize();
     this.searchResults = this.apiResults.slice(startIndex, endIndex);
 
     const scrollToTop = () => {
@@ -335,7 +337,7 @@ export default {
 
   // 判断是否可以点击下一页
   canGoNext() {
-    const nextNeededIndex = this.displayPage * PAGE_SIZE;
+    const nextNeededIndex = this.displayPage * getPageSize();
     return this.apiDroppedCount + this.apiResults.length > nextNeededIndex || this.apiHasNext;
   },
 

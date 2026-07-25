@@ -177,7 +177,9 @@ import { readComics, writeComics, readHistory, writeHistory } from "../../compon
 
 const { getTime } = global;
 
-const PAGE_SIZE = parseInt(global.APP_SETTING.searchPageSize) || 10;
+function getPageSize() {
+  return parseInt(global.APP_SETTING.searchPageSize) || 10;
+}
 
 let del;
 
@@ -306,23 +308,23 @@ export default {
   },
 
   historyTotalPages() {
-    return Math.max(1, Math.ceil(this.allHistory.length / PAGE_SIZE));
+    return Math.max(1, Math.ceil(this.allHistory.length / getPageSize()));
   },
 
   comicsTotalPages() {
-    return Math.max(1, Math.ceil(this.allComics.length / PAGE_SIZE));
+    return Math.max(1, Math.ceil(this.allComics.length / getPageSize()));
   },
 
   updateHistoryList() {
-    const start = (this.historyPage - 1) * PAGE_SIZE;
-    this.historyList = this.allHistory.slice(start, start + PAGE_SIZE);
+    const start = (this.historyPage - 1) * getPageSize();
+    this.historyList = this.allHistory.slice(start, start + getPageSize());
     this.openedHistoryIndex = -1;
     this.scrollListToTop("historyScroll");
   },
 
   updateComicsList() {
-    const start = (this.comicsPage - 1) * PAGE_SIZE;
-    this.comicsList = this.allComics.slice(start, start + PAGE_SIZE);
+    const start = (this.comicsPage - 1) * getPageSize();
+    this.comicsList = this.allComics.slice(start, start + getPageSize());
     this.openedComicsIndex = -1;
     this.scrollListToTop("comicsScroll");
   },
