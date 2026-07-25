@@ -87,7 +87,7 @@
 <script>
 import router from "@system.router";
 import prompt from "@system.prompt";
-import { readSources, writeSources } from "../../components/storage";
+import { readSources, writeSources, FILE_ERROR } from "../../components/storage";
 import { safeJsonParse } from "../../components/jsonUtils";
 import { apiFetch, getFetchErrorType } from "../../components/api";
 
@@ -192,7 +192,7 @@ export default {
           this.writeSource(datas);
         },
         ({ data, code }) => {
-          if (code === 301) {
+          if (code === FILE_ERROR.NOT_FOUND) {
             this.writeSource();
           } else {
             prompt.showToast({

@@ -1,6 +1,13 @@
 import prompt from "@system.prompt";
 import file from "@system.file";
-import { readComics, writeComics, readSources, writeSources, writeCookie } from "./storage";
+import {
+  readComics,
+  writeComics,
+  readSources,
+  writeSources,
+  writeCookie,
+  FILE_ERROR,
+} from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
 
@@ -539,7 +546,7 @@ export function createDataBridge(interConnect) {
         onMkdirReady();
       },
       fail: function (data, code) {
-        if (code === 202) {
+        if (code === FILE_ERROR.ALREADY_EXISTS) {
           onMkdirReady();
         } else {
           console.debug("创建根目录失败: " + code);
@@ -556,7 +563,7 @@ export function createDataBridge(interConnect) {
           recursive: false,
           success: function () {},
           fail: function (data, code) {
-            if (code !== 202) {
+            if (code !== FILE_ERROR.ALREADY_EXISTS) {
               console.debug("创建章节目录失败: " + chapUri + " code=" + code);
             }
           },
