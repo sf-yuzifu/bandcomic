@@ -128,6 +128,7 @@
         "readIndexFailed": "Read index failed, code: {code}",
         "createIndexFailed": "Create index failed, code: {code}",
         "createFolderFailed": "Create folder failed, code: {code}",
+        "selectChapters": "Select chapters to download",
         "selectAll": "All",
         "deselectAll": "Deselect",
         "startDownload": "Download",
