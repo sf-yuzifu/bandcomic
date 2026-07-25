@@ -6,6 +6,8 @@ const FETCH_CHUNK_TAG = "fetch-chunk";
 const FETCH_ACK_TAG = "fetch-ack";
 const HS_TAG = "__hs__";
 const TIMEOUT = 3000;
+const MAX_CHUNK_SIZE = 4096;
+const FETCH_PROBE_URL = "https://www.baidu.com";
 
 let fetchAvailable = false;
 let systemFetch = null;
@@ -129,8 +131,8 @@ function checkFetchAvailable() {
     }
 
     systemFetch.fetch({
-      url: "https://www.baidu.com",
-      timeout: 3000,
+      url: FETCH_PROBE_URL,
+      timeout: TIMEOUT,
       success: () => {
         fetchAvailable = true;
         resolve(true);
@@ -146,7 +148,7 @@ function checkFetchAvailable() {
 const LOCAL_CAPS = {
   version: 3,
   chunk: true,
-  maxChunkSize: 4096,
+  maxChunkSize: MAX_CHUNK_SIZE,
   encodings: ["hex", "base64", "text"],
   compressions: ["none", "deflate", "lz4"],
   ack: true,

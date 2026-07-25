@@ -11,6 +11,9 @@ import {
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
 
+const COVER_READ_CHUNK_SIZE = 6144;
+const ACK_TIMEOUT = 5000;
+
 function detectImageFormat(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
   if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47)
@@ -69,12 +72,11 @@ export function createDataBridge(interConnect) {
   let _coverPos = 0;
 
   function readCoverSlice() {
-    const READ = 6144;
     const uri = _coverUri;
     const name = _coverName;
     const pos = _coverPos;
     const total = _coverTotalBytes;
-    const len = Math.min(READ, total - pos);
+    const len = Math.min(COVER_READ_CHUNK_SIZE, total - pos);
     const isFirst = pos === 0;
 
     file.readArrayBuffer({
@@ -96,8 +98,8 @@ export function createDataBridge(interConnect) {
         }
         const header = isFirst ? "data:" + _coverMime + ";base64," : "";
         const b64 = base64Encode(bufData.buffer);
-        const totalChunks = Math.ceil(total / READ);
-        const chunkIndex = Math.floor(pos / READ);
+        const totalChunks = Math.ceil(total / COVER_READ_CHUNK_SIZE);
+        const chunkIndex = Math.floor(pos / COVER_READ_CHUNK_SIZE);
 
         interConnect.send({
           data: {
@@ -256,7 +258,7 @@ export function createDataBridge(interConnect) {
         pendingAckIndex = -1;
         msgIndex++;
         sendNextMessage();
-      }, 5000);
+      }, ACK_TIMEOUT);
 
       interConnect.send({
         data: msg,
