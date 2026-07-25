@@ -20,6 +20,7 @@
         "imageUsePng": "PNG image mode",
         "imagePreTranscode": "Pre-decode",
         "imagePreload": "Preload pages",
+        "saveFailed": "Failed to save settings: {code}",
         "info": {
             "searchPageSize": "Number of search results per page",
             "imageQuality": "Image quality percentage",
