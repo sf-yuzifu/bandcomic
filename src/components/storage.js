@@ -1,5 +1,11 @@
 import file from "@system.file";
 
+export const FILE_ERROR = {
+  NOT_FOUND: 301,
+  ALREADY_EXISTS: 202,
+  ALREADY_EXISTS_NEW_SDK: 13900001,
+};
+
 export const COMICS_URI = "internal://files/comics.json";
 export const SETTINGS_URI = "internal://files/settings.json";
 export const HISTORY_URI = "internal://files/history.json";

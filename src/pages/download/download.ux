@@ -149,7 +149,7 @@ import file from "@system.file";
 import prompt from "@system.prompt";
 
 import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
-import { readComics, writeComics } from "../../components/storage";
+import { readComics, writeComics, FILE_ERROR } from "../../components/storage";
 import { apiFetch, buildPhotoUrl, getCurrentSource } from "../../components/api";
 
 const { getTime } = global;
@@ -355,7 +355,7 @@ export default {
     return readComics().then(
       () => true,
       ({ code }) => {
-        if (code === 301) {
+        if (code === FILE_ERROR.NOT_FOUND) {
           return false;
         }
         throw this.$t("download.checkFileFailed", { code: code });
@@ -486,7 +486,7 @@ export default {
           resolve();
         },
         fail: (data, code) => {
-          if (code === 13900001) {
+          if (code === FILE_ERROR.ALREADY_EXISTS_NEW_SDK) {
             console.debug("文件夹已存在");
             resolve();
           } else {
