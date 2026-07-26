@@ -136,6 +136,7 @@
         "allComplete": "All downloads complete",
         "chapterFailed": "Chapter {chapter} failed: {reason}, continuing",
         "summaryWithFailed": "Downloaded {success}/{total} chapters, failed: {chapters}",
+        "retryFailedPages": "Retrying {count} failed images",
         "allFailed": "All downloads failed"
     },
     "edit": {
