@@ -8,11 +8,11 @@ export function addUrlParam(url, key, value) {
     urlObj.searchParams.set(key, value.toString());
     return urlObj.toString() + hash;
   } catch (error) {
-    if (baseUrl.includes(key + "=")) {
+    if (baseUrl.includes("?" + key + "=") || baseUrl.includes("&" + key + "=")) {
       return baseUrl + hash;
     }
     const separator = baseUrl.includes("?") ? "&" : "?";
-    return baseUrl + separator + key + "=" + value + hash;
+    return baseUrl + separator + key + "=" + encodeURIComponent(value) + hash;
   }
 }
 
