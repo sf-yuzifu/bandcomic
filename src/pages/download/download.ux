@@ -31,7 +31,7 @@
           }
         "
       >
-        {{ $t("download.title") }}{{ chapterName ? " - " + chapterName : "" }}
+        {{ $t("download.title") }}{{ queuePosition }}{{ chapterName ? " - " + chapterName : "" }}
       </marquee>
     </div>
 
@@ -197,6 +197,9 @@ export default {
     loadingMore: false,
     scrollTopTriggered: false,
     scrollBottomTriggered: false,
+    failedChapters: [],
+    coverDone: false,
+    queuePosition: "",
   },
 
   onShow() {
@@ -207,7 +210,8 @@ export default {
     this.showChapterSelect = this.total_chapters > 1;
     await this.initData();
     if (!(this.is_serial && this.total_chapters > 1)) {
-      this.startDownloadProcess();
+      // 错误已在 startDownloadProcess 内反映到 downloadError UI
+      this.startDownloadProcess().catch(() => {});
     }
   },
 
@@ -302,25 +306,34 @@ export default {
       return;
     }
     this.showChapterSelect = false;
+    this.failedChapters = [];
+    this.coverDone = false;
+    this.queuePosition = "";
     this.currentChapterIndex = 0;
     await this.downloadNextChapter();
   },
 
   async downloadNextChapter() {
     if (this.currentChapterIndex >= this.selectedChapters.length) {
-      this.processing = true;
-      prompt.showToast({
-        message: this.$t("download.allComplete"),
-        duration: 2000,
-      });
-      await sleep(1000);
-      router.replace({
-        uri: "/pages/offline",
-      });
+      if (this.failedChapters.length === 0) {
+        this.processing = true;
+        prompt.showToast({
+          message: this.$t("download.allComplete"),
+          duration: 2000,
+        });
+        await sleep(1000);
+        router.replace({
+          uri: "/pages/offline",
+        });
+      } else {
+        this.showSummaryView();
+      }
       return;
     }
 
     this.chapter = this.selectedChapters[this.currentChapterIndex];
+    this.queuePosition =
+      "(" + (this.currentChapterIndex + 1) + "/" + this.selectedChapters.length + ")";
     this.chapterName = "";
     this.processing = false;
     this.page = 0;
@@ -328,13 +341,35 @@ export default {
 
     try {
       await this.startDownloadProcess();
-      this.currentChapterIndex++;
-      await sleep(500);
-      await this.downloadNextChapter();
     } catch (error) {
       console.error(`章节 ${this.chapter} 下载失败:`, error);
-      this.downloadError = error;
-      this.processing = false;
+      this.failedChapters.push(this.chapter);
+      // 队列模式不用整屏错误 UI，toast 提示原因后继续下一章
+      this.downloadError = "";
+      const reason = typeof error === "string" ? error : String(error);
+      prompt.showToast({
+        message: this.$t("download.chapterFailed", { chapter: this.chapter, reason: reason }),
+        duration: 2500,
+      });
+      await sleep(500);
+    }
+
+    this.currentChapterIndex++;
+    await sleep(500);
+    await this.downloadNextChapter();
+  },
+
+  showSummaryView() {
+    this.queuePosition = "";
+    // 复用原本的失败 UI：fail 图标 + downloadError 文案，用户自行返回
+    if (this.failedChapters.length === this.selectedChapters.length) {
+      this.downloadError = this.$t("download.allFailed");
+    } else {
+      this.downloadError = this.$t("download.summaryWithFailed", {
+        success: this.selectedChapters.length - this.failedChapters.length,
+        total: this.selectedChapters.length,
+        chapters: this.failedChapters.join("、"),
+      });
     }
   },
 
@@ -353,6 +388,7 @@ export default {
       console.debug(`下载过程出错: ${error}`);
       this.downloadError = error;
       this.processing = false;
+      throw error;
     }
   },
 
@@ -453,7 +489,17 @@ export default {
       }
       await this.createFolder(folderUri);
 
-      if (this.currentChapterIndex === 0 || !this.is_serial) {
+      if (this.is_serial) {
+        // 封面失败不应中断队列，下一章会重试
+        if (!this.coverDone) {
+          try {
+            await this.downloadCover(coverUri);
+            this.coverDone = true;
+          } catch (e) {
+            console.debug(`封面下载失败，将在下一章重试: ${e}`);
+          }
+        }
+      } else {
         await this.downloadCover(coverUri);
       }
 

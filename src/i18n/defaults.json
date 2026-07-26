@@ -133,7 +133,10 @@
         "deselectAll": "Deselect",
         "startDownload": "Download",
         "selectAtLeastOne": "Please select at least one chapter",
-        "allComplete": "All downloads complete"
+        "allComplete": "All downloads complete",
+        "chapterFailed": "Chapter {chapter} failed: {reason}, continuing",
+        "summaryWithFailed": "Downloaded {success}/{total} chapters, failed: {chapters}",
+        "allFailed": "All downloads failed"
     },
     "edit": {
         "title": "Edit Sources",
