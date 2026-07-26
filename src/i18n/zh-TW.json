@@ -133,7 +133,10 @@
         "deselectAll": "反選",
         "startDownload": "開始下載",
         "selectAtLeastOne": "請至少選擇一個章節",
-        "allComplete": "全部下載完成"
+        "allComplete": "全部下載完成",
+        "chapterFailed": "第 {chapter} 章下載失敗：{reason}，繼續下一章",
+        "summaryWithFailed": "下載完成 {success}/{total} 章，失敗章節：{chapters}",
+        "allFailed": "全部下載失敗"
     },
     "edit": {
         "title": "編輯漫畫來源",
