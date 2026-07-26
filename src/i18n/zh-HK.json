@@ -148,6 +148,7 @@
         "connectionError": "連線被拒絕",
         "unknownRequestError": "無法請求漫畫來源，錯誤為",
         "del": "已刪除",
+        "delConfirm": "再次點擊刪除",
         "unknownDelError": "無法刪除目前已有漫畫來源，錯誤代碼",
         "unknownReadError": "無法讀取目前已有漫畫來源，錯誤代碼",
         "validation": {

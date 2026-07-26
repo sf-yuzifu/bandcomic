@@ -148,6 +148,7 @@
         "connectionError": "连接被拒绝",
         "unknownRequestError": "无法请求漫画源，错误为",
         "del": "已删除",
+        "delConfirm": "再次点击删除",
         "unknownDelError": "无法删除当前已有漫画源，错误代码",
         "unknownReadError": "无法读取当前已有漫画源，错误代码",
         "validation": {

@@ -403,37 +403,8 @@ export default {
   },
 
   delHistory(id) {
-    if (delHistoryId === id) {
-      // 第二次点击，执行删除
-      prompt.showToast({
-        message: this.$t("offline.historySecondDel"),
-      });
-
-      // 从列表中删除
-      const newList = this.allHistory.filter(item => item.id !== id);
-      this.allHistory = newList;
-      if (this.historyPage > this.historyTotalPages()) {
-        this.historyPage = this.historyTotalPages();
-      }
-      this.updateHistoryList();
-
-      // 保存到文件
-      writeHistory(newList).then(
-        () => {
-          prompt.showToast({
-            message: this.$t("offline.historyDelComplete"),
-          });
-        },
-        ({ code }) => {
-          prompt.showToast({
-            message: this.$t("offline.historyDeleteFailed", { code }),
-          });
-        }
-      );
-
-      delHistoryId = null;
-    } else {
-      // 第一次点击
+    if (delHistoryId !== id) {
+      // 第一次点击，提示二次确认
       delHistoryId = id;
       prompt.showToast({
         message: this.$t("offline.historyDel"),
@@ -444,7 +415,36 @@ export default {
           delHistoryId = null;
         }
       }, 3000);
+      return;
     }
+    // 第二次点击，执行删除
+    prompt.showToast({
+      message: this.$t("offline.historySecondDel"),
+    });
+
+    // 从列表中删除
+    const newList = this.allHistory.filter(item => item.id !== id);
+    this.allHistory = newList;
+    if (this.historyPage > this.historyTotalPages()) {
+      this.historyPage = this.historyTotalPages();
+    }
+    this.updateHistoryList();
+
+    // 保存到文件
+    writeHistory(newList).then(
+      () => {
+        prompt.showToast({
+          message: this.$t("offline.historyDelComplete"),
+        });
+      },
+      ({ code }) => {
+        prompt.showToast({
+          message: this.$t("offline.historyDeleteFailed", { code }),
+        });
+      }
+    );
+
+    delHistoryId = null;
   },
 
   async loadingComic() {
@@ -615,42 +615,50 @@ export default {
   },
 
   del(id) {
-    if (id != del) {
+    if (del !== id) {
+      // 第一次点击，提示二次确认
       del = id;
       prompt.showToast({
         message: this.$t("offline.del"),
         duration: 2000,
       });
-    } else {
-      del = null;
-      prompt.showToast({
-        message: this.$t("offline.secondDel"),
-        duration: 1000,
-      });
-
-      const folderUri = "internal://files/" + id + "/";
-
-      file.access({
-        uri: folderUri,
-        success: () => {
-          file.rmdir({
-            uri: folderUri,
-            recursive: true,
-            success: () => {
-              this.updateComicsIndex(id);
-            },
-            fail: (data, code) => {
-              console.debug(`递归删除失败(code=${code})，尝试逐文件删除`);
-              this.deleteFilesOneByOne(id, folderUri);
-            },
-          });
-        },
-        fail: () => {
-          console.debug(`文件夹不存在，直接删除索引`);
-          this.updateComicsIndex(id);
-        },
-      });
+      // 3秒后重置
+      setTimeout(() => {
+        if (del === id) {
+          del = null;
+        }
+      }, 3000);
+      return;
     }
+    // 第二次点击，执行删除
+    del = null;
+    prompt.showToast({
+      message: this.$t("offline.secondDel"),
+      duration: 1000,
+    });
+
+    const folderUri = "internal://files/" + id + "/";
+
+    file.access({
+      uri: folderUri,
+      success: () => {
+        file.rmdir({
+          uri: folderUri,
+          recursive: true,
+          success: () => {
+            this.updateComicsIndex(id);
+          },
+          fail: (data, code) => {
+            console.debug(`递归删除失败(code=${code})，尝试逐文件删除`);
+            this.deleteFilesOneByOne(id, folderUri);
+          },
+        });
+      },
+      fail: () => {
+        console.debug(`文件夹不存在，直接删除索引`);
+        this.updateComicsIndex(id);
+      },
+    });
   },
 
   deleteFilesOneByOne(id, folderUri) {
