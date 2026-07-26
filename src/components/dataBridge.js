@@ -6,7 +6,7 @@ import {
   readSources,
   writeSources,
   writeCookie,
-  FILE_ERROR,
+  isAlreadyExistsError,
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
@@ -548,7 +548,7 @@ export function createDataBridge(interConnect) {
         onMkdirReady();
       },
       fail: function (data, code) {
-        if (code === FILE_ERROR.ALREADY_EXISTS) {
+        if (isAlreadyExistsError(code)) {
           onMkdirReady();
         } else {
           console.debug("创建根目录失败: " + code);
@@ -565,7 +565,7 @@ export function createDataBridge(interConnect) {
           recursive: false,
           success: function () {},
           fail: function (data, code) {
-            if (code !== FILE_ERROR.ALREADY_EXISTS) {
+            if (!isAlreadyExistsError(code)) {
               console.debug("创建章节目录失败: " + chapUri + " code=" + code);
             }
           },

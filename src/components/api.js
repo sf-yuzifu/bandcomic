@@ -1,12 +1,13 @@
 import fetch from "./interconnfetch";
 
+// Vela fetch 底层基于 curl，错误码直接透传 curl errno
 export const FETCH_ERROR = {
-  TIMEOUT: 28,
-  RESOLVE_HOST: 6,
-  SSL_PEER: 60,
-  SSL_CONNECT: 35,
-  CONNECT_FAILED: 7,
-  EMPTY_REPLY: 52,
+  TIMEOUT: 28, // CURLE_OPERATION_TIMEDOUT 请求超时
+  RESOLVE_HOST: 6, // CURLE_COULDNT_RESOLVE_HOST 域名解析失败
+  SSL_PEER: 60, // CURLE_PEER_FAILED_VERIFICATION 证书校验失败
+  SSL_CONNECT: 35, // CURLE_SSL_CONNECT_ERROR SSL 握手失败
+  CONNECT_FAILED: 7, // CURLE_COULDNT_CONNECT 连接失败
+  EMPTY_REPLY: 52, // CURLE_GOT_NOTHING 服务器空响应
 };
 
 export function getFetchErrorType(code) {

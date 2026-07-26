@@ -1,10 +1,20 @@
 import file from "@system.file";
 
+// 快应用 file API 错误码
 export const FILE_ERROR = {
+  // 通用 I/O 错误（如存储空间不足）
+  IO_ERROR: 300,
+  // 文件/目录不存在
   NOT_FOUND: 301,
+  // 目录已存在（老版快应用 SDK）
   ALREADY_EXISTS: 202,
+  // 目录已存在（新版 Vela SDK，OHOS 风格错误码）
   ALREADY_EXISTS_NEW_SDK: 13900001,
 };
+
+export function isAlreadyExistsError(code) {
+  return code === FILE_ERROR.ALREADY_EXISTS || code === FILE_ERROR.ALREADY_EXISTS_NEW_SDK;
+}
 
 export const COMICS_URI = "internal://files/comics.json";
 export const SETTINGS_URI = "internal://files/settings.json";

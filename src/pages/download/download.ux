@@ -149,8 +149,13 @@ import file from "@system.file";
 import prompt from "@system.prompt";
 
 import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
-import { readComics, writeComics, FILE_ERROR } from "../../components/storage";
-import { apiFetch, buildPhotoUrl, getCurrentSource } from "../../components/api";
+import {
+  readComics,
+  writeComics,
+  isAlreadyExistsError,
+  FILE_ERROR,
+} from "../../components/storage";
+import { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } from "../../components/api";
 
 const { getTime } = global;
 
@@ -486,7 +491,7 @@ export default {
           resolve();
         },
         fail: (data, code) => {
-          if (code === FILE_ERROR.ALREADY_EXISTS_NEW_SDK) {
+          if (isAlreadyExistsError(code)) {
             console.debug("文件夹已存在");
             resolve();
           } else {
@@ -501,7 +506,7 @@ export default {
     console.debug(`${options.label}, code = ${code}, retryCount = ${retryCount}`);
 
     if (retryCount < MAX_RETRY) {
-      const isTimeout = code === 28;
+      const isTimeout = code === FETCH_ERROR.TIMEOUT;
       console.debug(
         isTimeout
           ? `网络超时，正在重试第 ${retryCount + 1} 次...`
@@ -516,7 +521,9 @@ export default {
       return sleep(1000).then(() => options.retry(retryCount + 1));
     }
 
-    return Promise.reject(code === 28 ? options.timeoutMessage : options.failMessage(code));
+    return Promise.reject(
+      code === FETCH_ERROR.TIMEOUT ? options.timeoutMessage : options.failMessage(code)
+    );
   },
 
   fetchImageList(retryCount = 0) {
