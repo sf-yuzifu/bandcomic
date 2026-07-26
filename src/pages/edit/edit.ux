@@ -238,7 +238,7 @@ export default {
             this.API_SETTING = global.API_SETTING;
           },
           ({ data, code }) => {
-            if (code == 300) {
+            if (code === FILE_ERROR.IO_ERROR) {
               prompt.showToast({ message: this.$t("edit.storageError") });
             } else {
               prompt.showToast({
