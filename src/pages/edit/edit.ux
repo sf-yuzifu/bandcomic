@@ -93,6 +93,8 @@ import { apiFetch, getFetchErrorType } from "../../components/api";
 
 const { getTime } = global;
 
+let delSource;
+
 function replaceIfDuplicate(configArray, newConfigObject) {
   // 处理多个源的情况：如果传入的是对象，将其转换为数组
   const keys = Object.keys(newConfigObject);
@@ -272,6 +274,20 @@ export default {
   },
 
   del(source) {
+    if (delSource !== source) {
+      // 第一次点击，提示二次确认
+      delSource = source;
+      prompt.showToast({ message: this.$t("edit.delConfirm"), duration: 2000 });
+      // 3秒后重置
+      setTimeout(() => {
+        if (delSource === source) {
+          delSource = null;
+        }
+      }, 3000);
+      return;
+    }
+    // 第二次点击，执行删除
+    delSource = null;
     readSources().then(
       (datas) => {
         datas = datas.filter((item) => Object.keys(item)[0] !== source);

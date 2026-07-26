@@ -148,6 +148,7 @@
         "connectionError": "Connection refused",
         "unknownRequestError": "Request error, Code:",
         "del": "Deleted",
+        "delConfirm": "Tap again to delete",
         "unknownDelError": "Delete error, Code:",
         "unknownReadError": "Read error, Code:",
         "validation": {
