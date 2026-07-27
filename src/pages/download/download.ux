@@ -152,6 +152,7 @@ import { addImageParams, addCoverParams, appendLvglSuffix } from "../../componen
 import {
   readComics,
   writeComics,
+  updateComicMeta,
   isAlreadyExistsError,
   FILE_ERROR,
 } from "../../components/storage";
@@ -316,6 +317,8 @@ export default {
 
   async downloadNextChapter() {
     if (this.currentChapterIndex >= this.selectedChapters.length) {
+      // 队列结束，回写一次真实存储元数据（含失败章节的实际已下载页数）
+      await this.syncComicStorageMeta();
       if (this.failedChapters.length === 0) {
         this.processing = true;
         prompt.showToast({
@@ -418,7 +421,8 @@ export default {
 
           const existingIndex = comicsData.findIndex((comic) => comic.id === newComic.id);
           if (existingIndex !== -1) {
-            comicsData[existingIndex] = newComic;
+            // 合并而非替换，保留 chapters/size/downloaded_at 等元数据
+            comicsData[existingIndex] = { ...comicsData[existingIndex], ...newComic };
           } else {
             comicsData.push(newComic);
           }
@@ -478,6 +482,9 @@ export default {
 
       await this.fetchImageList();
 
+      // 先把当前章节登记进元数据，下载中断时离线页可据此判断未完成
+      await this.syncChapterMeta();
+
       if (this.is_serial) {
         const mainFolderUri = `internal://files/${global.API_SETTING.using + "_" + this.id}`;
         await this.createFolder(mainFolderUri);
@@ -507,6 +514,7 @@ export default {
       await this.downloadPagesConcurrent(folderUri);
 
       if (!this.is_serial) {
+        await this.syncComicStorageMeta();
         this.processing = true;
         prompt.showToast({
           message: this.$t("download.complete"),
@@ -561,6 +569,123 @@ export default {
       await this.downloadPage(item.page, folderUri);
       this.page = ++completed;
     }
+  },
+
+  // 把当前章节登记到 comics.json 元数据（下载前调用，downloaded 保留旧值）
+  syncChapterMeta() {
+    const comicId = global.API_SETTING.using + "_" + this.id;
+    const chapterNum = this.is_serial ? this.chapter : 0;
+    const chapterName = this.is_serial ? this.chapterName || this.name : "";
+    const pageCount = this.page_count;
+    return updateComicMeta(comicId, (comic) => {
+      comic.name = this.is_serial ? this.originalName : this.name;
+      comic.is_serial = this.is_serial;
+      if (this.is_serial) {
+        if (this.total_chapters) {
+          comic.total_chapters = this.total_chapters;
+        }
+      } else {
+        comic.page_count = pageCount;
+      }
+      if (!Array.isArray(comic.chapters)) {
+        comic.chapters = [];
+      }
+      const idx = comic.chapters.findIndex((c) => c.num === chapterNum);
+      const prevDownloaded = idx >= 0 ? comic.chapters[idx].downloaded || 0 : 0;
+      const entry = {
+        num: chapterNum,
+        name: chapterName,
+        page_count: pageCount,
+        downloaded: prevDownloaded,
+      };
+      if (idx >= 0) {
+        comic.chapters[idx] = entry;
+      } else {
+        comic.chapters.push(entry);
+      }
+      return comic;
+    }).catch((e) => {
+      console.debug(`章节元数据登记失败: ${e && e.code}`);
+    });
+  },
+
+  // 下载结束后扫描一次目录，回写真实占用大小和各章已下载页数
+  syncComicStorageMeta() {
+    const comicId = global.API_SETTING.using + "_" + this.id;
+    const folderUri = `internal://files/${comicId}`;
+    return new Promise((resolve) => {
+      file.get({
+        uri: folderUri,
+        recursive: true,
+        success: (data) => {
+          const subFiles = data.subFiles || [];
+          updateComicMeta(comicId, (comic) => {
+            let size = 0;
+            const scanned = [];
+            if (this.is_serial) {
+              for (const item of subFiles) {
+                if (item.type === "dir") {
+                  let len = 0;
+                  for (const f of item.subFiles || []) {
+                    len += f.length;
+                  }
+                  size += len;
+                  const parts = item.uri.split("/").pop().split("　");
+                  scanned.push({
+                    num: parseInt(parts[0]),
+                    name: parts.slice(1).join("　"),
+                    downloaded: (item.subFiles || []).length,
+                  });
+                } else {
+                  size += item.length;
+                }
+              }
+            } else {
+              let pages = 0;
+              for (const item of subFiles) {
+                if (item.type !== "dir") {
+                  size += item.length;
+                  pages++;
+                }
+              }
+              // 根目录文件含封面，页数减一
+              scanned.push({ num: 0, name: "", downloaded: Math.max(0, pages - 1) });
+            }
+            const prev = Array.isArray(comic.chapters) ? comic.chapters : [];
+            const merged = scanned.map((sc) => {
+              const p = prev.find((c) => c.num === sc.num);
+              return {
+                num: sc.num,
+                name: sc.name || (p ? p.name : ""),
+                page_count: p && p.page_count ? p.page_count : sc.downloaded,
+                downloaded: sc.downloaded,
+              };
+            });
+            // 保留已登记但扫描不到的章节（如失败/未开始的章）
+            prev.forEach((c) => {
+              if (!merged.find((m) => m.num === c.num)) {
+                merged.push(c);
+              }
+            });
+            merged.sort((a, b) => a.num - b.num);
+            comic.chapters = merged;
+            comic.size = size;
+            comic.downloaded_at = Date.now();
+            return comic;
+          }).then(
+            () => resolve(),
+            (e) => {
+              console.debug(`存储元数据回写失败: ${e && e.code}`);
+              resolve();
+            }
+          );
+        },
+        fail: (data, code) => {
+          console.debug(`扫描漫画目录失败, code = ${code}`);
+          resolve();
+        },
+      });
+    });
   },
 
   createFolder(folderUri) {
