@@ -703,7 +703,8 @@ export function createDataBridge(interConnect) {
       _importState.comicId,
       _importState.comicName,
       _importState.pageCount,
-      _importState.isSerial
+      _importState.isSerial,
+      _importState.chapters
     );
 
     let msg =
@@ -765,12 +766,25 @@ export function createDataBridge(interConnect) {
     }
   }
 
-  function updateComicsIndex(comicId, comicName, pageCount, isSerial) {
+  function updateComicsIndex(comicId, comicName, pageCount, isSerial, chapters) {
+    // 章节元数据：导入视为全部下载完成；size 缺失，离线页首次进入会扫描回写真实值
+    let chaptersMeta;
+    if (isSerial && Array.isArray(chapters)) {
+      chaptersMeta = chapters.map(function (ch, i) {
+        const count = (ch.files || []).length;
+        return { num: i + 1, name: ch.name || "", page_count: count, downloaded: count };
+      });
+    } else {
+      chaptersMeta = [{ num: 0, name: "", page_count: pageCount || 0, downloaded: pageCount || 0 }];
+    }
+
     const entry = {
       id: comicId,
       name: comicName,
       page_count: pageCount || 0,
       is_serial: !!isSerial,
+      chapters: chaptersMeta,
+      downloaded_at: Date.now(),
     };
 
     readComics().then(
@@ -787,6 +801,9 @@ export function createDataBridge(interConnect) {
           existing.id = comicId;
           existing.page_count = entry.page_count;
           existing.is_serial = entry.is_serial;
+          existing.chapters = entry.chapters;
+          existing.downloaded_at = entry.downloaded_at;
+          delete existing.size;
         } else {
           comicsList.push(entry);
         }

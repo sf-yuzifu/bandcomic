@@ -173,7 +173,7 @@ import file from "@system.file";
 import prompt from "@system.prompt";
 import device from "@system.device";
 import { serializeParams } from "../../components/routerParams";
-import { readComics, writeComics, readHistory, writeHistory } from "../../components/storage";
+import { readComics, writeComics, updateComicMeta, readHistory, writeHistory } from "../../components/storage";
 
 const { getTime } = global;
 
@@ -545,13 +545,22 @@ export default {
     const comicsSizeResults = await Promise.all(
       comics.map((comic, index) => {
         return new Promise((resolve) => {
+          // 有元数据：直接使用，不再扫描目录
+          if (typeof comic.size === "number") {
+            this.applyComicMeta(comic);
+            const length = comic.size;
+            comic.size = formatFileSize(length);
+            resolve({ index, length });
+            return;
+          }
           file.get({
             uri: `internal://files/${comic.id}`,
             recursive: true,
             success: (data) => {
               let length = 0;
+              const scannedChapters = [];
               for (const i of data.subFiles) {
-                if (i.type === "dir" && i.subFiles.length != 0) {
+                if (i.type === "dir" && i.subFiles.length !== 0) {
                   if (!comic.totalChapter) {
                     comic.totalChapter = [];
                   }
@@ -560,17 +569,32 @@ export default {
                   const chapterNum = parts[0];
                   const chapterName = parts.slice(1).join("　");
                   comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
+                  const num = parseInt(chapterNum);
+                  // 导入漫画的章节目录不带数字前缀，跳过（保留导入时写入的元数据）
+                  if (!isNaN(num)) {
+                    scannedChapters.push({
+                      num: num,
+                      name: chapterName,
+                      downloaded: i.subFiles.length,
+                    });
+                  }
                   for (const m of i.subFiles) {
                     length += m.length;
                   }
-                } else {
+                } else if (i.type !== "dir") {
                   length += i.length;
                 }
+              }
+              if (!comic.is_serial) {
+                // 单本：根目录文件含封面，页数减一
+                const fileCount = data.subFiles.filter((f) => f.type !== "dir").length;
+                scannedChapters.push({ num: 0, name: "", downloaded: Math.max(0, fileCount - 1) });
               }
               if (comic.totalChapter) {
                 comic.totalChapter.sort((a, b) => a[2] - b[2]);
               }
               comic.size = formatFileSize(length);
+              this.backfillComicMeta(comic, length, scannedChapters);
               resolve({ index, length });
             },
             fail: (data, code) => {
@@ -599,6 +623,44 @@ export default {
     }
 
     return stats;
+  },
+
+  // 从元数据构建章节列表（与扫描产生的 totalChapter 格式一致：[名称, 可读页数, 章节号]）
+  applyComicMeta(comic) {
+    if (comic.is_serial && Array.isArray(comic.chapters) && comic.chapters.length > 0) {
+      comic.totalChapter = comic.chapters
+        .slice()
+        .sort((a, b) => a.num - b.num)
+        .map((c) => [c.name, c.downloaded != null ? c.downloaded : c.page_count || 0, c.num]);
+    }
+  },
+
+  // 无元数据的漫画（旧数据/下载中断）扫描后回写，下次进页面免扫描
+  backfillComicMeta(comic, length, scannedChapters) {
+    updateComicMeta(comic.id, (record) => {
+      const prev = Array.isArray(record.chapters) ? record.chapters : [];
+      record.chapters = scannedChapters.map((sc) => {
+        const p = prev.find((c) => c.num === sc.num);
+        return {
+          num: sc.num,
+          name: sc.name || (p ? p.name : ""),
+          // 已登记过 API 页数则保留（下载中断时 downloaded < page_count 即为未完成）
+          page_count: p && p.page_count ? p.page_count : sc.downloaded,
+          downloaded: sc.downloaded,
+        };
+      });
+      // 保留已登记但扫描不到的章节（如刚下载中断、目录未建）
+      prev.forEach((c) => {
+        if (!record.chapters.find((m) => m.num === c.num)) {
+          record.chapters.push(c);
+        }
+      });
+      record.chapters.sort((a, b) => a.num - b.num);
+      record.size = length;
+      return record;
+    }).catch((e) => {
+      console.debug(`元数据回写失败: ${e && e.code}`);
+    });
   },
 
   toPhoto(val) {

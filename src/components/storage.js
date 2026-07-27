@@ -66,6 +66,34 @@ export function writeComics(list) {
   return writeJsonFile(COMICS_URI, list);
 }
 
+// 更新单个漫画的元数据：updater 接收现有记录（不存在则为 { id }），返回新记录。
+// 文件不存在时新建列表；解析失败等异常时 reject 而不写回，避免清空索引。
+export async function updateComicMeta(id, updater) {
+  let comics;
+  try {
+    comics = await readComics(true);
+  } catch (e) {
+    if (e && e.code === FILE_ERROR.NOT_FOUND) {
+      comics = [];
+    } else {
+      throw e;
+    }
+  }
+  if (!Array.isArray(comics)) {
+    comics = [];
+  }
+  const index = comics.findIndex((c) => c.id === id);
+  const base = index >= 0 ? comics[index] : { id: id };
+  const updated = updater(base) || base;
+  if (index >= 0) {
+    comics[index] = updated;
+  } else {
+    comics.push(updated);
+  }
+  await writeComics(comics);
+  return updated;
+}
+
 export function readSettings() {
   return readJsonFile(SETTINGS_URI, {});
 }
