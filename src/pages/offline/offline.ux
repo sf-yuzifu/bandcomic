@@ -447,6 +447,36 @@ export default {
     delHistoryId = null;
   },
 
+  // 书架排序：按 max(最近阅读时间, 下载时间) 降序，都没有的保持原顺序沉底
+  async sortComicsByRecent(comics) {
+    let history = [];
+    try {
+      history = await readHistory();
+      if (!Array.isArray(history)) {
+        history = [];
+      }
+    } catch (e) {
+      history = [];
+    }
+    const lastRead = {};
+    history.forEach((item) => {
+      if (item.local && item.originalId) {
+        const t = item.last_read_time || 0;
+        if (!lastRead[item.originalId] || lastRead[item.originalId] < t) {
+          lastRead[item.originalId] = t;
+        }
+      }
+    });
+    return comics
+      .map((comic, index) => ({
+        comic: comic,
+        index: index,
+        key: Math.max(lastRead[comic.id] || 0, comic.downloaded_at || 0),
+      }))
+      .sort((a, b) => b.key - a.key || a.index - b.index)
+      .map((w) => w.comic);
+  },
+
   async loadingComic() {
     this.isLoading = true;
     let comics = [];
@@ -460,7 +490,7 @@ export default {
       comics = [];
     }
     const stats = await this.getStorage(comics);
-    this.allComics = comics;
+    this.allComics = await this.sortComicsByRecent(comics);
     if (this.comicsPage > this.comicsTotalPages()) {
       this.comicsPage = this.comicsTotalPages();
     }
