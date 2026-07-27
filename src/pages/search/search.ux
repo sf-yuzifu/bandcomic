@@ -114,6 +114,9 @@ function getPageSize() {
 }
 const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页
 
+let requestSeq = 0; // 请求序号，过期请求的回调直接忽略
+let lastFillEnd = -1; // 填页进度记录，连续请求无新数据则放弃填充
+
 export default {
   protected: {
     keyword: "",
@@ -147,6 +150,7 @@ export default {
 
     this.loadingMore = true;
     this.error = false;
+    const seq = ++requestSeq;
     const apiKey = {
       search: true,
     };
@@ -161,9 +165,11 @@ export default {
         url: buildSearchUrl(apiKey.text, apiKey.page),
         responseType: "json",
         success: (response) => {
+          if (seq !== requestSeq) return;
           this.ComicHandleSearchSuccess(response);
         },
         fail: (data, code) => {
+          if (seq !== requestSeq) return;
           this.error = true;
           this.errorMsg =
             getFetchErrorType(code) === "timeout"
@@ -171,9 +177,14 @@ export default {
               : this.$t("search.requestError");
         },
         complete: () => {
-          this.loading = false;
+          if (seq !== requestSeq) return;
           this.loadingMore = false;
           this.searched = true;
+          if (this.error) {
+            this.loading = false;
+          } else {
+            this.fillCurrentPage();
+          }
         },
       });
     }
@@ -201,12 +212,23 @@ export default {
 
     this.apiHasNext = data.has_more;
     this.apiNextCursor = data.page + 1;
+  },
 
-    // 如果是第一次加载，或因为翻页触发了加载，则更新显示
-    if (
-      this.searchResults.length === 0 ||
-      this.apiDroppedCount + this.apiResults.length >= (this.displayPage - 1) * getPageSize()
-    ) {
+  // 填页模块：当前显示页填满设置项数（或已无更多数据）才渲染，否则继续请求
+  fillCurrentPage() {
+    const cachedEnd = this.apiDroppedCount + this.apiResults.length;
+    const startIndex = (this.displayPage - 1) * getPageSize();
+    if (cachedEnd >= startIndex + getPageSize() || !this.apiHasNext) {
+      lastFillEnd = -1;
+      this.loading = false;
+      this.updateSearchResults();
+    } else if (cachedEnd !== lastFillEnd) {
+      lastFillEnd = cachedEnd;
+      this.fetchMore();
+    } else {
+      // 连续请求没有拿到新数据，放弃填充，显示现有内容
+      lastFillEnd = -1;
+      this.loading = false;
       this.updateSearchResults();
     }
   },
@@ -242,17 +264,24 @@ export default {
   changeDisplayPage(targetPage) {
     if (targetPage < 1) return;
 
+    lastFillEnd = -1;
     const startIndex = (targetPage - 1) * getPageSize();
     const cachedEnd = this.apiDroppedCount + this.apiResults.length;
 
     if (startIndex >= this.apiDroppedCount && cachedEnd > startIndex) {
-      // 数据在缓存中，直接更新显示
-      this.displayPage = targetPage;
-      this.updateSearchResults();
+      if (cachedEnd >= startIndex + getPageSize() || !this.apiHasNext) {
+        // 数据足够填满（或已是最后一页），直接更新显示
+        this.displayPage = targetPage;
+        this.updateSearchResults();
+      } else if (!this.loadingMore) {
+        // 不够填满，先翻页再补数据
+        this.displayPage = targetPage;
+        this.fetchMore();
+      }
     } else if (startIndex < this.apiDroppedCount) {
       // 数据已被清理，按服务器页码重新请求
       this.refetchDroppedPage(targetPage, startIndex);
-    } else if (this.apiHasNext) {
+    } else if (this.apiHasNext && !this.loadingMore) {
       // 不足，但API还有数据，则先更新目标页码，然后去请求
       this.displayPage = targetPage;
       this.fetchMore();
@@ -275,11 +304,14 @@ export default {
 
     this.loadingMore = true;
     this.displayPage = targetPage;
+    const seq = ++requestSeq;
+    let ok = false;
 
     apiFetch({
       url: buildSearchUrl(this.keyword, target.serverPage),
       responseType: "json",
       success: (response) => {
+        if (seq !== requestSeq) return;
         const data = response.data;
         if (data && Array.isArray(data.results)) {
           // 丢弃该服务器页之后的旧映射，后续翻页会重新记录
@@ -293,7 +325,7 @@ export default {
           this.apiHasNext = data.has_more;
           this.apiNextCursor = data.page + 1;
           this.trimCache();
-          this.updateSearchResults();
+          ok = true;
         } else {
           prompt.showToast({
             message: this.$t("error.invalidResponse"),
@@ -302,6 +334,7 @@ export default {
         }
       },
       fail: (data, code) => {
+        if (seq !== requestSeq) return;
         prompt.showToast({
           message:
             getFetchErrorType(code) === "timeout"
@@ -311,7 +344,11 @@ export default {
         });
       },
       complete: () => {
+        if (seq !== requestSeq) return;
         this.loadingMore = false;
+        if (ok) {
+          this.fillCurrentPage();
+        }
       },
     });
   },
