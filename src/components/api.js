@@ -1,4 +1,5 @@
 import fetch from "./interconnfetch";
+import { appendLvglSuffix } from "./imageUrl";
 
 // Vela fetch 底层基于 curl，错误码直接透传 curl errno
 export const FETCH_ERROR = {
@@ -63,5 +64,26 @@ export function apiFetch(options) {
   return fetch.fetch({
     ...options,
     header: buildHeaders(options.header),
+  });
+}
+
+// 设备不支持直接加载远程图片时，通过插件把图片拉取为本地文件后回调本地 uri；
+// 支持直连的设备直接回调原 url
+export function proxyImage(url, name, callback) {
+  fetch.isDirectAvailable().then((direct) => {
+    if (direct) {
+      callback(url);
+      return;
+    }
+    apiFetch({
+      url: appendLvglSuffix(url, name),
+      responseType: "file",
+      success: (response) => {
+        callback(response.data || "");
+      },
+      fail: () => {
+        callback("");
+      },
+    });
   });
 }

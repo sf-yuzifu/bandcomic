@@ -48,11 +48,7 @@ function utf8ToString(bytes) {
     const b = bytes[i];
     if (b < 0x80) {
       codes.push(b);
-    } else if (
-      b < 0xe0 &&
-      i + 1 < bytes.length &&
-      (bytes[i + 1] & 0xc0) === 0x80
-    ) {
+    } else if (b < 0xe0 && i + 1 < bytes.length && (bytes[i + 1] & 0xc0) === 0x80) {
       codes.push(((b & 0x1f) << 6) | (bytes[i + 1] & 0x3f));
       i += 1;
     } else if (
@@ -61,9 +57,7 @@ function utf8ToString(bytes) {
       (bytes[i + 1] & 0xc0) === 0x80 &&
       (bytes[i + 2] & 0xc0) === 0x80
     ) {
-      codes.push(
-        ((b & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f)
-      );
+      codes.push(((b & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f));
       i += 2;
     } else if (
       b >= 0xf0 &&
@@ -528,6 +522,12 @@ function getTempUri(url) {
 }
 
 export default {
+  isDirectAvailable() {
+    if (fetchAvailable) {
+      return Promise.resolve(true);
+    }
+    return checkFetchAvailable();
+  },
   fetch(params) {
     const doFetch = async () => {
       if (!fetchAvailable) {
