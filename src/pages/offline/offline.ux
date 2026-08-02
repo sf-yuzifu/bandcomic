@@ -341,7 +341,8 @@ export default {
           const index = this.historyList.findIndex((r) => r.id === item.id);
           if (index === -1) return;
           this.historyList.splice(index, 1, { ...item, coverLocal: uri });
-        }
+        },
+        1
       );
     });
   },

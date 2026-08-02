@@ -512,7 +512,42 @@ class InterconnFetchClient {
 
 const interconnClient = new InterconnFetchClient();
 
-let fetchQueue = Promise.resolve();
+// 优先级任务队列：interconnect 通道是单瓶颈链路，串行执行避免并发握手覆盖、
+// 多路分片 ACK 交错；priority 数值小的先执行（同级按入队先后），
+// 让用户可见的请求（当前页、详情 JSON）排在预加载/封面等后台请求前面
+const taskQueue = [];
+let queueRunning = false;
+
+function pumpQueue() {
+  if (queueRunning || taskQueue.length === 0) return;
+  let best = 0;
+  for (let i = 1; i < taskQueue.length; i++) {
+    if (taskQueue[i].priority < taskQueue[best].priority) {
+      best = i;
+    }
+  }
+  const item = taskQueue.splice(best, 1)[0];
+  queueRunning = true;
+  item.run().then(
+    (value) => {
+      queueRunning = false;
+      item.resolve(value);
+      pumpQueue();
+    },
+    (err) => {
+      queueRunning = false;
+      item.reject(err);
+      pumpQueue();
+    }
+  );
+}
+
+function enqueueFetch(run, priority) {
+  return new Promise((resolve, reject) => {
+    taskQueue.push({ run, priority, resolve, reject });
+    pumpQueue();
+  });
+}
 
 let _tempId = 0;
 function getTempUri(url) {
@@ -620,11 +655,7 @@ export default {
         }
       }
     };
-    // interconnect 通道是单瓶颈链路：串行化请求可以避免并发握手互相覆盖、
-    // 多路分片传输 ACK 交错，且每张图片都能尽早完成显示（渐进加载）
     // 直连设备的 systemFetch 是回调式调用，doFetch 立即返回，排队开销可忽略
-    const task = fetchQueue.then(doFetch, doFetch);
-    fetchQueue = task.catch(() => {});
-    return task;
+    return enqueueFetch(doFetch, params.priority || 0);
   },
 };
