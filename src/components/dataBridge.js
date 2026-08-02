@@ -13,6 +13,10 @@ import { base64Encode, base64ToBytes } from "./base64";
 
 const COVER_READ_CHUNK_SIZE = 6144;
 const ACK_TIMEOUT = 5000;
+const COVER_ACK_TIMEOUT = 3000;
+const COVER_MAX_RETRY = 2;
+const SLICE_MAX_RETRY = 3;
+const COVER_PACING_MS = 20;
 
 function detectImageFormat(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
@@ -70,6 +74,50 @@ export function createDataBridge(interConnect) {
   let _coverTotalBytes = 0;
   let _coverMime = "image/jpeg";
   let _coverPos = 0;
+  let _sliceRetry = 0; // 当前切片发送失败重试次数
+  let _coverRetry = 0; // 当前封面整包重发次数
+  let _coverAckTimer = null; // 等待 cover_ack 的定时器
+  let _coverDoneSent = false;
+
+  function clearCoverAckTimer() {
+    if (_coverAckTimer) {
+      clearTimeout(_coverAckTimer);
+      _coverAckTimer = null;
+    }
+  }
+
+  function proceedNextCover() {
+    _coverIndex++;
+    setTimeout(function () {
+      sendCoversOneByOne();
+    }, 30);
+  }
+
+  // 最后一片发出后等手机端拼完整张封面回的 cover_ack，超时整包重发
+  function waitCoverAck() {
+    clearCoverAckTimer();
+    _coverAckTimer = setTimeout(function () {
+      _coverAckTimer = null;
+      if (_coverRetry < COVER_MAX_RETRY) {
+        _coverRetry++;
+        console.debug("封面 ACK 超时，整包重发: " + _coverName + " (" + _coverRetry + ")");
+        _coverPos = 0;
+        _sliceRetry = 0;
+        readCoverSlice();
+      } else {
+        console.debug("封面重发超限，跳过: " + _coverName);
+        proceedNextCover();
+      }
+    }, COVER_ACK_TIMEOUT);
+  }
+
+  // 由 handleMessage 收到 cover_ack 时调用
+  function onCoverAck(name) {
+    if (_coverAckTimer && name === _coverName) {
+      clearCoverAckTimer();
+      proceedNextCover();
+    }
+  }
 
   function readCoverSlice() {
     const uri = _coverUri;
@@ -85,10 +133,7 @@ export function createDataBridge(interConnect) {
       length: len,
       success: function (bufData) {
         if (!bufData.buffer) {
-          _coverIndex++;
-          setTimeout(function () {
-            sendCoversOneByOne();
-          }, 300);
+          proceedNextCover();
           return;
         }
 
@@ -110,60 +155,53 @@ export function createDataBridge(interConnect) {
             data: header + b64,
           },
           success: function () {
+            _sliceRetry = 0;
             _coverPos = pos + len;
             if (_coverPos >= total) {
-              prompt.showToast({
-                message:
-                  "封面 " +
-                  (_coverIndex + 1) +
-                  "/" +
-                  _coverQueue.length +
-                  " (" +
-                  totalChunks +
-                  "片)",
-              });
-              _coverIndex++;
-              setTimeout(function () {
-                sendCoversOneByOne();
-              }, 100);
+              waitCoverAck();
             } else {
               setTimeout(function () {
                 readCoverSlice();
-              }, 50);
+              }, COVER_PACING_MS);
             }
           },
           fail: function () {
-            _coverPos = pos + len;
-            if (_coverPos >= total) {
-              _coverIndex++;
-              setTimeout(function () {
-                sendCoversOneByOne();
-              }, 100);
-            } else {
+            // 发送失败重试当前切片，避免静默丢片导致手机端永远拼不完整
+            if (_sliceRetry < SLICE_MAX_RETRY) {
+              _sliceRetry++;
               setTimeout(function () {
                 readCoverSlice();
-              }, 50);
+              }, 100);
+            } else {
+              console.debug("切片重试超限，跳过封面: " + name);
+              proceedNextCover();
             }
           },
         });
       },
       fail: function () {
-        _coverIndex++;
-        setTimeout(function () {
-          sendCoversOneByOne();
-        }, 30);
+        proceedNextCover();
       },
     });
   }
 
   function sendCoversOneByOne() {
     const queue = _coverQueue;
-    if (!queue || queue.length === 0) return;
+    if (!queue || _coverIndex >= queue.length) {
+      // 全部封面发送完毕，通知手机端收尾
+      if (!_coverDoneSent) {
+        _coverDoneSent = true;
+        interConnect.send({
+          data: { type: "cover_done" },
+          success: function () {},
+          fail: function () {},
+        });
+        prompt.showToast({ message: "数据发送完成" });
+      }
+      return;
+    }
 
-    const idx = _coverIndex;
-    if (idx >= queue.length) return;
-
-    const c = queue[idx];
+    const c = queue[_coverIndex];
 
     file.get({
       uri: "internal://files/" + c.id + "/cover",
@@ -173,13 +211,12 @@ export function createDataBridge(interConnect) {
         _coverTotalBytes = info.length || 0;
         _coverMime = "image/jpeg";
         _coverPos = 0;
+        _sliceRetry = 0;
+        _coverRetry = 0;
         readCoverSlice();
       },
       fail: function () {
-        _coverIndex = idx + 1;
-        setTimeout(function () {
-          sendCoversOneByOne();
-        }, 30);
+        proceedNextCover();
       },
     });
   }
@@ -206,7 +243,7 @@ export function createDataBridge(interConnect) {
     messages.push({ type: "app_data_done" });
 
     prompt.showToast({
-      message: "发送: comic=" + comics.length + " source=" + sourceList.length,
+      message: "正在发送数据 (comic=" + comics.length + " source=" + sourceList.length + ")",
     });
 
     // 当前等待 ACK 的消息序号；-1 表示无等待
@@ -215,6 +252,8 @@ export function createDataBridge(interConnect) {
     let msgIndex = 0;
     // 超时定时器 id
     let ackTimer = null;
+    // 已重发过的消息序号，避免同一消息多次重发
+    let retriedIndex = -1;
 
     // 监听插件端返回的 ACK（每个消息对应一个序号）
     // 这个函数会作为 bridge 的扩展挂载，由 handleMessage 调用
@@ -252,12 +291,19 @@ export function createDataBridge(interConnect) {
 
       pendingAckIndex = msgIndex;
 
-      // 超时保护：5秒未收到 ACK 则继续发下一个（避免死锁）
+      // 超时保护：5秒未收到 ACK 先重发一次同条消息，仍无响应才跳过（避免死锁）
       ackTimer = setTimeout(function () {
-        console.debug("消息 " + msgIndex + " ACK 超时，继续发送");
-        pendingAckIndex = -1;
-        msgIndex++;
-        sendNextMessage();
+        if (retriedIndex !== msgIndex) {
+          console.debug("消息 " + msgIndex + " ACK 超时，重发一次");
+          retriedIndex = msgIndex;
+          pendingAckIndex = -1;
+          sendNextMessage();
+        } else {
+          console.debug("消息 " + msgIndex + " ACK 再次超时，跳过");
+          pendingAckIndex = -1;
+          msgIndex++;
+          sendNextMessage();
+        }
       }, ACK_TIMEOUT);
 
       interConnect.send({
@@ -300,9 +346,10 @@ export function createDataBridge(interConnect) {
   }
 
   function sendAppData() {
-    prompt.showToast({ message: "request_data，正在读取数据..." });
     _coverIndex = 0;
     _coverQueue = [];
+    _coverDoneSent = false;
+    clearCoverAckTimer();
     readComics().then(
       function (comicsList) {
         if (!Array.isArray(comicsList)) {
@@ -980,6 +1027,11 @@ export function createDataBridge(interConnect) {
       if (typeof bridge.onAppDataAck === "function") {
         bridge.onAppDataAck(ackIndex);
       }
+    } else if (msgType === "cover_ack") {
+      // 插件端拼完整张封面，继续发送下一张
+      if (typeof bridge.onCoverAck === "function") {
+        bridge.onCoverAck(parsed.name || "");
+      }
     } else if (msgType === "source_config" && parsed.configs) {
       handleSourceConfig(parsed.configs);
     } else if (msgType === "cookie") {
@@ -1003,6 +1055,8 @@ export function createDataBridge(interConnect) {
   }
 
   bridge.handleMessage = handleMessage;
+
+  bridge.onCoverAck = onCoverAck;
 
   bridge.onSourceConfigSaved = function () {};
 
