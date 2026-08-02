@@ -106,7 +106,13 @@ import router from "@system.router";
 import prompt from "@system.prompt";
 import { addCoverParams } from "../../components/imageUrl";
 import { flattenParams } from "../../components/routerParams";
-import { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType } from "../../components/api";
+import {
+  apiFetch,
+  proxyImage,
+  buildSearchUrl,
+  buildDetailUrl,
+  getFetchErrorType,
+} from "../../components/api";
 
 const { getTime } = global;
 function getPageSize() {
@@ -358,6 +364,7 @@ export default {
     const startIndex = (this.displayPage - 1) * getPageSize() - this.apiDroppedCount;
     const endIndex = startIndex + getPageSize();
     this.searchResults = this.apiResults.slice(startIndex, endIndex);
+    this.loadResultCovers();
 
     const scrollToTop = () => {
       const el = this.$element("scrollId");
@@ -370,6 +377,29 @@ export default {
     } else {
       setTimeout(scrollToTop, 50);
     }
+  },
+
+  // 不支持直接加载远程图片的设备，通过插件把封面拉为本地文件后替换显示
+  loadResultCovers() {
+    this.searchResults.forEach((item) => {
+      if (!item.thumb || item.thumb.indexOf("http") !== 0) return;
+      proxyImage(item.thumb, `${global.API_SETTING.using}_${item.gid}_cover`, (uri) => {
+        if (!uri || uri === item.thumb) return;
+        const updated = { ...item, thumb: uri };
+        const cacheIndex = this.apiResults.findIndex(
+          (r) => r.gid === item.gid && r.thumb === item.thumb
+        );
+        if (cacheIndex !== -1) {
+          this.apiResults[cacheIndex] = updated;
+        }
+        const showIndex = this.searchResults.findIndex(
+          (r) => r.gid === item.gid && r.thumb === item.thumb
+        );
+        if (showIndex !== -1) {
+          this.searchResults.splice(showIndex, 1, updated);
+        }
+      });
+    });
   },
 
   // 判断是否可以点击下一页
