@@ -6,6 +6,8 @@ const FETCH_CHUNK_TAG = "fetch-chunk";
 const FETCH_ACK_TAG = "fetch-ack";
 const HS_TAG = "__hs__";
 const TIMEOUT = 3000;
+const IDLE_TIMEOUT = 10000;
+const REQUEST_TIMEOUT = 20000;
 const MAX_CHUNK_SIZE = 4096;
 const FETCH_PROBE_URL = "https://www.baidu.com";
 
@@ -214,10 +216,8 @@ class InterconnFetchClient {
     this.conn.onmessage = ({ data }) => {
       clearTimeout(this.timeout);
       this.timeout = setTimeout(() => {
-        this.promise = null;
-        this.resolve = null;
         this.open = false;
-      }, TIMEOUT);
+      }, IDLE_TIMEOUT);
 
       const parsed = safeJsonParse(data, null);
       if (parsed == null) {
@@ -231,10 +231,7 @@ class InterconnFetchClient {
           this.open = true;
           if (this.resolve) {
             const res = this.resolve;
-            this.resolve = null;
             res();
-          } else {
-            this.promise = Promise.resolve();
           }
         }
         if (count < 2) {
@@ -393,10 +390,10 @@ class InterconnFetchClient {
   }
 
   async _ensureHandshake() {
-    // 每次请求都重新协商 caps，避免插件端 caps 过期后退回 legacy 单包
-    this.open = false;
-    this.promise = null;
-    this.resolve = null;
+    // 会话级握手：已打开直接返回；握手在途则复用同一个 promise，
+    // 避免并发请求互相覆盖单槽的 promise/resolve 导致先发的请求永远等不到回包
+    if (this.open) return;
+    if (this.promise) return this.promise;
 
     this.promise = new Promise((resolve, reject) => {
       const t = setTimeout(() => {
@@ -407,35 +404,44 @@ class InterconnFetchClient {
       }, TIMEOUT);
       this.resolve = () => {
         clearTimeout(t);
+        this.open = true;
+        this.promise = null;
+        this.resolve = null;
         resolve();
       };
       this.conn.send({
         data: { tag: HS_TAG, count: 0, caps: LOCAL_CAPS },
       });
     });
-    await this.promise;
-  }
-
-  _resetSession() {
-    clearTimeout(this.timeout);
-    this.promise = null;
-    this.resolve = null;
-    this.open = false;
+    return this.promise;
   }
 
   async _sendFetch(id, url, options, onChunk) {
     await this._ensureHandshake();
     return new Promise((resolve, reject) => {
       let settled = false;
+      // 请求级超时：丢 chunk 且 go-back-N 重传也失败、或插件卡死时，
+      // reject 让页面报错而不是永远转圈；同时关闭会话让后续请求重新握手
+      const timer = setTimeout(() => {
+        const req = this.requests.get(id);
+        if (req && !req.settled) {
+          req.settled = true;
+          this.requests.delete(id);
+          this.open = false;
+          req.reject(new Error("request timeout"));
+        }
+      }, REQUEST_TIMEOUT);
       const onceResolve = (value) => {
         if (!settled) {
           settled = true;
+          clearTimeout(timer);
           resolve(value);
         }
       };
       const onceReject = (err) => {
         if (!settled) {
           settled = true;
+          clearTimeout(timer);
           reject(err);
         }
       };
@@ -505,6 +511,8 @@ class InterconnFetchClient {
 }
 
 const interconnClient = new InterconnFetchClient();
+
+let fetchQueue = Promise.resolve();
 
 let _tempId = 0;
 function getTempUri(url) {
@@ -610,10 +618,13 @@ export default {
         if (complete && typeof complete === "function") {
           complete();
         }
-      } finally {
-        interconnClient._resetSession();
       }
     };
-    return doFetch();
+    // interconnect 通道是单瓶颈链路：串行化请求可以避免并发握手互相覆盖、
+    // 多路分片传输 ACK 交错，且每张图片都能尽早完成显示（渐进加载）
+    // 直连设备的 systemFetch 是回调式调用，doFetch 立即返回，排队开销可忽略
+    const task = fetchQueue.then(doFetch, doFetch);
+    fetchQueue = task.catch(() => {});
+    return task;
   },
 };
