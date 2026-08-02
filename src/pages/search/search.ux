@@ -398,7 +398,7 @@ export default {
         if (showIndex !== -1) {
           this.searchResults.splice(showIndex, 1, updated);
         }
-      });
+      }, 1);
     });
   },
 

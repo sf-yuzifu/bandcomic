@@ -205,6 +205,7 @@ export default {
     pickerValues: [],
     reachedEdge: null,
     pos: [0, 0],
+    _shownPage: 0,
   },
 
   onShow() {
@@ -340,6 +341,17 @@ export default {
 
   getImageForPage(keepScale) {
     this.loading = true;
+    // 离开当前页前把已显示的图片放回预加载缓存，回翻时优先使用本地
+    if (
+      !this.local &&
+      this._shownPage &&
+      this._shownPage !== this.page &&
+      this.images &&
+      this.images !== "internal://files/error.png" &&
+      !PreloadCache[this._shownPage]
+    ) {
+      PreloadCache[this._shownPage] = this.images;
+    }
     this.images = "";
     if (!keepScale) {
       this.scale = 0;
@@ -388,6 +400,7 @@ export default {
       const cachedUri = PreloadCache[this.page];
       delete PreloadCache[this.page];
       this.images = cachedUri;
+      this._shownPage = this.page;
       this.reachedEdge = null;
       this.pos = [0, 0];
       this.preloadAdjacentPages();
@@ -411,6 +424,7 @@ export default {
           return;
         }
         this.images = response.data;
+        this._shownPage = page;
         this.reachedEdge = null;
         this.pos = [0, 0];
         this.preloadAdjacentPages();
@@ -420,6 +434,7 @@ export default {
           return;
         }
         this.images = "internal://files/error.png";
+        this._shownPage = 0;
       },
     });
   },
@@ -443,6 +458,7 @@ export default {
       apiFetch({
         url: url,
         responseType: "file",
+        priority: 1,
         success: (response) => {
           delete PreloadInflight[p];
           if (chapter != this.chapter) {
@@ -450,6 +466,7 @@ export default {
           }
           if (p == this.page && !this.images) {
             this.images = response.data;
+            this._shownPage = p;
             this.reachedEdge = null;
             this.pos = [0, 0];
             return;
@@ -463,6 +480,7 @@ export default {
           }
           if (p == this.page && !this.images) {
             this.images = "internal://files/error.png";
+            this._shownPage = 0;
           }
         },
       });
