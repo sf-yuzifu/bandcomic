@@ -42,11 +42,52 @@ function hexDecode(hex) {
   return bytes;
 }
 
-function uint8ToString(bytes) {
+function utf8ToString(bytes) {
+  const codes = [];
+  for (let i = 0; i < bytes.length; i++) {
+    const b = bytes[i];
+    if (b < 0x80) {
+      codes.push(b);
+    } else if (
+      b < 0xe0 &&
+      i + 1 < bytes.length &&
+      (bytes[i + 1] & 0xc0) === 0x80
+    ) {
+      codes.push(((b & 0x1f) << 6) | (bytes[i + 1] & 0x3f));
+      i += 1;
+    } else if (
+      b < 0xf0 &&
+      i + 2 < bytes.length &&
+      (bytes[i + 1] & 0xc0) === 0x80 &&
+      (bytes[i + 2] & 0xc0) === 0x80
+    ) {
+      codes.push(
+        ((b & 0x0f) << 12) | ((bytes[i + 1] & 0x3f) << 6) | (bytes[i + 2] & 0x3f)
+      );
+      i += 2;
+    } else if (
+      b >= 0xf0 &&
+      i + 3 < bytes.length &&
+      (bytes[i + 1] & 0xc0) === 0x80 &&
+      (bytes[i + 2] & 0xc0) === 0x80 &&
+      (bytes[i + 3] & 0xc0) === 0x80
+    ) {
+      const cp =
+        (((b & 0x07) << 18) |
+          ((bytes[i + 1] & 0x3f) << 12) |
+          ((bytes[i + 2] & 0x3f) << 6) |
+          (bytes[i + 3] & 0x3f)) -
+        0x10000;
+      codes.push(0xd800 + (cp >> 10), 0xdc00 + (cp & 0x3ff));
+      i += 3;
+    } else {
+      codes.push(0xfffd);
+    }
+  }
   const CHUNK = 8192;
   const parts = [];
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+  for (let i = 0; i < codes.length; i += CHUNK) {
+    parts.push(String.fromCharCode.apply(null, codes.slice(i, i + CHUNK)));
   }
   return parts.join("");
 }
@@ -149,8 +190,8 @@ const LOCAL_CAPS = {
   version: 3,
   chunk: true,
   maxChunkSize: MAX_CHUNK_SIZE,
-  encodings: ["hex", "base64", "text"],
-  compressions: ["none", "deflate", "lz4"],
+  encodings: ["text", "base64", "hex"],
+  compressions: ["none"],
   ack: true,
   ackWindow: 4,
 };
@@ -435,11 +476,15 @@ class InterconnFetchClient {
     }
     const id = url + Math.random().toFixed(5);
     const resp = await this._sendFetch(id, url, options, onChunk);
+    if (resp.ok === false && !resp.status) {
+      throw new Error(resp.statusText || "interconnect fetch failed");
+    }
     let body = resp.body;
     if (body === null) {
       return {
         data: null,
         statusCode: resp.status,
+        statusText: resp.statusText,
         headers: resp.headers,
       };
     }
@@ -448,17 +493,18 @@ class InterconnFetchClient {
       if (encoding) {
         body = decodeBody(body, encoding);
         if (!resp.raw && typeof body !== "string") {
-          body = uint8ToString(body);
+          body = utf8ToString(body);
         }
       } else if (resp.raw) {
         body = base64ToBytes(body);
       }
     } else if (!resp.raw && body instanceof Uint8Array) {
-      body = uint8ToString(body);
+      body = utf8ToString(body);
     }
     return {
       data: body,
       statusCode: resp.status,
+      statusText: resp.statusText,
       headers: resp.headers,
     };
   }
@@ -545,7 +591,11 @@ export default {
           }
         }
         if (success && typeof success === "function") {
-          success({ data });
+          success({
+            data,
+            statusCode: resp.statusCode,
+            headers: resp.headers,
+          });
         }
         if (complete && typeof complete === "function") {
           complete();
