@@ -29,15 +29,18 @@
     </text>
     <div class="box">
       <scroll id="scrollId" class="box" scroll-x="true" scroll-y="true" bounces="true">
-        <image
-          class="cover"
-          @complete="getPhoto"
-          src="{{ cover || '/common/loading.png' }}"
-          alt="/common/loading.png"
+        <div
           onclick="toPhoto"
-          style="{{ `width:${size.width}px;height:${size.height}px;border-radius:24px;object-fit:${loading ? 'contain' :
-'cover'};` }}"
-        ></image>
+          style="{{ `width:${size.width}px;height:${size.height}px;border-radius:24px;overflow:hidden;` }}"
+        >
+          <image
+            class="cover"
+            @complete="getPhoto"
+            src="{{ cover || '/common/loading.png' }}"
+            alt="/common/loading.png"
+            style="{{ `width:${size.width}px;height:${size.height}px;object-fit:${loading ? 'contain' : 'cover'};` }}"
+          ></image>
+        </div>
         <text class="title1">{{ name }}</text>
         <div class="detail">
           <div class="column" if="{{ gid }}">
