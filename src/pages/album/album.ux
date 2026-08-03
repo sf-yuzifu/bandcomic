@@ -35,7 +35,8 @@
           src="{{ cover || '/common/loading.png' }}"
           alt="/common/loading.png"
           onclick="toPhoto"
-          style="{{ `width:${size.width}px;height:${size.height}px;` }}"
+          style="{{ `width:${size.width}px;height:${size.height}px;border-radius:24px;object-fit:${loading ? 'contain' :
+'cover'};` }}"
         ></image>
         <text class="title1">{{ name }}</text>
         <div class="detail">
@@ -115,6 +116,7 @@ export default {
     total_chapters: 0,
     time: "",
     size: { width: 200, height: 200 },
+    loading: true,
   },
 
   onShow() {
@@ -134,14 +136,19 @@ export default {
       total_chapters: this.total_chapters,
     });
     Object.assign(this, parsed);
+    this.size.width = (screenSize.width * 3) / 4;
+    this.size.height = this.size.width * (4 / 3);
     if (this.cover) {
       this.cover = addCoverParams(this.cover);
     }
   },
 
-  getPhoto(value) {
-    this.size.width = screenSize.width / 2;
-    this.size.height = ((screenSize.width / value.width) * value.height) / 2;
+  getPhoto() {
+    this.size.width = (screenSize.width * 3) / 4;
+    this.size.height = this.size.width * (4 / 3);
+    if (this.cover) {
+      this.loading = false;
+    }
   },
 
   toPhoto() {
