@@ -22,7 +22,7 @@
       <marquee
         scrollamount="{{ 20 }}"
         text-offset="{{ 20 }}"
-        style="font-size: 32px; font-weight: bold"
+        style="font-size: 32px; font-weight: bold; text-align: center;"
         @click="
           () => {
             if (global.screenShape == 'circle') {
