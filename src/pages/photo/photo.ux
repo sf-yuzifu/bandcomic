@@ -11,8 +11,6 @@
       class="rightButton"
     />
     <scroll
-      style="{{ `align-items: ${images ? 'flex-start':'center'}; justify-content: ${images ?
-'flex-start':'center'};` }}"
       id="scrollId"
       class="box"
       scroll-x="true"
@@ -26,9 +24,11 @@
         style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2}px;` }}"
       ></div>
       <image
+        if="{{ images }}"
         class="cover"
         src="{{ images }}"
         @complete="getPhoto"
+        alt="blank"
         @error="
           () => {
             if (images != '') {
@@ -38,7 +38,6 @@
           }
         "
         @click="showButton"
-        alt="{{ loading == 'end' ? '/common/end.png' : loading ? '/common/loading.png' : '/common/error.png' }}"
         style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale / 100 * 2)}px;` }}"
       ></image>
       <div
@@ -47,6 +46,13 @@
       ></div>
       <div @click="showButton" if="{{ images }}" class="padding"></div>
     </scroll>
+
+    <div if="{{ !images }}" class="state-wrap" @click="showButton">
+      <image
+        class="state-img"
+        src="{{ loading == 'end' ? '/common/end.png' : loading ? '/common/loading.png' : '/common/error.png' }}"
+      ></image>
+    </div>
 
     <img
       if="{{ showit }}"
@@ -192,7 +198,7 @@ export default {
     size: { width: 0, height: 0 },
     showit: true,
     showSlider: false,
-    images: null,
+    images: "",
     local: false,
     loading: true,
     title: "",
@@ -205,7 +211,7 @@ export default {
     pickerValues: [],
     reachedEdge: null,
     pos: [0, 0],
-    _shownPage: 0,
+    shownPage: 0,
   },
 
   onShow() {
@@ -300,8 +306,6 @@ export default {
     this.loading = true;
     this.images = "";
     this.scale = 0;
-    this.size.width = screenSize.width / 2;
-    this.size.height = screenSize.height / 2;
     const chapter = this.chapter;
     PreloadCache = {};
     PreloadInflight = {};
@@ -319,7 +323,8 @@ export default {
             ? body.images.filter((img) => img && img.url).map((img) => img.url)
             : null;
         if (!urls) {
-          this.images = "internal://files/error.png";
+          this.loading = false;
+          this.images = "";
           console.debug("handling fail, invalid response data");
           return;
         }
@@ -332,7 +337,8 @@ export default {
         if (chapter != this.chapter) {
           return;
         }
-        this.images = "internal://files/error.png";
+        this.loading = false;
+        this.images = "";
         console.debug(`handling fail, errMsg = ${data}`);
         console.debug(`handling fail, errCode = ${code}`);
       },
@@ -344,20 +350,17 @@ export default {
     // 离开当前页前把已显示的图片放回预加载缓存，回翻时优先使用本地
     if (
       !this.local &&
-      this._shownPage &&
-      this._shownPage !== this.page &&
+      this.shownPage &&
+      this.shownPage !== this.page &&
       this.images &&
-      this.images !== "internal://files/error.png" &&
-      !PreloadCache[this._shownPage]
+      !PreloadCache[this.shownPage]
     ) {
-      PreloadCache[this._shownPage] = this.images;
+      PreloadCache[this.shownPage] = this.images;
     }
     this.images = "";
     if (!keepScale) {
       this.scale = 0;
     }
-    this.size.width = screenSize.width / 2;
-    this.size.height = screenSize.height / 2;
 
     if (this.page > this.page_count) {
       this.loading = "end";
@@ -400,7 +403,7 @@ export default {
       const cachedUri = PreloadCache[this.page];
       delete PreloadCache[this.page];
       this.images = cachedUri;
-      this._shownPage = this.page;
+      this.shownPage = this.page;
       this.reachedEdge = null;
       this.pos = [0, 0];
       this.preloadAdjacentPages();
@@ -424,7 +427,7 @@ export default {
           return;
         }
         this.images = response.data;
-        this._shownPage = page;
+        this.shownPage = page;
         this.reachedEdge = null;
         this.pos = [0, 0];
         this.preloadAdjacentPages();
@@ -433,8 +436,9 @@ export default {
         if (page != this.page) {
           return;
         }
-        this.images = "internal://files/error.png";
-        this._shownPage = 0;
+        this.loading = false;
+        this.images = "";
+        this.shownPage = 0;
       },
     });
   },
@@ -466,7 +470,7 @@ export default {
           }
           if (p == this.page && !this.images) {
             this.images = response.data;
-            this._shownPage = p;
+            this.shownPage = p;
             this.reachedEdge = null;
             this.pos = [0, 0];
             return;
@@ -479,8 +483,9 @@ export default {
             return;
           }
           if (p == this.page && !this.images) {
-            this.images = "internal://files/error.png";
-            this._shownPage = 0;
+            this.loading = false;
+            this.images = "";
+            this.shownPage = 0;
           }
         },
       });
@@ -762,6 +767,23 @@ export default {
   width: 100%;
   height: 100%;
   flex-direction: column;
+}
+
+/* 加载/失败/结尾 状态占位：独立固定大小，全屏居中，不参与正文图布局 */
+.state-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.state-img {
+  width: 256px;
+  height: 256px;
 }
 
 text {

@@ -9,7 +9,7 @@
       <marquee
         scrollamount="{{ 20 }}"
         text-offset="{{ 20 }}"
-        style="font-size: 32px; font-weight: bold; text-align: center;"
+        style="font-size: 32px; font-weight: bold; text-align: center"
         @click="
           () => {
             if (global.screenShape == 'circle') {
@@ -383,22 +383,27 @@ export default {
   loadResultCovers() {
     this.searchResults.forEach((item) => {
       if (!item.thumb || item.thumb.indexOf("http") !== 0) return;
-      proxyImage(item.thumb, `${global.API_SETTING.using}_${item.gid}_cover`, (uri) => {
-        if (!uri || uri === item.thumb) return;
-        const updated = { ...item, thumb: uri };
-        const cacheIndex = this.apiResults.findIndex(
-          (r) => r.gid === item.gid && r.thumb === item.thumb
-        );
-        if (cacheIndex !== -1) {
-          this.apiResults[cacheIndex] = updated;
-        }
-        const showIndex = this.searchResults.findIndex(
-          (r) => r.gid === item.gid && r.thumb === item.thumb
-        );
-        if (showIndex !== -1) {
-          this.searchResults.splice(showIndex, 1, updated);
-        }
-      }, 1);
+      proxyImage(
+        item.thumb,
+        `${global.API_SETTING.using}_${item.gid}_cover`,
+        (uri) => {
+          if (!uri || uri === item.thumb) return;
+          const updated = { ...item, thumb: uri };
+          const cacheIndex = this.apiResults.findIndex(
+            (r) => r.gid === item.gid && r.thumb === item.thumb
+          );
+          if (cacheIndex !== -1) {
+            this.apiResults[cacheIndex] = updated;
+          }
+          const showIndex = this.searchResults.findIndex(
+            (r) => r.gid === item.gid && r.thumb === item.thumb
+          );
+          if (showIndex !== -1) {
+            this.searchResults.splice(showIndex, 1, updated);
+          }
+        },
+        1
+      );
     });
   },
 
