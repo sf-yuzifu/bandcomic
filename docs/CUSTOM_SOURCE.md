@@ -341,6 +341,8 @@ width = request.args.get("width") or request.args.get("w")
 | `ifPNG` | truthy | 为 `1`、`true`、`True`、`yes`、`on` 时返回 PNG。 |
 | `ifLVGL` | truthy | 为 `1`、`true`、`True`、`yes`、`on` 时返回 LVGL 预解码二进制。 |
 
+> 图片接口需要完整返回图片二进制数据（如 `Content-Type: image/jpeg`、`image/png`）。在不支持直接加载远程图片的设备上，腕上漫画会把图片 URL 作为普通文件整体下载到本地再显示，因此接口不应做分段或流式响应，且建议提供正确的 `Content-Length`。
+
 ### 9.1 返回 JPEG
 
 默认建议返回 JPEG：
