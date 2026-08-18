@@ -177,6 +177,34 @@
               @change="onPreloadSwitchChange"
             ></switch>
           </div>
+          <div class="setting-item">
+            <div class="setting-item-content">
+              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+                {{ $t("settings.preferBridge") }}
+              </marquee>
+              <marquee
+                if="{{ !isBand10Pro }}"
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
+                {{ $t("settings.info.preferBridge") }}
+              </marquee>
+              <marquee
+                if="{{ isBand10Pro }}"
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
+                {{ $t("settings.info.preferBridgeForced") }}
+              </marquee>
+            </div>
+            <switch
+              checked="{{ preferBridgeChecked }}"
+              class="switch"
+              @change="onPreferBridgeSwitchChange"
+            ></switch>
+          </div>
         </div>
         <text class="bold" style="color: #fff; width: 276px; text-align: center; height: 100%">
           本项目由米坛社区开源项目支持计划提供支持
@@ -201,6 +229,8 @@ export default {
     name: app.getInfo().name,
     code: app.getInfo().versionCode,
     time: "",
+    preferBridgeChecked: false,
+    isBand10Pro: false,
     pickerList1: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
     pickerList2: ["30", "35", "40", "45", "50", "55", "60", "65", "70"],
     pickerList3: [
@@ -230,6 +260,8 @@ export default {
 
   onShow() {
     this.time = getTime();
+    this.isBand10Pro = global.isXiaomiSmartBand10Pro();
+    this.preferBridgeChecked = !!global.APP_SETTING.preferBridge;
   },
 
   routeBack() {
@@ -273,6 +305,25 @@ export default {
 
   onPreloadSwitchChange(value) {
     global.APP_SETTING.imagePreload = value.checked;
+    this.saveSetting();
+  },
+
+  onPreferBridgeSwitchChange(value) {
+    // 10 Pro 不支持快应用原生 fetch,网桥强制启用不可关闭:
+    // switch 已被用户拨到 off,先让数据跟随再回弹 true 驱动 UI 复原
+    if (this.isBand10Pro && !value.checked) {
+      this.preferBridgeChecked = false;
+      setTimeout(() => {
+        this.preferBridgeChecked = true;
+      }, 50);
+      prompt.showToast({
+        message: this.$t("settings.preferBridgeForced"),
+        duration: 2000,
+      });
+      return;
+    }
+    global.APP_SETTING.preferBridge = value.checked;
+    this.preferBridgeChecked = value.checked;
     this.saveSetting();
   },
 
