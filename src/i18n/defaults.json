@@ -20,6 +20,8 @@
         "imageUsePng": "PNG image mode",
         "imagePreTranscode": "Pre-decode",
         "imagePreload": "Preload pages",
+        "preferBridge": "Prefer bridge",
+        "preferBridgeForced": "This device doesn't support direct connection; the bridge can't be turned off",
         "saveFailed": "Failed to save settings: {code}",
         "info": {
             "searchPageSize": "Number of search results per page",
@@ -29,7 +31,9 @@
             "keepDefaultZoom": "Keep current zoom when switching chapters",
             "imageUsePng": "Request PNG images from the API. Recommended for Xiaomi Smart Band 10 Pro users",
             "imagePreTranscode": "Pre-decode images for smoother browsing",
-            "imagePreload": "Preload adjacent pages when reading online for faster page turns"
+            "imagePreload": "Preload adjacent pages when reading online for faster page turns",
+            "preferBridge": "Use the AstroBox bridge when direct connection fails (e.g. SSL errors). AstroBox connection required",
+            "preferBridgeForced": "Direct connection unsupported; forced to use the AstroBox bridge"
         }
     },
     "error": {

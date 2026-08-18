@@ -9,9 +9,7 @@ const TIMEOUT = 3000;
 const IDLE_TIMEOUT = 10000;
 const REQUEST_TIMEOUT = 20000;
 const MAX_CHUNK_SIZE = 4096;
-const FETCH_PROBE_URL = "https://www.baidu.com";
 
-let fetchAvailable = false;
 let systemFetch = null;
 let interconnectModule = null;
 
@@ -159,27 +157,16 @@ function readBinaryFile(uri) {
   });
 }
 
-function checkFetchAvailable() {
-  return new Promise((resolve) => {
-    // 调试 interconnect 通道时，可在下一行直接 resolve(false); return; 强制走插件代理
-    if (!systemFetch) {
-      resolve(false);
-      return;
-    }
-
-    systemFetch.fetch({
-      url: FETCH_PROBE_URL,
-      timeout: TIMEOUT,
-      success: () => {
-        fetchAvailable = true;
-        resolve(true);
-      },
-      fail: () => {
-        fetchAvailable = false;
-        resolve(false);
-      },
-    });
-  });
+// 是否优先走网桥通道:用户在设置中开启,或设备为小米手环10 Pro(不支持快应用原生 fetch)。
+// 部分设备直连能通国内 CDN 但因 mbedTLS 缺少 ECDHE 套件无法握手现代托管站点(curl 35),
+// 这类"部分站点不通"无法靠探测自动识别,故提供手动开关。
+function preferBridge() {
+  if (typeof global === "undefined") return false;
+  if (global.APP_SETTING && global.APP_SETTING.preferBridge === true) return true;
+  if (typeof global.isXiaomiSmartBand10Pro === "function" && global.isXiaomiSmartBand10Pro()) {
+    return true;
+  }
+  return false;
 }
 
 const LOCAL_CAPS = {
@@ -566,17 +553,11 @@ function getTempUri(url) {
 
 export default {
   isDirectAvailable() {
-    if (fetchAvailable) {
-      return Promise.resolve(true);
-    }
-    return checkFetchAvailable();
+    return Promise.resolve(!preferBridge() && !!systemFetch);
   },
   fetch(params) {
     const doFetch = async () => {
-      if (!fetchAvailable) {
-        await checkFetchAvailable();
-      }
-      if (fetchAvailable) {
+      if (!preferBridge() && systemFetch) {
         return systemFetch.fetch(params);
       }
       const { url, method, header, body, responseType, success, fail, complete } = params;

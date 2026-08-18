@@ -45,6 +45,8 @@ global.isXiaomiSmartBand10Pro = function () {
 global.applyDeviceRecommendedSettings = function () {
   if (global.APP_SETTING && global.isXiaomiSmartBand10Pro()) {
     global.APP_SETTING.imageUsePng = true;
+    // 10 Pro 不支持快应用原生 fetch,强制网桥连接
+    global.APP_SETTING.preferBridge = true;
   }
 };
 
@@ -87,6 +89,7 @@ global.APP_SETTING = {
   imageUsePng: false,
   imagePreTranscode: false,
   imagePreload: false,
+  preferBridge: false,
 };
 
 export default {};

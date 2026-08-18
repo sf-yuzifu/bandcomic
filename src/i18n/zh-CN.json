@@ -20,6 +20,8 @@
         "imageUsePng": "PNG图片解析",
         "imagePreTranscode": "图片预解码",
         "imagePreload": "相邻页预加载",
+        "preferBridge": "网桥连接优先",
+        "preferBridgeForced": "当前设备不支持直连，网桥连接不可关闭",
         "saveFailed": "保存设置失败：{code}",
         "info": {
             "searchPageSize": "每页显示的漫画数量",
@@ -29,7 +31,9 @@
             "keepDefaultZoom": "切换章节保持缩放比例",
             "imageUsePng": "请求图片时让接口返回PNG格式，推荐小米手环10 Pro用户开启",
             "imagePreTranscode": "预解码图片以提升低配置设备浏览流畅度",
-            "imagePreload": "在线阅读时提前下载前后页图片，翻页更快"
+            "imagePreload": "在线阅读时提前下载前后页图片，翻页更快",
+            "preferBridge": "直连异常（如SSL错误）时通过AstroBox网桥联网，需保持AstroBox连接",
+            "preferBridgeForced": "设备不支持直连，已强制通过AstroBox网桥联网"
         }
     },
     "error": {

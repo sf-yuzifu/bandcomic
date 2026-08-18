@@ -20,6 +20,8 @@
         "imageUsePng": "PNG圖片解析",
         "imagePreTranscode": "圖片預解碼",
         "imagePreload": "相鄰頁預先載入",
+        "preferBridge": "網橋連接優先",
+        "preferBridgeForced": "目前裝置不支援直連，網橋連接不可關閉",
         "saveFailed": "儲存設定失敗：{code}",
         "info": {
             "searchPageSize": "每頁顯示的漫畫數量",
@@ -29,7 +31,9 @@
             "keepDefaultZoom": "切換章節保持縮放比例",
             "imageUsePng": "請求圖片時讓介面回傳PNG格式，推薦小米手環10 Pro使用者開啟",
             "imagePreTranscode": "預解碼圖片以提升低階裝置瀏覽流暢度",
-            "imagePreload": "線上閱讀時提前下載前後頁圖片，翻頁更快"
+            "imagePreload": "線上閱讀時提前下載前後頁圖片，翻頁更快",
+            "preferBridge": "直連異常（如SSL錯誤）時透過AstroBox網橋連網，需保持AstroBox連接",
+            "preferBridgeForced": "裝置不支援直連，已強制透過AstroBox網橋連網"
         }
     },
     "error": {
