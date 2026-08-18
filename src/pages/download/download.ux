@@ -161,7 +161,8 @@ import { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } from "../../co
 const { getTime } = global;
 
 const MAX_RETRY = 3;
-const MAX_CONCURRENT = 3;
+// 失败页数超过该阈值视为网络/服务器整体故障
+const MAX_FAILED_TOLERANCE = 3;
 
 let ImageCache = [];
 
@@ -511,7 +512,7 @@ export default {
         await this.downloadCover(coverUri);
       }
 
-      await this.downloadPagesConcurrent(folderUri);
+      await this.downloadPages(folderUri);
 
       if (!this.is_serial) {
         await this.syncComicStorageMeta();
@@ -534,31 +535,26 @@ export default {
     }
   },
 
-  // 多路并发下载所有页：worker 共享 nextPage 取页（JS 单线程，自增原子），
+  // 按顺序逐页下载：手环设备性能有限，并发请求只会更卡；
   // 个别页失败先记账不中断，其余页下完后串行补一次，仍失败才抛出；
-  // 失败页数超过并发数视为网络/服务器整体故障，直接抛首个错误不再补
-  async downloadPagesConcurrent(folderUri) {
-    let nextPage = 1;
+  // 失败页数超过阈值视为网络/服务器整体故障，直接抛首个错误不再补
+  async downloadPages(folderUri) {
     let completed = 0;
     const failedPages = [];
 
-    const worker = async () => {
-      while (nextPage <= this.page_count) {
-        const p = nextPage++;
-        try {
-          await this.downloadPage(p, folderUri);
-          this.page = ++completed;
-        } catch (e) {
-          failedPages.push({ page: p, error: e });
-        }
+    for (let p = 1; p <= this.page_count; p++) {
+      try {
+        await this.downloadPage(p, folderUri);
+        this.page = ++completed;
+      } catch (e) {
+        failedPages.push({ page: p, error: e });
       }
-    };
-    await Promise.all(Array.from({ length: MAX_CONCURRENT }, () => worker()));
+    }
 
     if (failedPages.length === 0) {
       return;
     }
-    if (failedPages.length > MAX_CONCURRENT) {
+    if (failedPages.length > MAX_FAILED_TOLERANCE) {
       throw failedPages[0].error;
     }
     prompt.showToast({
