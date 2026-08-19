@@ -115,7 +115,7 @@
         "title": "Download",
         "downloading": "Downloading",
         "complete": "Done",
-        "page": "{page}/{total}",
+        "page": "{page}/{total_page}",
         "downloadTimeout": "Timeout, retrying ({count})...",
         "networkErrorRetry": "Network error, retrying ({count})...",
         "downloadTimeoutFailed": "Download timeout, 3 retries failed",
