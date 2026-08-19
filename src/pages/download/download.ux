@@ -149,13 +149,7 @@ import file from "@system.file";
 import prompt from "@system.prompt";
 
 import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
-import {
-  readComics,
-  writeComics,
-  updateComicMeta,
-  isAlreadyExistsError,
-  FILE_ERROR,
-} from "../../components/storage";
+import { updateComicMeta, isAlreadyExistsError } from "../../components/storage";
 import { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } from "../../components/api";
 
 const { getTime } = global;
@@ -392,14 +386,7 @@ export default {
 
   async startDownloadProcess() {
     try {
-      const fileExists = await this.checkFileExists();
-
-      if (fileExists) {
-        await this.readAndUpdateComicsJson();
-      } else {
-        await this.createComicsJson();
-      }
-
+      await this.ensureComicRegistered();
       await this.createFolderAndDownload();
     } catch (error) {
       console.debug(`下载过程出错: ${error}`);
@@ -409,78 +396,20 @@ export default {
     }
   },
 
-  checkFileExists() {
-    return readComics().then(
-      () => true,
-      ({ code }) => {
-        if (code === FILE_ERROR.NOT_FOUND) {
-          return false;
-        }
-        throw this.$t("download.checkFileFailed", { code: code });
+  // 把漫画登记进 comics.json（串行队列内读-改-写 + 原子落盘）：
+  // 已存在则合并（保留 chapters/size/downloaded_at 等元数据），不存在则新建
+  ensureComicRegistered() {
+    const newComic = {
+      name: this.is_serial ? this.originalName : this.name,
+      page_count: this.page_count,
+      id: global.API_SETTING.using + "_" + this.id,
+      is_serial: this.is_serial,
+    };
+    return updateComicMeta(newComic.id, (comic) => ({ ...comic, ...newComic })).catch((e) => {
+      if (e && e.parseError) {
+        throw this.$t("download.parseIndexFailed");
       }
-    );
-  },
-
-  readAndUpdateComicsJson() {
-    return new Promise((resolve, reject) => {
-      readComics(true).then(
-        (comicsData) => {
-          const newComic = {
-            name: this.is_serial ? this.originalName : this.name,
-            page_count: this.page_count,
-            id: global.API_SETTING.using + "_" + this.id,
-            is_serial: this.is_serial,
-          };
-
-          const existingIndex = comicsData.findIndex((comic) => comic.id === newComic.id);
-          if (existingIndex !== -1) {
-            // 合并而非替换，保留 chapters/size/downloaded_at 等元数据
-            comicsData[existingIndex] = { ...comicsData[existingIndex], ...newComic };
-          } else {
-            comicsData.push(newComic);
-          }
-
-          writeComics(comicsData).then(
-            () => {
-              console.debug("comics.json 更新成功");
-              resolve();
-            },
-            ({ code }) => {
-              reject(this.$t("download.writeIndexFailed", { code: code }));
-            }
-          );
-        },
-        (err) => {
-          if (err.parseError) {
-            reject(this.$t("download.parseIndexFailed"));
-          } else {
-            reject(this.$t("download.readIndexFailed", { code: err.code }));
-          }
-        }
-      );
-    });
-  },
-
-  createComicsJson() {
-    return new Promise((resolve, reject) => {
-      const comicsData = [
-        {
-          name: this.is_serial ? this.originalName : this.name,
-          page_count: this.page_count,
-          id: global.API_SETTING.using + "_" + this.id,
-          is_serial: this.is_serial,
-        },
-      ];
-
-      writeComics(comicsData).then(
-        () => {
-          console.debug("comics.json 创建成功");
-          resolve();
-        },
-        ({ code }) => {
-          reject(this.$t("download.createIndexFailed", { code: code }));
-        }
-      );
+      throw this.$t("download.writeIndexFailed", { code: e && e.code });
     });
   },
 

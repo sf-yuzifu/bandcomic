@@ -87,7 +87,7 @@
 <script>
 import router from "@system.router";
 import prompt from "@system.prompt";
-import { readSources, writeSources, FILE_ERROR } from "../../components/storage";
+import { updateJsonFile, FILE_ERROR, SOURCES_URI } from "../../components/storage";
 import { safeJsonParse } from "../../components/jsonUtils";
 import { apiFetch, getFetchErrorType, ensureUsingSourceValid } from "../../components/api";
 
@@ -189,33 +189,20 @@ export default {
         return;
       }
       this.context = normalizeApiUrl(this.context);
-      readSources().then(
-        (datas) => {
-          this.writeSource(datas);
-        },
-        ({ data, code }) => {
-          if (code === FILE_ERROR.NOT_FOUND) {
-            this.writeSource();
-          } else {
-            prompt.showToast({
-              message: this.$t("edit.unknownReadError") + data,
-            });
-          }
-        }
-      );
+      this.writeSource();
     }
   },
 
-  writeSource(text) {
-    this.fetchSourceConfig("https", text);
+  writeSource() {
+    this.fetchSourceConfig("https");
   },
 
-  fetchSourceConfig(protocol, text) {
+  fetchSourceConfig(protocol) {
     apiFetch({
       url: protocol + "://" + this.context + "/config",
       responseType: "text",
       success: (response) => {
-        let data = safeJsonParse(response.data, null);
+        const data = safeJsonParse(response.data, null);
         if (data == null) {
           prompt.showToast({
             message: this.$t("edit.unknownReadError") + response.data,
@@ -226,25 +213,26 @@ export default {
           prompt.showToast({ message: this.$t("error.invalidResponse") });
           return;
         }
-        if (text) {
-          data = replaceIfDuplicate(text, data);
-        } else {
-          data = [].concat(data);
-        }
-        writeSources(data).then(
+        // 串行队列内与最新 sources.json 合并落盘，避免与手机端同步并发时丢配置
+        updateJsonFile(SOURCES_URI, [], (existing) => {
+          const list = Array.isArray(existing) ? existing : [];
+          return replaceIfDuplicate(list, data);
+        }).then(
           () => {
             prompt.showToast({
               message: this.$t(protocol === "http" ? "edit.completeHttp" : "edit.complete"),
             });
-            updateMultipleSources(data);
+            updateMultipleSources(
+              Object.keys(data).map((key) => ({ [key]: data[key] }))
+            );
             this.API_SETTING = global.API_SETTING;
           },
-          ({ data, code }) => {
+          ({ data: errData, code }) => {
             if (code === FILE_ERROR.IO_ERROR) {
               prompt.showToast({ message: this.$t("edit.storageError") });
             } else {
               prompt.showToast({
-                message: this.$t("edit.unknownWriteError") + data,
+                message: this.$t("edit.unknownWriteError") + errData,
               });
             }
           }
@@ -253,7 +241,7 @@ export default {
       fail: (data, code) => {
         const errorType = getFetchErrorType(code);
         if (protocol === "https" && (errorType === "ssl" || errorType === "connection")) {
-          this.fetchSourceConfig("http", text);
+          this.fetchSourceConfig("http");
           return;
         }
         if (errorType === "domain") {
@@ -288,26 +276,19 @@ export default {
     }
     // 第二次点击，执行删除
     delSource = null;
-    readSources().then(
-      (datas) => {
-        datas = datas.filter((item) => Object.keys(item)[0] !== source);
-        writeSources(datas).then(
-          () => {
-            prompt.showToast({ message: this.$t("edit.del") });
-            delete global.API_SETTING[source];
-            ensureUsingSourceValid();
-            this.API_SETTING = global.API_SETTING;
-          },
-          ({ data }) => {
-            prompt.showToast({
-              message: this.$t("edit.unknownDelError") + data,
-            });
-          }
-        );
+    updateJsonFile(SOURCES_URI, [], (datas) => {
+      const list = Array.isArray(datas) ? datas : [];
+      return list.filter((item) => Object.keys(item)[0] !== source);
+    }).then(
+      () => {
+        prompt.showToast({ message: this.$t("edit.del") });
+        delete global.API_SETTING[source];
+        ensureUsingSourceValid();
+        this.API_SETTING = global.API_SETTING;
       },
       ({ data }) => {
         prompt.showToast({
-          message: this.$t("edit.unknownReadError") + data,
+          message: this.$t("edit.unknownDelError") + data,
         });
       }
     );
