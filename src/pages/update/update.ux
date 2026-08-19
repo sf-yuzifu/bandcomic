@@ -65,8 +65,6 @@
 
 <script>
 import router from "@system.router";
-import prompt from "@system.prompt";
-import { checkUpdate } from "../../components/updateChecker";
 
 const { getTime } = global;
 
@@ -111,22 +109,6 @@ export default {
     } else {
       this.changelogList = [];
     }
-  },
-
-  checkAgain() {
-    prompt.showToast({ message: this.$t("update.checking") });
-    checkUpdate(true).then((info) => {
-      if (info) {
-        this.applyUpdateInfo(info);
-        prompt.showToast({ message: this.$t("update.hasUpdate") });
-      } else {
-        prompt.showToast({ message: this.$t("update.noUpdate") });
-        if (!this.forceUpdate) {
-          global.updatePageShowing = false;
-          router.back();
-        }
-      }
-    });
   },
 
   routeBack() {
