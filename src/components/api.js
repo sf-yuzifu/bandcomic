@@ -23,6 +23,24 @@ export function getCurrentSource() {
   return global.API_SETTING[global.API_SETTING.using];
 }
 
+// 删除漫画源后校正当前使用的源：
+// using 指向已删除的源时回退到第一个可用源；
+// 若所有源都被删除（手机端可删内置源），恢复内置默认源兜底
+export function ensureUsingSourceValid() {
+  const setting = global.API_SETTING;
+  if (setting[setting.using]) return;
+  const keys = Object.keys(setting).filter((key) => key !== "using");
+  if (keys.length > 0) {
+    setting.using = keys[0];
+    return;
+  }
+  const defaults = global.DEFAULT_API_SETTING || {};
+  Object.keys(defaults).forEach((key) => {
+    setting[key] = defaults[key];
+  });
+  setting.using = Object.keys(defaults)[0] || "";
+}
+
 export function buildHeaders(extra) {
   return {
     "User-Agent": global.userAgent(),

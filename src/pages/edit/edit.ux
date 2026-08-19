@@ -89,7 +89,7 @@ import router from "@system.router";
 import prompt from "@system.prompt";
 import { readSources, writeSources, FILE_ERROR } from "../../components/storage";
 import { safeJsonParse } from "../../components/jsonUtils";
-import { apiFetch, getFetchErrorType } from "../../components/api";
+import { apiFetch, getFetchErrorType, ensureUsingSourceValid } from "../../components/api";
 
 const { getTime } = global;
 
@@ -295,6 +295,7 @@ export default {
           () => {
             prompt.showToast({ message: this.$t("edit.del") });
             delete global.API_SETTING[source];
+            ensureUsingSourceValid();
             this.API_SETTING = global.API_SETTING;
           },
           ({ data }) => {
