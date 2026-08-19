@@ -490,6 +490,73 @@ export function createDataBridge(interConnect) {
 
   let _importState = null;
 
+  // 启动一个文件的异步落盘：回调只认捕获的 state（不碰全局 _importState），
+  // done 先到时收尾会等 inflightWrites 归零，回调不会再撞上 null
+  function startImportWrite(state, uri, data) {
+    state.inflightWrites++;
+    writeBinaryFromBase64(
+      uri,
+      data,
+      function () {
+        state.completedFiles++;
+        state.inflightWrites--;
+        if (state.completedFiles % 5 === 0 || state.completedFiles === state.totalFiles) {
+          prompt.showToast({
+            message: "接收 " + state.completedFiles + "/" + state.totalFiles,
+            duration: 500,
+          });
+        }
+        maybeFinalizeImport(state);
+      },
+      function () {
+        state.completedFiles++;
+        state.failedFiles++;
+        state.inflightWrites--;
+        maybeFinalizeImport(state);
+      }
+    );
+  }
+
+  // done 已收到且所有写入（在途 + 待写）都完成后才真正收尾
+  function maybeFinalizeImport(state) {
+    if (!state || !state.doneReceived) return;
+    if (!state.dirReady) return;
+    if (state.pendingWrites.length > 0) return;
+    if (state.inflightWrites > 0) return;
+    finalizeImport(state);
+  }
+
+  function finalizeImport(state) {
+    const failed = state.failedFiles || 0;
+
+    updateComicsIndex(
+      state.comicId,
+      state.comicName,
+      state.pageCount,
+      state.isSerial,
+      state.chapters
+    );
+
+    let msg =
+      "导入完成: " +
+      state.comicName +
+      " (" +
+      (state.totalFiles - failed) +
+      "/" +
+      state.totalFiles +
+      "文件)";
+    if (failed > 0) {
+      msg += "，" + failed + "个失败";
+    }
+    prompt.showToast({
+      message: msg,
+    });
+
+    if (_importState === state) {
+      _importState = null;
+    }
+  }
+
   function handleImportComic(parsed) {
     const msgType = parsed.type || "";
     if (msgType === "import_comic_header") {
@@ -545,8 +612,11 @@ export function createDataBridge(interConnect) {
       pageCount: pageCount,
       isSerial: isSerial,
       dirReady: false,
+      pendingDirs: 1, // 尚未就绪的目录数（根目录；章节目录在根目录就绪后挂入）
       pendingWrites: [],
       failedFiles: 0,
+      inflightWrites: 0, // 在途异步写入数：done 收尾前必须归零
+      doneReceived: false,
     };
 
     if (mode === "single") {
@@ -571,70 +641,68 @@ export function createDataBridge(interConnect) {
     });
 
     function flushPendingWrites() {
-      if (!_importState || !_importState.pendingWrites) return;
-      const pending = _importState.pendingWrites;
-      _importState.pendingWrites = [];
+      const state = _importState;
+      if (!state || !state.pendingWrites) return;
+      const pending = state.pendingWrites;
+      state.pendingWrites = [];
       pending.forEach(function (w) {
-        writeBinaryFromBase64(
-          w.uri,
-          w.data,
-          function () {
-            _importState.completedFiles++;
-            if (
-              _importState.completedFiles % 5 === 0 ||
-              _importState.completedFiles === _importState.totalFiles
-            ) {
-              prompt.showToast({
-                message: "接收 " + _importState.completedFiles + "/" + _importState.totalFiles,
-                duration: 500,
-              });
-            }
-          },
-          function () {
-            _importState.completedFiles++;
-            _importState.failedFiles++;
-          }
-        );
+        startImportWrite(state, w.uri, w.data);
       });
     }
 
-    function onMkdirReady() {
-      if (!_importState) return;
-      _importState.dirReady = true;
+    // 目录就绪计数归零：dirReady 置位，冲刷待写队列，并尝试收尾
+    function onOneDirReady() {
+      const state = _importState;
+      if (!state) return;
+      state.pendingDirs--;
+      if (state.pendingDirs > 0) return;
+      state.dirReady = true;
       flushPendingWrites();
+      maybeFinalizeImport(state);
+    }
+
+    // 根目录就绪后再建章节目录（recursive:false 要求父目录存在，否则章节 mkdir 会失败丢文件）
+    function onRootDirReady() {
+      const state = _importState;
+      if (!state) return;
+      if (state.mode === "multi" && state.chapters && state.chapters.length > 0) {
+        state.pendingDirs = state.chapters.length;
+        state.chapters.forEach(function (ch) {
+          file.mkdir({
+            uri: state.dirUri + "/" + (ch.name || ""),
+            recursive: false,
+            success: function () {
+              onOneDirReady();
+            },
+            fail: function (data, code) {
+              if (!isAlreadyExistsError(code)) {
+                console.debug("创建章节目录失败 code=" + code);
+              }
+              onOneDirReady();
+            },
+          });
+        });
+      } else {
+        state.pendingDirs = 0;
+        state.dirReady = true;
+        flushPendingWrites();
+        maybeFinalizeImport(state);
+      }
     }
 
     file.mkdir({
       uri: dirUri,
       recursive: false,
       success: function () {
-        onMkdirReady();
+        onRootDirReady();
       },
       fail: function (data, code) {
-        if (isAlreadyExistsError(code)) {
-          onMkdirReady();
-        } else {
+        if (!isAlreadyExistsError(code)) {
           console.debug("创建根目录失败: " + code);
-          onMkdirReady();
         }
+        onRootDirReady();
       },
     });
-
-    if (chapters && mode === "multi") {
-      chapters.forEach(function (ch) {
-        const chapUri = dirUri + "/" + (ch.name || "");
-        file.mkdir({
-          uri: chapUri,
-          recursive: false,
-          success: function () {},
-          fail: function (data, code) {
-            if (!isAlreadyExistsError(code)) {
-              console.debug("创建章节目录失败: " + chapUri + " code=" + code);
-            }
-          },
-        });
-      });
-    }
 
     // 头部就绪确认：插件收到后才开始发分片。
     // 部分平台（如安卓）消息可能乱序，分片先于头部到达会被丢弃
@@ -721,26 +789,7 @@ export function createDataBridge(interConnect) {
       delete _importState.buffers[fileKey];
 
       if (_importState.dirReady) {
-        writeBinaryFromBase64(
-          fileUri,
-          fullBase64,
-          function () {
-            _importState.completedFiles++;
-            if (
-              _importState.completedFiles % 5 === 0 ||
-              _importState.completedFiles === _importState.totalFiles
-            ) {
-              prompt.showToast({
-                message: "接收 " + _importState.completedFiles + "/" + _importState.totalFiles,
-                duration: 500,
-              });
-            }
-          },
-          function () {
-            _importState.completedFiles++;
-            _importState.failedFiles++;
-          }
-        );
+        startImportWrite(_importState, fileUri, fullBase64);
       } else {
         _importState.pendingWrites.push({
           uri: fileUri,
@@ -759,33 +808,11 @@ export function createDataBridge(interConnect) {
       console.debug("完成消息漫画名不匹配: " + comicName + " vs " + _importState.comicName);
     }
 
-    // 等待所有待处理写入完成（简单延迟）
-    const failed = _importState.failedFiles || 0;
-
-    updateComicsIndex(
-      _importState.comicId,
-      _importState.comicName,
-      _importState.pageCount,
-      _importState.isSerial,
-      _importState.chapters
-    );
-
-    let msg =
-      "导入完成: " +
-      _importState.comicName +
-      " (" +
-      (_importState.totalFiles - failed) +
-      "/" +
-      _importState.totalFiles +
-      "文件)";
-    if (failed > 0) {
-      msg += "，" + failed + "个失败";
-    }
-    prompt.showToast({
-      message: msg,
-    });
-
-    _importState = null;
+    // 只标记 done 到达：base64 落盘是异步的，可能还有在途/待写文件，
+    // 等 maybeFinalizeImport 确认全部写完才收尾，否则回调访问 _importState 会 TypeError、
+    // 失败统计也会漏记在途写入
+    _importState.doneReceived = true;
+    maybeFinalizeImport(_importState);
   }
 
   function writeBinaryFromBase64(fileUri, base64Data, onSuccess, onFail) {
