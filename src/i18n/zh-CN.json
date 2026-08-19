@@ -175,9 +175,6 @@
         "download": "下载地址",
         "scanTip": "请使用手机扫码打开下载地址",
         "retry": "重新检查",
-        "later": "稍后再说",
-        "checking": "正在检查更新...",
-        "hasUpdate": "发现新版本",
-        "noUpdate": "当前已是最新版本"
+        "later": "稍后再说"
     }
 }

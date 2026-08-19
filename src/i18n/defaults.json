@@ -175,9 +175,6 @@
         "download": "Download",
         "scanTip": "Scan with your phone to open the download link",
         "retry": "Check again",
-        "later": "Later",
-        "checking": "Checking updates...",
-        "hasUpdate": "New version found",
-        "noUpdate": "Already up to date"
+        "later": "Later"
     }
 }
