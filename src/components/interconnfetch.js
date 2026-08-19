@@ -137,20 +137,6 @@ function writeChunkFile(uri, bytes, append) {
   });
 }
 
-function readBinaryFile(uri) {
-  return new Promise((resolve, reject) => {
-    if (!fileModule) {
-      reject(new Error("no file"));
-      return;
-    }
-    fileModule.readArrayBuffer({
-      uri: uri,
-      success: (bufData) => resolve(new Uint8Array(bufData.buffer)),
-      fail: (_, code) => reject(new Error("chunk read: " + code)),
-    });
-  });
-}
-
 // 是否优先走网桥通道:用户在设置中开启,或设备为小米手环10 Pro(不支持快应用原生 fetch)。
 // 部分设备直连能通国内 CDN 但因 mbedTLS 缺少 ECDHE 套件无法握手现代托管站点(curl 35),
 // 这类"部分站点不通"无法靠探测自动识别,故提供手动开关。
@@ -261,17 +247,31 @@ class InterconnFetchClient {
       const req = this.requests.get(id);
       if (!req || req.settled) return;
       const encoding = (req.header && req.header.bodyEncoding) || "base64";
+      // 重复分片（go-back-N 重传）：数据忽略，但仍回当前累计 ACK 让发送方推进窗口
+      if (req.chunkBuffer && req.chunkBuffer[seq] !== undefined) {
+        if (req.ack) {
+          this.conn.send({
+            data: {
+              tag: FETCH_ACK_TAG,
+              id: id,
+              ack: req.nextAck,
+            },
+          });
+        }
+        return;
+      }
       req.received++;
       req.resetTimer();
 
-      // 乱序缓存：按 seq 落位
+      // 乱序缓存：按 seq 落位。有 onChunk（文件下载）时分片字节已交给调用方按序落盘，
+      // chunkBuffer 只用于推进 ACK 连续前沿，存占位标记即可，避免整图字节驻留内存
       let decoded;
       if (encoding === "text") {
-        req.chunkBuffer[seq] = chunkData;
+        req.chunkBuffer[seq] = req.onChunk ? true : chunkData;
       } else {
         decoded = decodeBody(chunkData, encoding);
         if (decoded instanceof Uint8Array) {
-          req.chunkBuffer[seq] = decoded;
+          req.chunkBuffer[seq] = req.onChunk ? true : decoded;
         }
       }
 
@@ -306,6 +306,14 @@ class InterconnFetchClient {
 
         // 等待所有 onChunk 写入完成后再 resolve
         const finish = function () {
+          // 文件下载路径分片已按序落盘，无需拼接，直接返回头部
+          if (req.onChunk) {
+            req.resolve({
+              ...req.header,
+              body: null,
+            });
+            return;
+          }
           // 按顺序拼接
           let raw;
           if (encoding === "text") {
@@ -334,17 +342,10 @@ class InterconnFetchClient {
             raw = merged;
           }
 
-          if (req.onChunk) {
-            req.resolve({
-              ...req.header,
-              body: null,
-            });
-          } else {
-            req.resolve({
-              ...req.header,
-              body: raw,
-            });
-          }
+          req.resolve({
+            ...req.header,
+            body: raw,
+          });
         };
 
         if (req.chunkPromises && req.chunkPromises.length > 0) {
@@ -570,18 +571,31 @@ export default {
         body: body || undefined,
         raw: responseType === "file" || responseType === "arraybuffer",
       };
+      // 文件下载按序落盘：seq 连续的分片直接 append 到最终文件，乱序到达的暂存内存
+      // （ACK 窗口 ≤4 片 × ≤4KB，内存代价有界），消除"分片文件→读出→拼接→删除"的三倍 I/O
+      const finalUri = responseType === "file" ? getTempUri(url) : null;
+      let chunksWritten = 0;
       try {
-        const chunkFiles = [];
-        const finalUri = responseType === "file" ? getTempUri(url) : null;
         let onChunk = null;
         if (responseType === "file") {
-          onChunk = async function (bytes, seq) {
-            const partUri = finalUri + "." + seq;
-            await writeChunkFile(partUri, bytes);
-            const idx = chunkFiles.indexOf(partUri);
-            if (idx === -1) {
-              chunkFiles.push(partUri);
+          let nextWriteSeq = 0;
+          const pendingChunks = {};
+          let writeChain = Promise.resolve();
+          onChunk = function (bytes, seq) {
+            pendingChunks[seq] = bytes;
+            while (pendingChunks[nextWriteSeq] !== undefined) {
+              const ordered = pendingChunks[nextWriteSeq];
+              delete pendingChunks[nextWriteSeq];
+              const append = nextWriteSeq > 0;
+              nextWriteSeq++;
+              writeChain = writeChain.then(function () {
+                return writeChunkFile(finalUri, ordered, append).then(function () {
+                  chunksWritten++;
+                });
+              });
             }
+            // 返回写链尾部，fetch 完成前会等所有落盘结束
+            return writeChain;
           };
         }
         const resp = await interconnClient.fetch(url, options, onChunk);
@@ -590,22 +604,8 @@ export default {
           data = safeJsonParse(data, data);
         } else if (responseType === "file") {
           try {
-            if (chunkFiles.length > 0) {
-              // 按 seq 排序，防止异步写入完成顺序乱序
-              chunkFiles.sort(function (a, b) {
-                const seqA = parseInt(a.substring(a.lastIndexOf(".") + 1));
-                const seqB = parseInt(b.substring(b.lastIndexOf(".") + 1));
-                return seqA - seqB;
-              });
-              // 先写入第一个分片（覆盖创建），后续追加
-              for (let i = 0; i < chunkFiles.length; i++) {
-                let buf = await readBinaryFile(chunkFiles[i]);
-                await writeChunkFile(finalUri, buf, i > 0);
-                buf = null;
-                try {
-                  fileModule.delete({ uri: chunkFiles[i] });
-                } catch (e) {}
-              }
+            if (chunksWritten > 0) {
+              // 分片已按序落盘完毕
               data = finalUri;
             } else if (data instanceof Uint8Array) {
               data = await writeBinaryFile(finalUri, data);
@@ -631,6 +631,12 @@ export default {
           global.runGC();
         }
       } catch (err) {
+        // 下载中断时清掉可能存在的半成品文件，不留垃圾等下次启动清理
+        if (finalUri) {
+          try {
+            fileModule.delete({ uri: finalUri });
+          } catch (e) {}
+        }
         if (fail && typeof fail === "function") {
           fail(err.message || err, 0);
         }
