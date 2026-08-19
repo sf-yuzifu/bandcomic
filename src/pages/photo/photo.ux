@@ -188,6 +188,9 @@ let PreloadCache = {};
 let PreloadInflight = {};
 let originalName;
 
+// 翻多少页才把阅读历史落盘一次
+const HISTORY_FLUSH_INTERVAL = 5;
+
 export default {
   private: {
     id: "",
@@ -222,7 +225,13 @@ export default {
     return true;
   },
 
+  onHide() {
+    // 退后台时把未落盘的阅读进度写入，防被杀丢进度
+    this.flushHistory();
+  },
+
   onDestroy() {
+    this.flushHistory();
     ImageCache = [];
     PreloadCache = {};
     PreloadInflight = {};
@@ -531,7 +540,7 @@ export default {
     });
     this.page = 1;
     this.processData();
-    this.saveHistory();
+    this.saveHistory(true);
   },
 
   toPage(value) {
@@ -571,10 +580,10 @@ export default {
     }
   },
 
-  // 保存阅读历史
-  saveHistory() {
+  // 构造当前阅读进度快照
+  buildHistoryData() {
     const comicId = this.getComicId();
-    const historyData = {
+    return {
       id: comicId,
       originalId: this.id,
       title: this.is_serial && originalName ? originalName : this.title,
@@ -588,8 +597,31 @@ export default {
       source: this.local ? null : global.API_SETTING.using,
       last_read_time: Date.now(),
     };
+  },
 
-    // 串行队列内读-改-写 + 原子落盘：快速连翻时多次 saveHistory 按序执行，不再丢更新
+  // 保存阅读历史：默认只更新内存快照，翻满 HISTORY_FLUSH_INTERVAL 页才真正落盘，
+  // 避免每翻一页一次全文件 IO（耗电、闪存磨损）；切章/退页/退后台强制落盘。
+  // 极端情况（OOM 被杀等 onDestroy 不执行）最多丢失最近几页进度，可接受
+  saveHistory(force) {
+    this._historyData = this.buildHistoryData();
+    this._historyDirty = true;
+    this._pagesSinceFlush = (this._pagesSinceFlush || 0) + 1;
+    if (force || this._pagesSinceFlush >= HISTORY_FLUSH_INTERVAL) {
+      this.flushHistory();
+    }
+  },
+
+  // 有脏数据时把内存快照落盘
+  flushHistory() {
+    if (!this._historyDirty || !this._historyData) {
+      return;
+    }
+    this._historyDirty = false;
+    this._pagesSinceFlush = 0;
+    const historyData = this._historyData;
+    const comicId = historyData.id;
+
+    // 串行队列内读-改-写 + 原子落盘：快速连翻时多次 flush 按序执行，不再丢更新
     updateJsonFile(HISTORY_URI, [], (historyList) => {
       const list = Array.isArray(historyList) ? historyList : [];
 
@@ -646,7 +678,7 @@ export default {
     });
     this.page = 1;
     this.processData();
-    this.saveHistory();
+    this.saveHistory(true);
   },
 
   updatePickerRanges() {
