@@ -81,6 +81,10 @@ export function createDataBridge(interConnect) {
   let _coverRetry = 0; // 当前封面整包重发次数
   let _coverAckTimer = null; // 等待 cover_ack 的定时器
   let _coverDoneSent = false;
+  // 封面流程代际：每开始新封面/整包重发/推进下一张时 +1。
+  // 迟到的异步回调（读文件/发片/续片定时器）发现代际过期即丢弃，
+  // 防止旧封面的在途链路污染新封面状态
+  let _coverEpoch = 0;
 
   function clearCoverAckTimer() {
     if (_coverAckTimer) {
@@ -90,6 +94,7 @@ export function createDataBridge(interConnect) {
   }
 
   function proceedNextCover() {
+    _coverEpoch++;
     _coverIndex++;
     setTimeout(function () {
       sendCoversOneByOne();
@@ -106,7 +111,8 @@ export function createDataBridge(interConnect) {
         console.debug("封面 ACK 超时，整包重发: " + _coverName + " (" + _coverRetry + ")");
         _coverPos = 0;
         _sliceRetry = 0;
-        readCoverSlice();
+        _coverEpoch++;
+        readCoverSlice(_coverEpoch);
       } else {
         console.debug("封面重发超限，跳过: " + _coverName);
         proceedNextCover();
@@ -122,7 +128,7 @@ export function createDataBridge(interConnect) {
     }
   }
 
-  function readCoverSlice() {
+  function readCoverSlice(epoch) {
     const uri = _coverUri;
     const name = _coverName;
     const pos = _coverPos;
@@ -135,6 +141,7 @@ export function createDataBridge(interConnect) {
       position: pos,
       length: len,
       success: function (bufData) {
+        if (epoch !== _coverEpoch) return; // 代际过期：封面已推进或重发，丢弃在途回调
         if (!bufData.buffer) {
           proceedNextCover();
           return;
@@ -158,22 +165,26 @@ export function createDataBridge(interConnect) {
             data: header + b64,
           },
           success: function () {
+            if (epoch !== _coverEpoch) return;
             _sliceRetry = 0;
             _coverPos = pos + len;
             if (_coverPos >= total) {
               waitCoverAck();
             } else {
               setTimeout(function () {
-                readCoverSlice();
+                if (epoch !== _coverEpoch) return;
+                readCoverSlice(epoch);
               }, COVER_PACING_MS);
             }
           },
           fail: function () {
             // 发送失败重试当前切片，避免静默丢片导致手机端永远拼不完整
+            if (epoch !== _coverEpoch) return;
             if (_sliceRetry < SLICE_MAX_RETRY) {
               _sliceRetry++;
               setTimeout(function () {
-                readCoverSlice();
+                if (epoch !== _coverEpoch) return;
+                readCoverSlice(epoch);
               }, 100);
             } else {
               console.debug("切片重试超限，跳过封面: " + name);
@@ -183,6 +194,7 @@ export function createDataBridge(interConnect) {
         });
       },
       fail: function () {
+        if (epoch !== _coverEpoch) return;
         proceedNextCover();
       },
     });
@@ -205,10 +217,13 @@ export function createDataBridge(interConnect) {
     }
 
     const c = queue[_coverIndex];
+    _coverEpoch++;
+    const epoch = _coverEpoch;
 
     file.get({
       uri: "internal://files/" + c.id + "/cover",
       success: function (info) {
+        if (epoch !== _coverEpoch) return;
         _coverName = c.name || "";
         _coverUri = "internal://files/" + c.id + "/cover";
         _coverTotalBytes = info.length || 0;
@@ -216,9 +231,10 @@ export function createDataBridge(interConnect) {
         _coverPos = 0;
         _sliceRetry = 0;
         _coverRetry = 0;
-        readCoverSlice();
+        readCoverSlice(epoch);
       },
       fail: function () {
+        if (epoch !== _coverEpoch) return;
         proceedNextCover();
       },
     });
@@ -284,9 +300,13 @@ export function createDataBridge(interConnect) {
 
     function sendNextMessage() {
       if (msgIndex >= messages.length) {
-        // 所有列表消息发送完毕，等待插件处理完成后发 ACK 才开始发封面
-        // done 消息的 ACK 收到后才能开始发封面，保证插件处理完所有列表数据
+        // 走到这里只有两种可能：done 的 ACK 连丢两次、或 done 发送失败。
+        // 两种情况下列表数据大概率已送达，而手机端在等封面——不能干等 ACK 挂死，
+        // 直接开始发封面（封面流程自带 ACK/重发兜底，链路全断时也会逐张超时跳过，有界）
         bridge.onAppDataAck = null;
+        setTimeout(function () {
+          sendCoversOneByOne();
+        }, 100);
         return;
       }
 
@@ -352,6 +372,7 @@ export function createDataBridge(interConnect) {
     _coverIndex = 0;
     _coverQueue = [];
     _coverDoneSent = false;
+    _coverEpoch++; // 新一轮同步：让上一轮可能残留的在途封面回调全部过期
     clearCoverAckTimer();
     readComics().then(
       function (comicsList) {
