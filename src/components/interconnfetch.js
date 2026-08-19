@@ -250,6 +250,7 @@ class InterconnFetchClient {
         req.chunkBuffer = {};
         req.nextAck = 0;
         req.chunkPromises = [];
+        req.resetTimer();
       } else {
         req.settled = true;
         this.requests.delete(id);
@@ -261,6 +262,7 @@ class InterconnFetchClient {
       if (!req || req.settled) return;
       const encoding = (req.header && req.header.bodyEncoding) || "base64";
       req.received++;
+      req.resetTimer();
 
       // 乱序缓存：按 seq 落位
       let decoded;
@@ -401,7 +403,7 @@ class InterconnFetchClient {
       let settled = false;
       // 请求级超时：丢 chunk 且 go-back-N 重传也失败、或插件卡死时，
       // reject 让页面报错而不是永远转圈；同时关闭会话让后续请求重新握手
-      const timer = setTimeout(() => {
+      const onRequestTimeout = () => {
         const req = this.requests.get(id);
         if (req && !req.settled) {
           req.settled = true;
@@ -409,27 +411,36 @@ class InterconnFetchClient {
           this.open = false;
           req.reject(new Error("request timeout"));
         }
-      }, REQUEST_TIMEOUT);
-      const onceResolve = (value) => {
+      };
+      const req = {
+        resolve: null,
+        reject: null,
+        settled: false,
+        onChunk: onChunk || null,
+        timer: null,
+        // BLE 上数 MB 图片分片下载整体耗时可能远超 20s，但只要分片还在持续到达
+        // 就不应判超时；每收到首包/分片都重置计时器，仅"连续 20s 无任何进展"才超时
+        resetTimer: () => {
+          clearTimeout(req.timer);
+          req.timer = setTimeout(onRequestTimeout, REQUEST_TIMEOUT);
+        },
+      };
+      req.resolve = (value) => {
         if (!settled) {
           settled = true;
-          clearTimeout(timer);
+          clearTimeout(req.timer);
           resolve(value);
         }
       };
-      const onceReject = (err) => {
+      req.reject = (err) => {
         if (!settled) {
           settled = true;
-          clearTimeout(timer);
+          clearTimeout(req.timer);
           reject(err);
         }
       };
-      this.requests.set(id, {
-        resolve: onceResolve,
-        reject: onceReject,
-        settled: false,
-        onChunk: onChunk || null,
-      });
+      this.requests.set(id, req);
+      req.resetTimer();
       this.conn.send({
         data: {
           tag: FETCH_TAG,
