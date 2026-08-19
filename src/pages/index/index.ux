@@ -92,9 +92,9 @@
 import router from "@system.router";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
-import interconnect from "@system.interconnect";
 import file from "@system.file";
 import { createDataBridge } from "../../components/dataBridge";
+import { getConnection, registerBridgeHandler } from "../../components/interconnectHub";
 import { checkUpdate } from "../../components/updateChecker";
 import { flattenParams } from "../../components/routerParams";
 import { readSources, readSettings, readCookie } from "../../components/storage";
@@ -159,7 +159,7 @@ export default {
         global.cookie = {};
       });
 
-    const connect = interconnect.instance();
+    const connect = getConnection();
     if (connect) {
       const bridge = createDataBridge(connect);
 
@@ -168,7 +168,8 @@ export default {
         this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
       };
 
-      connect.onmessage = bridge.handleMessage;
+      // onmessage 由 interconnectHub 统一分发，注册数据桥处理器即可
+      registerBridgeHandler(bridge.handleMessage);
       this._bridge = bridge;
     }
 

@@ -1,5 +1,6 @@
 import { safeJsonParse } from "./jsonUtils";
 import { base64ToBytes } from "./base64";
+import { getConnection, registerFetchHandler, registerActivityHandler } from "./interconnectHub";
 
 const FETCH_TAG = "fetch";
 const FETCH_CHUNK_TAG = "fetch-chunk";
@@ -11,18 +12,11 @@ const REQUEST_TIMEOUT = 20000;
 const MAX_CHUNK_SIZE = 4096;
 
 let systemFetch = null;
-let interconnectModule = null;
 
 try {
   systemFetch = require("@system.fetch");
 } catch (e) {
   systemFetch = null;
-}
-
-try {
-  interconnectModule = require("@system.interconnect");
-} catch (e) {
-  interconnectModule = null;
 }
 
 let fileModule = null;
@@ -192,163 +186,20 @@ class InterconnFetchClient {
 
   _init() {
     if (this._inited) return true;
-    if (!interconnectModule) return false;
-    try {
-      this.conn = interconnectModule.instance();
-      if (!this.conn) return false;
-    } catch (e) {
-      return false;
-    }
+    // 连接与 onmessage 分发由 interconnectHub 统一管理，这里只注册本协议处理器
+    this.conn = getConnection();
+    if (!this.conn) return false;
 
-    this.conn.onmessage = ({ data }) => {
+    registerActivityHandler(() => {
       clearTimeout(this.timeout);
       this.timeout = setTimeout(() => {
         this.open = false;
       }, IDLE_TIMEOUT);
+    });
 
-      const parsed = safeJsonParse(data, null);
-      if (parsed == null) {
-        return;
-      }
-      const { tag, ...payload } = parsed;
-
-      if (tag === HS_TAG) {
-        const count = payload.count || 0;
-        if (count > 0) {
-          this.open = true;
-          if (this.resolve) {
-            const res = this.resolve;
-            res();
-          }
-        }
-        if (count < 2) {
-          this.conn.send({
-            data: {
-              tag: HS_TAG,
-              count: count + 1,
-              caps: LOCAL_CAPS,
-            },
-          });
-        }
-      } else if (tag === FETCH_TAG) {
-        const { resp, id } = payload;
-        const req = this.requests.get(id);
-        if (!req || req.settled) return;
-        if (resp && resp.chunked) {
-          req.header = resp;
-          req.received = 0;
-          req.ack = resp.ack === true;
-          req.chunkCount = resp.chunkCount || 0;
-          req.chunkBuffer = {};
-          req.nextAck = 0;
-          req.chunkPromises = [];
-        } else {
-          req.settled = true;
-          this.requests.delete(id);
-          req.resolve(resp);
-        }
-      } else if (tag === FETCH_CHUNK_TAG) {
-        const { id, seq, data: chunkData } = payload;
-        const req = this.requests.get(id);
-        if (!req || req.settled) return;
-        const encoding = (req.header && req.header.bodyEncoding) || "base64";
-        req.received++;
-
-        // 乱序缓存：按 seq 落位
-        let decoded;
-        if (encoding === "text") {
-          req.chunkBuffer[seq] = chunkData;
-        } else {
-          decoded = decodeBody(chunkData, encoding);
-          if (decoded instanceof Uint8Array) {
-            req.chunkBuffer[seq] = decoded;
-          }
-        }
-
-        // 如果用了 onChunk，记录其 Promise 以便后续等待
-        if (req.onChunk) {
-          const toWrite = encoding === "text" ? chunkData : decoded;
-          if (toWrite !== undefined) {
-            req.chunkPromises.push(req.onChunk(toWrite, seq));
-          }
-        }
-
-        // 计算连续前沿：从 nextAck 起最长的连续已收区间
-        while (req.chunkBuffer[req.nextAck] !== undefined) {
-          req.nextAck++;
-        }
-
-        // 发送 fetch-ack（累计确认）
-        if (req.ack) {
-          this.conn.send({
-            data: {
-              tag: FETCH_ACK_TAG,
-              id: id,
-              ack: req.nextAck,
-            },
-          });
-        }
-
-        // 检查是否全部到齐
-        if (req.nextAck >= req.chunkCount) {
-          req.settled = true;
-          this.requests.delete(id);
-
-          // 等待所有 onChunk 写入完成后再 resolve
-          const finish = function () {
-            // 按顺序拼接
-            let raw;
-            if (encoding === "text") {
-              const parts = [];
-              for (let i = 0; i < req.chunkCount; i++) {
-                parts.push(req.chunkBuffer[i] || "");
-              }
-              raw = parts.join("");
-            } else {
-              let totalLen = 0;
-              for (let i = 0; i < req.chunkCount; i++) {
-                const buf = req.chunkBuffer[i];
-                if (buf instanceof Uint8Array) {
-                  totalLen += buf.length;
-                }
-              }
-              const merged = new Uint8Array(totalLen);
-              let offset = 0;
-              for (let i = 0; i < req.chunkCount; i++) {
-                const buf = req.chunkBuffer[i];
-                if (buf instanceof Uint8Array) {
-                  merged.set(buf, offset);
-                  offset += buf.length;
-                }
-              }
-              raw = merged;
-            }
-
-            if (req.onChunk) {
-              req.resolve({
-                ...req.header,
-                body: null,
-              });
-            } else {
-              req.resolve({
-                ...req.header,
-                body: raw,
-              });
-            }
-          };
-
-          if (req.chunkPromises && req.chunkPromises.length > 0) {
-            Promise.all(req.chunkPromises)
-              .then(finish)
-              .catch(function (e) {
-                req.reject(new Error("chunk write failed: " + e));
-              });
-          } else {
-            finish();
-          }
-        }
-      }
-    };
+    registerFetchHandler((parsed) => {
+      this._onFetchMessage(parsed);
+    });
 
     this.conn.onclose = () => {
       this.open = false;
@@ -364,6 +215,147 @@ class InterconnFetchClient {
 
     this._inited = true;
     return true;
+  }
+
+  _onFetchMessage(parsed) {
+    const { tag, ...payload } = parsed;
+
+    if (tag === HS_TAG) {
+      const count = payload.count || 0;
+      if (count > 0) {
+        this.open = true;
+        if (this.resolve) {
+          const res = this.resolve;
+          res();
+        }
+      }
+      if (count < 2) {
+        this.conn.send({
+          data: {
+            tag: HS_TAG,
+            count: count + 1,
+            caps: LOCAL_CAPS,
+          },
+        });
+      }
+    } else if (tag === FETCH_TAG) {
+      const { resp, id } = payload;
+      const req = this.requests.get(id);
+      if (!req || req.settled) return;
+      if (resp && resp.chunked) {
+        req.header = resp;
+        req.received = 0;
+        req.ack = resp.ack === true;
+        req.chunkCount = resp.chunkCount || 0;
+        req.chunkBuffer = {};
+        req.nextAck = 0;
+        req.chunkPromises = [];
+      } else {
+        req.settled = true;
+        this.requests.delete(id);
+        req.resolve(resp);
+      }
+    } else if (tag === FETCH_CHUNK_TAG) {
+      const { id, seq, data: chunkData } = payload;
+      const req = this.requests.get(id);
+      if (!req || req.settled) return;
+      const encoding = (req.header && req.header.bodyEncoding) || "base64";
+      req.received++;
+
+      // 乱序缓存：按 seq 落位
+      let decoded;
+      if (encoding === "text") {
+        req.chunkBuffer[seq] = chunkData;
+      } else {
+        decoded = decodeBody(chunkData, encoding);
+        if (decoded instanceof Uint8Array) {
+          req.chunkBuffer[seq] = decoded;
+        }
+      }
+
+      // 如果用了 onChunk，记录其 Promise 以便后续等待
+      if (req.onChunk) {
+        const toWrite = encoding === "text" ? chunkData : decoded;
+        if (toWrite !== undefined) {
+          req.chunkPromises.push(req.onChunk(toWrite, seq));
+        }
+      }
+
+      // 计算连续前沿：从 nextAck 起最长的连续已收区间
+      while (req.chunkBuffer[req.nextAck] !== undefined) {
+        req.nextAck++;
+      }
+
+      // 发送 fetch-ack（累计确认）
+      if (req.ack) {
+        this.conn.send({
+          data: {
+            tag: FETCH_ACK_TAG,
+            id: id,
+            ack: req.nextAck,
+          },
+        });
+      }
+
+      // 检查是否全部到齐
+      if (req.nextAck >= req.chunkCount) {
+        req.settled = true;
+        this.requests.delete(id);
+
+        // 等待所有 onChunk 写入完成后再 resolve
+        const finish = function () {
+          // 按顺序拼接
+          let raw;
+          if (encoding === "text") {
+            const parts = [];
+            for (let i = 0; i < req.chunkCount; i++) {
+              parts.push(req.chunkBuffer[i] || "");
+            }
+            raw = parts.join("");
+          } else {
+            let totalLen = 0;
+            for (let i = 0; i < req.chunkCount; i++) {
+              const buf = req.chunkBuffer[i];
+              if (buf instanceof Uint8Array) {
+                totalLen += buf.length;
+              }
+            }
+            const merged = new Uint8Array(totalLen);
+            let offset = 0;
+            for (let i = 0; i < req.chunkCount; i++) {
+              const buf = req.chunkBuffer[i];
+              if (buf instanceof Uint8Array) {
+                merged.set(buf, offset);
+                offset += buf.length;
+              }
+            }
+            raw = merged;
+          }
+
+          if (req.onChunk) {
+            req.resolve({
+              ...req.header,
+              body: null,
+            });
+          } else {
+            req.resolve({
+              ...req.header,
+              body: raw,
+            });
+          }
+        };
+
+        if (req.chunkPromises && req.chunkPromises.length > 0) {
+          Promise.all(req.chunkPromises)
+            .then(finish)
+            .catch(function (e) {
+              req.reject(new Error("chunk write failed: " + e));
+            });
+        } else {
+          finish();
+        }
+      }
+    }
   }
 
   rejectAll(err) {
