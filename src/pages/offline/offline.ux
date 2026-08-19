@@ -13,7 +13,16 @@
       @click="changeTab"
     />
     <text class="time">{{ time }}</text>
-    <text @click="routeBack" class="title">
+    <text
+      @click="
+        () => {
+          if (global.screenShape == 'circle') {
+            routeBack();
+          }
+        }
+      "
+      class="title"
+    >
       <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
       <span>{{ currentTab === 'offline' ? $t("offline.offline") : $t("offline.historyTitle") }}</span>
     </text>
