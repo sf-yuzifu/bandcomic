@@ -178,7 +178,7 @@ import router from "@system.router";
 import file from "@system.file";
 import { addImageParams, appendLvglSuffix } from "../../components/imageUrl";
 import { parseParam } from "../../components/routerParams";
-import { readHistory, writeHistory } from "../../components/storage";
+import { readHistory, updateJsonFile, HISTORY_URI } from "../../components/storage";
 import { apiFetch, buildPhotoUrl } from "../../components/api";
 
 const { screenSize, getTime } = global;
@@ -589,53 +589,27 @@ export default {
       last_read_time: Date.now(),
     };
 
-    // 读取现有历史记录
-    readHistory().then(
-      (historyList) => {
-        if (!Array.isArray(historyList)) {
-          historyList = [];
-        }
+    // 串行队列内读-改-写 + 原子落盘：快速连翻时多次 saveHistory 按序执行，不再丢更新
+    updateJsonFile(HISTORY_URI, [], (historyList) => {
+      const list = Array.isArray(historyList) ? historyList : [];
 
-        // 查找是否已存在该漫画的记录
-        const existingIndex = historyList.findIndex((item) => item.id === comicId);
+      // 查找是否已存在该漫画的记录
+      const existingIndex = list.findIndex((item) => item.id === comicId);
 
-        if (existingIndex !== -1) {
-          // 更新现有记录
-          historyList[existingIndex] = historyData;
-          // 移到最前面
-          historyList.splice(existingIndex, 1);
-          historyList.unshift(historyData);
-        } else {
-          // 添加新记录到最前面
-          historyList.unshift(historyData);
-        }
+      if (existingIndex !== -1) {
+        // 更新现有记录并移到最前面
+        list.splice(existingIndex, 1);
+      }
+      list.unshift(historyData);
 
-        // 限制历史记录数量（最多50条）
-        if (historyList.length > 50) {
-          historyList = historyList.slice(0, 50);
-        }
-
-        // 保存回文件
-        writeHistory(historyList).then(
-          () => {
-            console.debug("历史记录保存成功");
-          },
-          ({ code }) => {
-            console.error("保存历史记录失败:", code);
-          }
-        );
-      },
+      // 限制历史记录数量（最多50条）
+      return list.slice(0, 50);
+    }).then(
       () => {
-        // 文件不存在，创建新文件
-        const historyList = [historyData];
-        writeHistory(historyList).then(
-          () => {
-            console.debug("历史记录创建成功");
-          },
-          ({ code }) => {
-            console.error("创建历史记录失败:", code);
-          }
-        );
+        console.debug("历史记录保存成功");
+      },
+      (e) => {
+        console.error("保存历史记录失败:", e && e.code);
       }
     );
   },

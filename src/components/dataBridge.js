@@ -2,11 +2,12 @@ import prompt from "@system.prompt";
 import file from "@system.file";
 import {
   readComics,
-  writeComics,
   readSources,
-  writeSources,
   writeCookie,
   isAlreadyExistsError,
+  updateJsonFile,
+  COMICS_URI,
+  SOURCES_URI,
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
@@ -51,15 +52,16 @@ function replaceIfDuplicate(configArray, newConfigObject) {
   return configArray;
 }
 
-function updateComicsIndexAfterDelete(comicsList, deletedId, comicName) {
-  const newList = comicsList.filter((c) => c.id !== deletedId);
-
-  writeComics(newList).then(
+function updateComicsIndexAfterDelete(deletedId, comicName) {
+  updateJsonFile(COMICS_URI, [], function (comicsList) {
+    const list = Array.isArray(comicsList) ? comicsList : [];
+    return list.filter((c) => c.id !== deletedId);
+  }).then(
     () => {
       prompt.showToast({ message: "已删除: " + comicName });
     },
-    ({ code }) => {
-      console.debug("更新索引失败, code=" + code);
+    (e) => {
+      console.debug("更新索引失败, code=" + (e && e.code));
       prompt.showToast({ message: "文件已删除，但索引更新失败" });
     }
   );
@@ -444,31 +446,23 @@ export function createDataBridge(interConnect) {
   function handleSourceConfig(configs) {
     prompt.showToast({ message: "正在保存漫画源配置..." });
 
-    function applyAndSave(configsToSave) {
-      writeSources(configsToSave).then(
-        function () {
-          configs.forEach(function (newConfig) {
-            const key = Object.keys(newConfig)[0];
-            global.API_SETTING[key] = newConfig[key];
-          });
-          bridge.onSourceConfigSaved();
-          prompt.showToast({ message: "漫画源配置已保存！" });
-        },
-        function ({ code }) {
-          prompt.showToast({ message: "保存漫画源配置失败: " + code });
-        }
-      );
-    }
-
-    readSources().then(
-      function (existingConfigs) {
-        configs.forEach(function (newConfig) {
-          existingConfigs = replaceIfDuplicate(existingConfigs, newConfig);
-        });
-        applyAndSave(existingConfigs);
-      },
+    updateJsonFile(SOURCES_URI, [], function (existingConfigs) {
+      let list = Array.isArray(existingConfigs) ? existingConfigs : [];
+      configs.forEach(function (newConfig) {
+        list = replaceIfDuplicate(list, newConfig);
+      });
+      return list;
+    }).then(
       function () {
-        applyAndSave(configs);
+        configs.forEach(function (newConfig) {
+          const key = Object.keys(newConfig)[0];
+          global.API_SETTING[key] = newConfig[key];
+        });
+        bridge.onSourceConfigSaved();
+        prompt.showToast({ message: "漫画源配置已保存！" });
+      },
+      function (e) {
+        prompt.showToast({ message: "保存漫画源配置失败: " + (e && e.code) });
       }
     );
   }
@@ -835,54 +829,39 @@ export function createDataBridge(interConnect) {
       downloaded_at: Date.now(),
     };
 
-    readComics().then(
-      function (comicsList) {
-        if (!Array.isArray(comicsList)) {
-          comicsList = [];
-        }
+    // 串行队列内读-改-写 + 原子落盘，避免与下载/阅读路径并发时丢条目
+    updateJsonFile(COMICS_URI, [], function (comicsList) {
+      const list = Array.isArray(comicsList) ? comicsList : [];
+      const existing = list.find(function (c) {
+        return c.name === comicName;
+      });
 
-        const existing = comicsList.find(function (c) {
-          return c.name === comicName;
-        });
-
-        if (existing) {
-          existing.id = comicId;
-          existing.page_count = entry.page_count;
-          existing.is_serial = entry.is_serial;
-          existing.chapters = entry.chapters;
-          existing.downloaded_at = entry.downloaded_at;
-          delete existing.size;
-        } else {
-          comicsList.push(entry);
-        }
-
-        writeComics(comicsList).then(
-          function () {
-            console.debug(
-              "comics.json 更新成功: " +
-                comicName +
-                " (page_count=" +
-                pageCount +
-                ", is_serial=" +
-                isSerial +
-                ")"
-            );
-          },
-          function ({ code }) {
-            console.debug("更新 comics.json 失败, code=" + code);
-            prompt.showToast({ message: "索引更新失败，但文件已保存" });
-          }
+      if (existing) {
+        existing.id = comicId;
+        existing.page_count = entry.page_count;
+        existing.is_serial = entry.is_serial;
+        existing.chapters = entry.chapters;
+        existing.downloaded_at = entry.downloaded_at;
+        delete existing.size;
+      } else {
+        list.push(entry);
+      }
+      return list;
+    }).then(
+      function () {
+        console.debug(
+          "comics.json 更新成功: " +
+            comicName +
+            " (page_count=" +
+            pageCount +
+            ", is_serial=" +
+            isSerial +
+            ")"
         );
       },
-      function () {
-        writeComics([entry]).then(
-          function () {
-            console.debug("comics.json 创建成功");
-          },
-          function ({ code }) {
-            console.debug("创建 comics.json 失败, code=" + code);
-          }
-        );
+      function (e) {
+        console.debug("更新 comics.json 失败, code=" + (e && e.code));
+        prompt.showToast({ message: "索引更新失败，但文件已保存" });
       }
     );
   }
@@ -919,17 +898,17 @@ export function createDataBridge(interConnect) {
               uri: folderUri,
               recursive: true,
               success: function () {
-                updateComicsIndexAfterDelete(comicsList, target.id, comicName);
+                updateComicsIndexAfterDelete(target.id, comicName);
               },
               fail: function () {
                 console.debug("递归删除失败，直接更新索引");
-                updateComicsIndexAfterDelete(comicsList, target.id, comicName);
+                updateComicsIndexAfterDelete(target.id, comicName);
               },
             });
           },
           fail: function () {
             console.debug("文件夹不存在，直接更新索引");
-            updateComicsIndexAfterDelete(comicsList, target.id, comicName);
+            updateComicsIndexAfterDelete(target.id, comicName);
           },
         });
       },
@@ -948,36 +927,26 @@ export function createDataBridge(interConnect) {
 
     prompt.showToast({ message: "正在删除漫画源: " + sourceName });
 
-    readSources().then(
-      function (sourceList) {
-        if (!Array.isArray(sourceList)) {
-          sourceList = [];
+    updateJsonFile(SOURCES_URI, [], function (sourceList) {
+      const list = Array.isArray(sourceList) ? sourceList : [];
+      return list.filter(function (s) {
+        const key = Object.keys(s)[0];
+        const info = s[key] || {};
+        return key !== sourceName && info.name !== sourceName;
+      });
+    }).then(
+      function () {
+        if (global.API_SETTING[sourceName]) {
+          delete global.API_SETTING[sourceName];
+          ensureUsingSourceValid();
+          bridge.onSourceConfigSaved();
         }
 
-        const newList = sourceList.filter(function (s) {
-          const key = Object.keys(s)[0];
-          const info = s[key] || {};
-          return key !== sourceName && info.name !== sourceName;
-        });
-
-        writeSources(newList).then(
-          function () {
-            if (global.API_SETTING[sourceName]) {
-              delete global.API_SETTING[sourceName];
-              ensureUsingSourceValid();
-              bridge.onSourceConfigSaved();
-            }
-
-            prompt.showToast({ message: "已删除漫画源: " + sourceName });
-          },
-          function ({ code }) {
-            console.debug("更新sources.json失败, code=" + code);
-            prompt.showToast({ message: "删除失败，请重试" });
-          }
-        );
+        prompt.showToast({ message: "已删除漫画源: " + sourceName });
       },
-      function () {
-        prompt.showToast({ message: "读取漫画源配置失败" });
+      function (e) {
+        console.debug("更新sources.json失败, code=" + (e && e.code));
+        prompt.showToast({ message: "删除失败，请重试" });
       }
     );
   }
