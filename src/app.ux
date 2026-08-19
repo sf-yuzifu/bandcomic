@@ -14,12 +14,17 @@ global.API_SETTING = {
     detailPath: "/comic/<id>",
     photoPath: "/photo/<id>/ch/<chapter>",
     searchPath: "/search/<text>/<page>",
-    type: "mangedex",
+    type: "mangadex",
   },
   using: "MangaDex",
 };
 
 global.buildin = ["MangaDex"];
+// 内置源的出厂快照：所有源被删除时用于恢复兜底（见 api.js ensureUsingSourceValid）
+global.DEFAULT_API_SETTING = {};
+global.buildin.forEach(function (key) {
+  global.DEFAULT_API_SETTING[key] = JSON.parse(JSON.stringify(global.API_SETTING[key]));
+});
 global.display = true;
 global.update = true;
 global.UPDATE_CHECK_URL = "https://bandcomic.yuzifu.top/update.json";

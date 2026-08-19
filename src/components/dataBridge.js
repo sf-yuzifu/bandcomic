@@ -10,6 +10,7 @@ import {
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
+import { ensureUsingSourceValid } from "./api";
 
 const COVER_READ_CHUNK_SIZE = 6144;
 const ACK_TIMEOUT = 5000;
@@ -963,12 +964,7 @@ export function createDataBridge(interConnect) {
           function () {
             if (global.API_SETTING[sourceName]) {
               delete global.API_SETTING[sourceName];
-              if (global.API_SETTING.using === sourceName) {
-                const keys = Object.keys(global.API_SETTING).filter(function (k) {
-                  return k !== "using";
-                });
-                global.API_SETTING.using = keys[0] || "MangaDex";
-              }
+              ensureUsingSourceValid();
               bridge.onSourceConfigSaved();
             }
 
