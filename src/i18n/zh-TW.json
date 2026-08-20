@@ -10,7 +10,6 @@
     "author": "作者",
     "tks": "感謝",
     "setting": "設定",
-    "cleanTempFiles": "已清理 {count} 個暫存檔案",
     "settings": {
         "searchPageSize": "搜尋每頁數量",
         "imageQuality": "圖片品質",

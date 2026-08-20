@@ -144,13 +144,15 @@ export default {
       .catch(() => {
         global.applyDeviceRecommendedSettings();
       });
-    this.cleanTempFiles();
     if (global.update) {
       this.checkAppUpdate();
     }
   },
 
   onInit() {
+    // 仅冷启动静默清理一次临时文件（onShow 每次回首页都触发太频繁且弹 toast）；
+    // 进程刚启动时不可能有下载在进行，天然避开在途下载的临时文件
+    this.cleanTempFiles();
     readCookie()
       .then((cookie) => {
         global.cookie = cookie;
@@ -205,12 +207,8 @@ export default {
               },
             });
           });
-          prompt.showToast({
-            message: this.$t("cleanTempFiles", {
-              count: filesToDelete.length,
-            }),
-            duration: 2000,
-          });
+          // 静默清理，不弹 toast 打扰用户
+          console.debug("已清理临时文件: " + filesToDelete.length + " 个");
         }
       },
       fail: function (errData, code) {
