@@ -21,7 +21,7 @@
       <div @click="showButton" if="{{ images }}" class="padding"></div>
       <div
         if="{{ images }}"
-        style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2}px;` }}"
+        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2)}px;` }}"
       ></div>
       <image
         if="{{ images }}"
@@ -42,7 +42,7 @@
       ></image>
       <div
         if="{{ images }}"
-        style="{{ `width:100%; height:${(global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2}px;` }}"
+        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2)}px;` }}"
       ></div>
       <div @click="showButton" if="{{ images }}" class="padding"></div>
     </scroll>
