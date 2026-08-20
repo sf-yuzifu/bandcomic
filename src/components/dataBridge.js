@@ -440,19 +440,33 @@ export function createDataBridge(interConnect) {
     );
   }
 
-  function handleCookieMessage(rawString, parsedObj) {
+  // 只认同步器插件的明确 Cookie 格式：{"type":"cookie", "<源名>": "<cookie字符串>"}
+  // 其余字段/消息一律丢弃并记日志，防止噪声数据覆盖或污染书源 Cookie
+  function handleCookieMessage(parsedObj) {
+    const cookieData = {};
+    let hasValidField = false;
+
+    Object.keys(parsedObj).forEach(function (key) {
+      if (key === "type") return;
+      const value = parsedObj[key];
+      if (key && typeof value === "string") {
+        cookieData[key] = value;
+        hasValidField = true;
+      } else {
+        console.debug("丢弃非法Cookie字段: " + key);
+      }
+    });
+
+    if (!hasValidField) {
+      console.debug("丢弃空Cookie消息：无有效的 源名->Cookie 字段");
+      return;
+    }
+
     prompt.showToast({ message: "收到Cookie数据" });
     if (!global.cookie) {
       global.cookie = {};
     }
-
-    if (parsedObj) {
-      const { type, ...cookieData } = parsedObj;
-      Object.assign(global.cookie, cookieData);
-    } else {
-      const currentSource = global.API_SETTING.using;
-      global.cookie[currentSource] = rawString;
-    }
+    Object.assign(global.cookie, cookieData);
 
     writeCookie(global.cookie).then(
       () => {
@@ -1024,9 +1038,9 @@ export function createDataBridge(interConnect) {
     }
 
     const parsed = safeJsonParse(rawData, null);
-    if (parsed == null) {
-      prompt.showToast({ message: "非JSON，按Cookie处理" });
-      handleCookieMessage(rawData, null);
+    if (parsed == null || typeof parsed !== "object") {
+      // 非 JSON / 标量消息没有可识别格式，直接丢弃，避免噪声覆盖书源 Cookie
+      console.debug("丢弃无法识别的消息(非JSON对象)，长度=" + String(rawData).length);
       return;
     }
 
@@ -1048,7 +1062,7 @@ export function createDataBridge(interConnect) {
     } else if (msgType === "source_config" && parsed.configs) {
       handleSourceConfig(parsed.configs);
     } else if (msgType === "cookie") {
-      handleCookieMessage(null, parsed);
+      handleCookieMessage(parsed);
     } else if (msgType === "request_data") {
       sendAppData();
     } else if (msgType === "delete_comic") {
@@ -1062,8 +1076,8 @@ export function createDataBridge(interConnect) {
     ) {
       handleImportComic(parsed);
     } else {
-      prompt.showToast({ message: "未知type，按Cookie处理" });
-      handleCookieMessage(null, parsed);
+      // 未知 type 不再兜底进 Cookie，丢弃并记日志
+      console.debug("丢弃未知type消息: " + msgType);
     }
   }
 
