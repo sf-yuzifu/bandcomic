@@ -605,12 +605,12 @@ export function createDataBridge(interConnect) {
       // files: ["cover", "1", "2", ...], 减去封面就是页数
       pageCount = files.length - 1;
     } else if (chapters) {
-      // 所有章节的文件总数，减去第一章节的封面
+      // 所有章节的文件总数（多章模式书级封面独立于 chapters 发送，不参与页数统计）
       let totalFileCount = 0;
       chapters.forEach(function (ch) {
         totalFileCount += (ch.files || []).length;
       });
-      pageCount = totalFileCount - 1;
+      pageCount = totalFileCount;
     }
 
     _importState = {
@@ -639,8 +639,9 @@ export function createDataBridge(interConnect) {
         _importState.totalFiles++;
       });
     } else if (chapters) {
-      chapters.forEach(function (ch) {
-        const chapName = ch.name || "";
+      chapters.forEach(function (ch, ci) {
+        // 与插件端归一化规则镜像（trim 后为空则回退 "第N章"），两端独立计算保证一致
+        const chapName = (ch.name || "").trim() || "第" + (ci + 1) + "章";
         const chapFiles = ch.files || [];
         chapFiles.forEach(function (f) {
           const fileKey = chapName + "/" + f;
@@ -648,6 +649,9 @@ export function createDataBridge(interConnect) {
           _importState.totalFiles++;
         });
       });
+      // 多章模式书级封面：插件独立于 chapters 发送（用户可选，可能没有），
+      // 加入验收清单避免分片被当未知拒收，但不计入文件数（见 handleImportComicChunk）
+      _importState.files.push("cover");
     }
 
     prompt.showToast({
@@ -660,6 +664,11 @@ export function createDataBridge(interConnect) {
       const pending = state.pendingWrites;
       state.pendingWrites = [];
       pending.forEach(function (w) {
+        if (w.isCover) {
+          // 封面不参与文件计数
+          writeBinaryFromBase64(w.uri, w.data, function () {}, function () {});
+          return;
+        }
         startImportWrite(state, w.uri, w.data);
       });
     }
@@ -681,9 +690,11 @@ export function createDataBridge(interConnect) {
       if (!state) return;
       if (state.mode === "multi" && state.chapters && state.chapters.length > 0) {
         state.pendingDirs = state.chapters.length;
-        state.chapters.forEach(function (ch) {
+        state.chapters.forEach(function (ch, ci) {
+          // 与分片键构造同源归一化，保证 mkdir 落点与写入路径一致
+          const chapName = (ch.name || "").trim() || "第" + (ci + 1) + "章";
           file.mkdir({
-            uri: state.dirUri + "/" + (ch.name || ""),
+            uri: state.dirUri + "/" + chapName,
             recursive: false,
             success: function () {
               onOneDirReady();
@@ -801,6 +812,18 @@ export function createDataBridge(interConnect) {
       const fullBase64 = buf.chunks.join("");
       const fileUri = _importState.dirUri + "/" + fileKey;
       delete _importState.buffers[fileKey];
+
+      // 多章模式书级封面不参与文件计数（插件端可选发送，缺失不报错）；
+      // 单本模式的 cover 在 header files 清单内，走正常计数路径
+      const isUncountedCover = _importState.mode === "multi" && fileKey === "cover";
+      if (isUncountedCover) {
+        if (_importState.dirReady) {
+          writeBinaryFromBase64(fileUri, fullBase64, function () {}, function () {});
+        } else {
+          _importState.pendingWrites.push({ uri: fileUri, data: fullBase64, isCover: true });
+        }
+        return;
+      }
 
       if (_importState.dirReady) {
         startImportWrite(_importState, fileUri, fullBase64);
