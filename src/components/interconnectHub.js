@@ -6,7 +6,7 @@ import { safeJsonParse } from "./jsonUtils";
 // 后挂载者会截断前者的全部消息（fetch 分片甚至会落入 dataBridge 的 Cookie 兜底）。
 // 现在只允许本模块触碰 onmessage，按命名空间路由：
 //   - 含 tag 字段的 JSON → 网桥 fetch 协议（interconnfetch）
-//   - 其余（含 type 的 JSON、非 JSON 文本）→ 数据桥（dataBridge，含 Cookie 兜底）
+//   - 其余（含 type 的 JSON、非 JSON 文本）→ 数据桥（dataBridge；无法识别的消息会被丢弃并记日志）
 
 let interconnectModule = null;
 try {
