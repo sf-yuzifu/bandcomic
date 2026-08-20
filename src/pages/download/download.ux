@@ -98,7 +98,7 @@
       <text class="content">
         {{ $t("download.page", { page: page, total_page: page_count }) }}
       </text>
-      <text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
+      <text class="per">{{ page_count > 0 ? Math.floor((page / page_count) * 100) : 0 }}%</text>
     </div>
     <div
       class="downloading"
@@ -125,7 +125,7 @@
       <text class="content">
         {{ $t("download.page", { page: page, total_page: page_count }) }}
       </text>
-      <text class="per">{{ Math.floor((page / page_count) * 100) }}%</text>
+      <text class="per">{{ page_count > 0 ? Math.floor((page / page_count) * 100) : 0 }}%</text>
     </div>
     <div
       class="downloading"
@@ -347,6 +347,9 @@ export default {
     this.chapterName = "";
     this.processing = false;
     this.page = 0;
+    // 切章间隙重置总数：fetchImageList 返回前不残留上一章的 page_count，
+    // 避免进度条短暂显示 "0/旧N" 的失真百分比
+    this.page_count = 0;
     this.downloadError = "";
 
     try {
