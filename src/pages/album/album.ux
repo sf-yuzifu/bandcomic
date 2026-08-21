@@ -102,8 +102,10 @@
 
 <script>
 import router from "@system.router";
-import { addCoverParams } from "../../components/imageUrl";
-import { parseParams } from "../../components/routerParams";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { addCoverParams } = global.$img;
+const { parseParams } = global.$route;
 
 const { screenSize, getTime } = global;
 

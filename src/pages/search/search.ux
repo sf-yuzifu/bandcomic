@@ -109,11 +109,13 @@
 <script>
 import router from "@system.router";
 import prompt from "@system.prompt";
-import { addCoverParams } from "../../components/imageUrl";
-import { serializeParams } from "../../components/routerParams";
-import { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType } from "../../components/api";
-import { getSearchPageSize } from "../../components/settings";
-import { loadCoverProxies } from "../../components/coverLoader";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { addCoverParams } = global.$img;
+const { serializeParams } = global.$route;
+const { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType } = global.$api;
+const { getSearchPageSize } = global.$set;
+const { loadCoverProxies } = global.$cover;
 
 const { getTime } = global;
 const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页

@@ -2,6 +2,34 @@
 import device from "@system.device";
 import app from "@system.app";
 import { DEVICE_RESERVED_SPACE } from "./config/deviceConfig";
+import * as $storage from "./components/storage";
+import * as $api from "./components/api";
+import * as $img from "./components/imageUrl";
+import * as $json from "./components/jsonUtils";
+import * as $route from "./components/routerParams";
+import * as $set from "./components/settings";
+import * as $cover from "./components/coverLoader";
+import * as $bridge from "./components/dataBridge";
+import * as $hub from "./components/interconnectHub";
+import { checkUpdate } from "./components/updateChecker";
+import { createConfirmGuard } from "./components/confirmGuard";
+
+// 官方"减少打包体积#2 全局方法"：共享模块统一挂 global，页面不再 import——
+// 无公共 chunk 抽取时这些模块会在每个引用页的 bundle 里各复制一份
+// （路由栈越深重复份数越多），global 化后仅 app 包持有一份，跨页共享。
+// 顺带修复隐患：interconnectHub 的单例连接/处理器注册表此前随 bundle 复制成
+// 多实例，深页用网桥 fetch 会覆盖首页 dataBridge 注册的 onmessage 分发。
+global.$storage = $storage;
+global.$api = $api;
+global.$img = $img;
+global.$json = $json;
+global.$route = $route;
+global.$set = $set;
+global.$cover = $cover;
+global.$bridge = $bridge;
+global.$hub = $hub;
+global.checkUpdate = checkUpdate;
+global.createConfirmGuard = createConfirmGuard;
 
 const appInfo = app.getInfo();
 let deviceInfo = {};

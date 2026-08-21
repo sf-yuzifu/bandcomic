@@ -178,10 +178,12 @@
 <script>
 import router from "@system.router";
 import file from "@system.file";
-import { addImageParams, appendLvglSuffix } from "../../components/imageUrl";
-import { parseParam } from "../../components/routerParams";
-import { readHistory, updateJsonFile, HISTORY_URI } from "../../components/storage";
-import { apiFetch, buildPhotoUrl } from "../../components/api";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { addImageParams, appendLvglSuffix } = global.$img;
+const { parseParam } = global.$route;
+const { readHistory, updateJsonFile, HISTORY_URI } = global.$storage;
+const { apiFetch, buildPhotoUrl } = global.$api;
 
 const { screenSize, getTime } = global;
 

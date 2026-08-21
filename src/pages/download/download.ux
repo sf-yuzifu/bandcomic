@@ -156,9 +156,10 @@ import router from "@system.router";
 import file from "@system.file";
 import prompt from "@system.prompt";
 
-import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
-import { updateComicMeta, isAlreadyExistsError, readComics } from "../../components/storage";
-import { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } from "../../components/api";
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { addImageParams, addCoverParams, appendLvglSuffix } = global.$img;
+const { updateComicMeta, isAlreadyExistsError, readComics } = global.$storage;
+const { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } = global.$api;
 
 const { getTime } = global;
 

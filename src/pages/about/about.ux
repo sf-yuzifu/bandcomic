@@ -308,7 +308,9 @@
 import router from "@system.router";
 import app from "@system.app";
 import prompt from "@system.prompt";
-import { writeSettings } from "../../components/storage";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { writeSettings } = global.$storage;
 
 const { getTime } = global;
 

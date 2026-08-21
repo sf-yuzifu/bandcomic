@@ -93,13 +93,15 @@ import router from "@system.router";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
 import file from "@system.file";
-import { createDataBridge } from "../../components/dataBridge";
-import { getConnection, registerBridgeHandler } from "../../components/interconnectHub";
-import { checkUpdate } from "../../components/updateChecker";
-import { serializeParams } from "../../components/routerParams";
-import { readSources, readSettings, readCookie } from "../../components/storage";
-import { safeJsonParse } from "../../components/jsonUtils";
-import { apiFetch, buildDetailUrl, getFetchErrorType } from "../../components/api";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { createDataBridge } = global.$bridge;
+const { getConnection, registerBridgeHandler } = global.$hub;
+const { checkUpdate } = global;
+const { serializeParams } = global.$route;
+const { readSources, readSettings, readCookie } = global.$storage;
+const { safeJsonParse } = global.$json;
+const { apiFetch, buildDetailUrl, getFetchErrorType } = global.$api;
 
 const { getTime } = global;
 
