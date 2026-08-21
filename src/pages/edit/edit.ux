@@ -87,10 +87,12 @@
 <script>
 import router from "@system.router";
 import prompt from "@system.prompt";
-import { updateJsonFile, FILE_ERROR, SOURCES_URI } from "../../components/storage";
-import { safeJsonParse } from "../../components/jsonUtils";
-import { apiFetch, getFetchErrorType, ensureUsingSourceValid } from "../../components/api";
-import { createConfirmGuard } from "../../components/confirmGuard";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { updateJsonFile, FILE_ERROR, SOURCES_URI } = global.$storage;
+const { safeJsonParse } = global.$json;
+const { apiFetch, getFetchErrorType, ensureUsingSourceValid } = global.$api;
+const { createConfirmGuard } = global;
 
 const { getTime } = global;
 

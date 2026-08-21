@@ -182,12 +182,15 @@ import router from "@system.router"
 import file from "@system.file";
 import prompt from "@system.prompt";
 import device from "@system.device";
-import { serializeParams } from "../../components/routerParams";
-import { addCoverParams } from "../../components/imageUrl";
-import { readComics, updateComicMeta, readHistory, updateJsonFile, HISTORY_URI, COMICS_URI } from "../../components/storage";
-import { getSearchPageSize } from "../../components/settings";
-import { loadCoverProxies } from "../../components/coverLoader";
-import { createConfirmGuard } from "../../components/confirmGuard";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { serializeParams } = global.$route;
+const { addCoverParams } = global.$img;
+const { readComics, updateComicMeta, readHistory, updateJsonFile, HISTORY_URI, COMICS_URI } =
+  global.$storage;
+const { getSearchPageSize } = global.$set;
+const { loadCoverProxies } = global.$cover;
+const { createConfirmGuard } = global;
 
 const { getTime } = global;
 
