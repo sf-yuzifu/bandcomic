@@ -226,22 +226,21 @@ function metaScanCacheKey(comic) {
   );
 }
 
+// 全量数据与滑动状态不由模板直接绑定（模板只渲染分页切片/用不到），放模块级减少
+// viewModel 的 observer/数据代理开销；模块级变量跨页面实例共享，需 onInit/onDestroy 重置
+let allComics = []; // 本地漫画全量数据
+let allHistory = []; // 阅读历史全量数据（不含本地漫画记录）
+let openedComicsIndex = -1; // 当前滑出删除按钮的漫画卡片下标
+let openedHistoryIndex = -1; // 当前滑出删除按钮的历史卡片下标
+
 export default {
   private: {
     time: "",
-    allComics: [],
     comicsList: [],
     comicsPage: 1,
-    allHistory: [],
     historyList: [],
     historyPage: 1,
-    storage: "",
-    storagePercent: 0,
-    storageUsed: "",
-    storageTotal: "",
-    totalStorage: 0,
     systemReserved: "",
-    actualTotal: "",
     systemReservedPercent: 25,
     actualUsedPercent: 0,
     comicsUsed: "",
@@ -253,8 +252,6 @@ export default {
     isLoading: false,
     currentTab: "offline",
     isLoadingHistory: false,
-    openedComicsIndex: -1,
-    openedHistoryIndex: -1,
     enableSwipe: true,
   },
 
@@ -263,6 +260,11 @@ export default {
   },
 
   onInit() {
+    this.destroyed = false;
+    allComics = [];
+    allHistory = [];
+    openedComicsIndex = -1;
+    openedHistoryIndex = -1;
     device.getInfo({
       success: (data) => {
         this.enableSwipe = data.product !== 'Xiaomi Smart Band 9 Pro';
@@ -270,6 +272,13 @@ export default {
     });
     this.loadingComic();
     this.loadHistory();
+  },
+
+  onDestroy() {
+    // 中止在途加载回调（防写回模块级全量数据），并释放引用避免驻留内存
+    this.destroyed = true;
+    allComics = [];
+    allHistory = [];
   },
 
   switchTab(tab) {
@@ -284,40 +293,41 @@ export default {
     if (scrollLeft === 0) return;
     this.comicsList[index].scrollLeft = scrollLeft;
     // 如果有其他已滑出的卡片，回滚它
-    if (this.openedComicsIndex !== -1 && this.openedComicsIndex !== index) {
-      const scrollEl = this.$element('scroll_' + this.openedComicsIndex);
+    if (openedComicsIndex !== -1 && openedComicsIndex !== index) {
+      const scrollEl = this.$element('scroll_' + openedComicsIndex);
       if (scrollEl) {
         scrollEl.scrollBy({ left: -100 });
       }
-      this.comicsList[this.openedComicsIndex].scrollLeft = 0;
+      this.comicsList[openedComicsIndex].scrollLeft = 0;
     }
     // 更新当前滑出的卡片索引
-    this.openedComicsIndex = scrollLeft > 0 ? index : -1;
+    openedComicsIndex = scrollLeft > 0 ? index : -1;
   },
 
   onHistoryScroll(scrollLeft, index) {
     if (scrollLeft === 0) return;
     this.historyList[index].scrollLeft = scrollLeft;
     // 如果有其他已滑出的历史记录卡片，回滚它
-    if (this.openedHistoryIndex !== -1 && this.openedHistoryIndex !== index) {
-      const scrollEl = this.$element('history_scroll_' + this.openedHistoryIndex);
+    if (openedHistoryIndex !== -1 && openedHistoryIndex !== index) {
+      const scrollEl = this.$element('history_scroll_' + openedHistoryIndex);
       if (scrollEl) {
         scrollEl.scrollBy({ left: -100 });
       }
-      this.historyList[this.openedHistoryIndex].scrollLeft = 0;
+      this.historyList[openedHistoryIndex].scrollLeft = 0;
     }
     // 更新当前滑出的卡片索引
-    this.openedHistoryIndex = scrollLeft > 0 ? index : -1;
+    openedHistoryIndex = scrollLeft > 0 ? index : -1;
   },
 
   loadHistory() {
     this.isLoadingHistory = true;
     readHistory().then(
       (historyList) => {
+        if (this.destroyed) return;
         if (!Array.isArray(historyList)) {
           historyList = [];
         }
-        this.allHistory = historyList.filter(item => !item.local);
+        allHistory = historyList.filter(item => !item.local);
         if (this.historyPage > this.historyTotalPages()) {
           this.historyPage = this.historyTotalPages();
         }
@@ -325,7 +335,8 @@ export default {
         this.isLoadingHistory = false;
       },
       () => {
-        this.allHistory = [];
+        if (this.destroyed) return;
+        allHistory = [];
         this.historyPage = 1;
         this.updateHistoryList();
         this.isLoadingHistory = false;
@@ -334,21 +345,21 @@ export default {
   },
 
   historyTotalPages() {
-    return Math.max(1, Math.ceil(this.allHistory.length / getSearchPageSize()));
+    return Math.max(1, Math.ceil(allHistory.length / getSearchPageSize()));
   },
 
   comicsTotalPages() {
-    return Math.max(1, Math.ceil(this.allComics.length / getSearchPageSize()));
+    return Math.max(1, Math.ceil(allComics.length / getSearchPageSize()));
   },
 
   updateHistoryList() {
     const start = (this.historyPage - 1) * getSearchPageSize();
     // 拷贝一份，封面代理结果只覆盖 coverLocal，不污染待持久化的原始数据
-    this.historyList = this.allHistory
+    this.historyList = allHistory
       .slice(start, start + getSearchPageSize())
       .map((item) => ({ ...item }));
     this.loadHistoryCovers();
-    this.openedHistoryIndex = -1;
+    openedHistoryIndex = -1;
     this.scrollListToTop("historyScroll");
   },
 
@@ -364,8 +375,8 @@ export default {
 
   updateComicsList() {
     const start = (this.comicsPage - 1) * getSearchPageSize();
-    this.comicsList = this.allComics.slice(start, start + getSearchPageSize());
-    this.openedComicsIndex = -1;
+    this.comicsList = allComics.slice(start, start + getSearchPageSize());
+    openedComicsIndex = -1;
     this.scrollListToTop("comicsScroll");
   },
 
@@ -450,8 +461,8 @@ export default {
     });
 
     // 从列表中删除
-    const newList = this.allHistory.filter(item => item.id !== id);
-    this.allHistory = newList;
+    const newList = allHistory.filter(item => item.id !== id);
+    allHistory = newList;
     if (this.historyPage > this.historyTotalPages()) {
       this.historyPage = this.historyTotalPages();
     }
@@ -518,22 +529,20 @@ export default {
       comics = [];
     }
     const stats = await this.getStorage(comics);
+    // 页面已销毁（IO 期间退出）则不再写回模块级全量数据与 viewModel
+    if (this.destroyed) return;
     comics.forEach((comic) => {
       comic.incomplete = this.isComicIncomplete(comic);
     });
-    this.allComics = await this.sortComicsByRecent(comics);
+    allComics = await this.sortComicsByRecent(comics);
+    if (this.destroyed) return;
     if (this.comicsPage > this.comicsTotalPages()) {
       this.comicsPage = this.comicsTotalPages();
     }
     this.updateComicsList();
-    this.totalStorage = stats.totalStorage;
-    this.storageTotal = stats.storageTotal;
     this.systemReserved = stats.systemReserved;
-    this.actualTotal = stats.actualTotal;
-    this.storage = stats.storage;
     this.comicsUsed = stats.comicsUsed;
     this.comicsUsedPercent = stats.comicsUsedPercent;
-    this.storageUsed = stats.storageUsed;
     this.actualUsedPercent = stats.actualUsedPercent;
     this.otherUsed = stats.otherUsed;
     this.remaining = stats.remaining;
@@ -575,14 +584,9 @@ export default {
     ]);
 
     const stats = {
-      totalStorage: 0,
-      storageTotal: "",
       systemReserved: "",
-      actualTotal: "",
-      storage: "",
       comicsUsed: "",
       comicsUsedPercent: 0,
-      storageUsed: "",
       actualUsedPercent: 0,
       otherUsed: "",
       remaining: "",
@@ -592,15 +596,11 @@ export default {
     if (totalResult) {
       totalStorage = totalResult.totalStorage;
       const systemReserved = global.getReservedSpace(totalStorage);
-      stats.totalStorage = totalStorage;
-      stats.storageTotal = formatFileSize(totalStorage);
       stats.systemReserved = formatFileSize(systemReserved);
-      stats.actualTotal = formatFileSize(totalStorage - systemReserved);
     }
 
     if (availableResult) {
       availableStorage = availableResult.availableStorage;
-      stats.storage = formatFileSize(availableStorage);
     }
 
     const comicsSizeResults = await Promise.all(
@@ -721,7 +721,6 @@ export default {
       stats.comicsUsed = formatFileSize(comicsTotalSize);
       // 统一基于 totalStorage 计算百分比，确保进度条显示正确
       stats.comicsUsedPercent = Math.floor((comicsTotalSize / totalStorage) * 100);
-      stats.storageUsed = formatFileSize(actualTotal - actualAvailable);
       stats.actualUsedPercent = Math.floor(((actualTotal - actualAvailable) / totalStorage) * 100);
       stats.otherUsed = formatFileSize(Math.max(0, actualTotal - actualAvailable - comicsTotalSize));
       stats.remaining = formatFileSize(actualAvailable);

@@ -21,7 +21,8 @@
       <div @click="showButton" if="{{ images }}" class="padding"></div>
       <div
         if="{{ images }}"
-        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2)}px;` }}"
+        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/
+2 + 2)}px;` }}"
       ></div>
       <image
         if="{{ images }}"
@@ -42,7 +43,8 @@
       ></image>
       <div
         if="{{ images }}"
-        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/ 2 + 2)}px;` }}"
+        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/
+2 + 2)}px;` }}"
       ></div>
       <div @click="showButton" if="{{ images }}" class="padding"></div>
     </scroll>
@@ -188,6 +190,15 @@ let PreloadCache = {};
 let PreloadInflight = {};
 let originalName;
 
+// 以下状态与 UI 无关（不参与模板绑定），放模块级减少 viewModel 的 observer/数据
+// 代理开销；模块级变量跨页面实例共享，需 onInit 重置（onDestroy 已有清缓存模式）。
+// downloadChapter 为路由参数，未声明也可经 this.downloadChapter 收到（同 this.source），
+// 移出 private 后只是失去响应式，其不参与渲染，安全
+let reachedEdge = null; // 滚边翻页戒备状态：记录已到达过的边缘（top/bottom）
+let posX = 0; // 上一次滚动位置（标量对，替代原每个滚动事件都重建的 pos 数组）
+let posY = 0;
+let shownPage = 0; // 当前实际显示图片对应的页码（翻页时回存预加载缓存用）
+
 // 翻多少页才把阅读历史落盘一次
 const HISTORY_FLUSH_INTERVAL = 5;
 
@@ -209,12 +220,7 @@ export default {
     cover: "",
     total_chapters: 0,
     is_serial: false,
-    downloadChapter: "",
-    chapterList: [],
     pickerValues: [],
-    reachedEdge: null,
-    pos: [0, 0],
-    shownPage: 0,
   },
 
   onShow() {
@@ -238,6 +244,12 @@ export default {
   },
 
   onInit() {
+    // 模块级状态跨页面实例共享，进页重置
+    reachedEdge = null;
+    posX = 0;
+    posY = 0;
+    shownPage = 0;
+
     // 如果有传入的 source 参数，切换到对应的漫画源
     if (this.source) {
       global.API_SETTING.using = this.source;
@@ -271,16 +283,11 @@ export default {
       originalName = this.title;
       this.is_serial = this.total_chapters > 1;
       if (this.is_serial) {
-        this.chapterList = [];
-        for (let i = 1; i <= this.total_chapters; i++) {
-          this.chapterList.push(`${this.$t("photo.chapter")} ${i}`);
-        }
         this.generatePickerRanges(this.total_chapters);
       }
     } else if (this.is_serial) {
       this.downloadChapter = parseParam(this.downloadChapter);
       this.total_chapters = this.downloadChapter.length;
-      this.chapterList = this.downloadChapter.map((ch) => ch[0]);
       this.generatePickerRanges(this.total_chapters);
     }
     this.processData();
@@ -359,12 +366,12 @@ export default {
     // 离开当前页前把已显示的图片放回预加载缓存，回翻时优先使用本地
     if (
       !this.local &&
-      this.shownPage &&
-      this.shownPage !== this.page &&
+      shownPage &&
+      shownPage !== this.page &&
       this.images &&
-      !PreloadCache[this.shownPage]
+      !PreloadCache[shownPage]
     ) {
-      PreloadCache[this.shownPage] = this.images;
+      PreloadCache[shownPage] = this.images;
     }
     this.images = "";
     if (!keepScale) {
@@ -395,8 +402,8 @@ export default {
     const page = this.page;
 
     if (this.local) {
-      this.reachedEdge = null;
-      this.pos = [0, 0];
+      reachedEdge = null;
+      posX = posY = 0;
       if (this.is_serial) {
         const chapterNum = localChapterEntry[2];
         const chapterName = localChapterEntry[0];
@@ -426,9 +433,9 @@ export default {
       const cachedUri = PreloadCache[this.page];
       delete PreloadCache[this.page];
       this.images = cachedUri;
-      this.shownPage = this.page;
-      this.reachedEdge = null;
-      this.pos = [0, 0];
+      shownPage = this.page;
+      reachedEdge = null;
+      posX = posY = 0;
       this.preloadAdjacentPages();
       return;
     }
@@ -450,9 +457,9 @@ export default {
           return;
         }
         this.images = response.data;
-        this.shownPage = page;
-        this.reachedEdge = null;
-        this.pos = [0, 0];
+        shownPage = page;
+        reachedEdge = null;
+        posX = posY = 0;
         this.preloadAdjacentPages();
       },
       fail: () => {
@@ -461,7 +468,7 @@ export default {
         }
         this.loading = "";
         this.images = "";
-        this.shownPage = 0;
+        shownPage = 0;
       },
     });
   },
@@ -493,9 +500,9 @@ export default {
           }
           if (p == this.page && !this.images) {
             this.images = response.data;
-            this.shownPage = p;
-            this.reachedEdge = null;
-            this.pos = [0, 0];
+            shownPage = p;
+            reachedEdge = null;
+            posX = posY = 0;
             return;
           }
           PreloadCache[p] = response.data;
@@ -508,7 +515,7 @@ export default {
           if (p == this.page && !this.images) {
             this.loading = "";
             this.images = "";
-            this.shownPage = 0;
+            shownPage = 0;
           }
         },
       });
@@ -737,16 +744,18 @@ export default {
       top: 1,
       left: 0,
     });
-    this.reachedEdge = null;
-    this.pos = [0, 0];
+    reachedEdge = null;
+    posX = posY = 0;
   },
 
   async onScroll(val) {
     if (!this.images) {
       return;
     }
-    const [prevX, prevY] = this.pos;
-    this.pos = [val.scrollX, val.scrollY];
+    const prevX = posX;
+    const prevY = posY;
+    posX = val.scrollX;
+    posY = val.scrollY;
     // 只处理纯纵向滚动（横向/斜向滚动忽略）
     if (prevY === val.scrollY || prevX !== val.scrollX) return;
 
@@ -759,10 +768,10 @@ export default {
         if (!atBottom && !atTop) return;
         const edge = atBottom ? "bottom" : "top";
         // 同一边缘连续到达两次才翻页；触发后保持戒备状态（加载成功后才重置），换边则重新计数
-        if (this.reachedEdge === edge) {
+        if (reachedEdge === edge) {
           this.toPage(atBottom ? "+" : "-");
         } else {
-          this.reachedEdge = edge;
+          reachedEdge = edge;
         }
       },
     });
