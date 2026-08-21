@@ -615,8 +615,15 @@ export default {
     const comicsSizeResults = await Promise.all(
       comics.map((comic, index) => {
         return new Promise((resolve) => {
-          // 有元数据：直接使用，不再扫描目录
-          if (typeof comic.size === "number") {
+          // 有元数据：直接使用，不再扫描目录。
+          // 例外：元数据疑似滞后（存在 downloaded < page_count 的章节，即下载中途退出，
+          // syncComicStorageMeta 未回写）——页数/大小以磁盘为准扫描自愈，回写后
+          // applyComicMeta 的可读页数、角标判断随之正确
+          const metaStale =
+            typeof comic.size === "number" &&
+            Array.isArray(comic.chapters) &&
+            comic.chapters.some((c) => (c.downloaded || 0) < (c.page_count || 0));
+          if (typeof comic.size === "number" && !metaStale) {
             this.applyComicMeta(comic);
             const length = comic.size;
             comic.size = formatFileSize(length);
@@ -629,17 +636,32 @@ export default {
             success: (data) => {
               let length = 0;
               const scannedChapters = [];
+              // metaStale（有元数据但疑似下载中断）：章节全集与章节名以元数据为准
+              // （含空目录/未建目录的中断章，占位不丢章——photo 页按下标取章，
+              // 丢章会导致下标错位/越界），磁盘扫描仅把各章可读页数 patch 成实际值
+              if (metaStale) {
+                this.applyComicMeta(comic);
+              }
+              const scannedPages = {};
               for (const i of data.subFiles) {
                 if (i.type === "dir" && i.subFiles.length !== 0) {
-                  if (!comic.totalChapter) {
-                    comic.totalChapter = [];
-                  }
                   const folderName = i.uri.split("/").pop();
                   const parts = folderName.split("　");
                   const chapterNum = parts[0];
                   const chapterName = parts.slice(1).join("　");
-                  comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
                   const num = parseInt(chapterNum);
+                  if (metaStale) {
+                    // 页数按章节号记账，章节名/排序沿用元数据
+                    // （同时兼容导入漫画的无数字前缀目录名）
+                    if (!isNaN(num)) {
+                      scannedPages[num] = i.subFiles.length;
+                    }
+                  } else {
+                    if (!comic.totalChapter) {
+                      comic.totalChapter = [];
+                    }
+                    comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
+                  }
                   // 导入漫画的章节目录不带数字前缀，跳过（保留导入时写入的元数据）
                   if (!isNaN(num)) {
                     scannedChapters.push({
@@ -655,12 +677,18 @@ export default {
                   length += i.length;
                 }
               }
+              if (metaStale && Array.isArray(comic.totalChapter)) {
+                // 把磁盘实际页数 patch 回元数据三元组；磁盘无此章（空目录/未建）即 0 页
+                comic.totalChapter.forEach((trip) => {
+                  trip[1] = scannedPages[trip[2]] || 0;
+                });
+              }
               if (!comic.is_serial) {
                 // 单本：根目录文件含封面，页数减一
                 const fileCount = data.subFiles.filter((f) => f.type !== "dir").length;
                 scannedChapters.push({ num: 0, name: "", downloaded: Math.max(0, fileCount - 1) });
               }
-              if (comic.totalChapter) {
+              if (!metaStale && comic.totalChapter) {
                 comic.totalChapter.sort((a, b) => a[2] - b[2]);
               }
               comic.size = formatFileSize(length);

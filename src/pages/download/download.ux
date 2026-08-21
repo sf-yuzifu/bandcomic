@@ -55,7 +55,7 @@
         >
           <div
             for="{{ chapter in chapterList.slice(displayStart, displayEnd) }}"
-            class="chapter-item {{ chapter.selected ? 'selected' : '' }}"
+            class="chapter-item {{ chapter.selected ? 'selected' : '' }} {{ chapter.dlState }}"
             @click="toggleChapter(chapter.num)"
           >
             <text class="chapter-text">{{ $t("photo.chapter") }}</text>
@@ -149,7 +149,7 @@ import file from "@system.file";
 import prompt from "@system.prompt";
 
 import { addImageParams, addCoverParams, appendLvglSuffix } from "../../components/imageUrl";
-import { updateComicMeta, isAlreadyExistsError } from "../../components/storage";
+import { updateComicMeta, isAlreadyExistsError, readComics } from "../../components/storage";
 import { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } from "../../components/api";
 
 const { getTime } = global;
@@ -168,6 +168,14 @@ function sanitizeFolderName(name) {
   if (!name) return name;
   const invalidChars = /[\\/:*?"<>|]/g;
   return name.replace(invalidChars, "_");
+}
+
+// 章节本地下载状态：完整下载 → "dl-full"；本地有页但不完整 → "dl-partial"；
+// 无记录或 0 页 → ""（无标记）。page_count 缺失的旧数据有页即视为完整
+function getChapterDlState(entry) {
+  if (!entry || !entry.downloaded) return "";
+  if (!entry.page_count || entry.downloaded >= entry.page_count) return "dl-full";
+  return "dl-partial";
 }
 
 export default {
@@ -226,14 +234,51 @@ export default {
     this.displayStart = 0;
     this.displayEnd = Math.min(18, this.total_chapters);
     if (this.is_serial) {
+      // 标记各章本地下载状态，让用户分辨哪些章已下载过。
+      // 已下页数以磁盘实际文件为准（下载中途退出时元数据 downloaded 滞后，
+      // syncComicStorageMeta 要等队列完整结束后才回写）；总页数取元数据登记的 API 页数
+      const comicId = global.API_SETTING.using + "_" + this.id;
+      const comics = await readComics().catch(() => []);
+      const comic = (Array.isArray(comics) ? comics : []).find((c) => c.id === comicId);
+      const pageCountMap = {};
+      ((comic && comic.chapters) || []).forEach((c) => {
+        pageCountMap[c.num] = c.page_count || 0;
+      });
+      const scannedPages = await this.scanLocalChapterPages(comicId);
       this.chapterList = [];
       for (let i = 1; i <= this.total_chapters; i++) {
         this.chapterList.push({
           num: i,
           selected: false,
+          dlState: getChapterDlState({
+            downloaded: scannedPages[i] || 0,
+            page_count: pageCountMap[i] || 0,
+          }),
         });
       }
     }
+  },
+
+  // 扫描本漫磁盘目录，返回 { 章节号: 实际页数 }；目录不存在/扫描失败回空对象
+  scanLocalChapterPages(comicId) {
+    return new Promise((resolve) => {
+      file.get({
+        uri: `internal://files/${comicId}`,
+        recursive: true,
+        success: (data) => {
+          const pages = {};
+          (data.subFiles || []).forEach((item) => {
+            if (item.type !== "dir") return;
+            const num = parseInt(item.uri.split("/").pop().split("　")[0]);
+            if (!isNaN(num)) {
+              pages[num] = (item.subFiles || []).length;
+            }
+          });
+          resolve(pages);
+        },
+        fail: () => resolve({}),
+      });
+    });
   },
 
   toggleChapter(chapterNum) {
@@ -904,6 +949,18 @@ export default {
   margin: 3.33%;
   border: 3px solid rgba(255, 255, 255, 0.24);
   flex-direction: column;
+}
+
+/* 已下载状态提示色：蓝=完整下载，橙=部分下载（不完整）
+   需定义在 .selected 之前，选中态绿色背景/边框可完整覆盖提示色 */
+.dl-full {
+  background-color: #17394d;
+  border-color: #4fc3f7;
+}
+
+.dl-partial {
+  background-color: #4d3a17;
+  border-color: #ffa726;
 }
 
 .selected {
