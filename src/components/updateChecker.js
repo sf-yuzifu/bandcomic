@@ -15,15 +15,17 @@ function normalizeUpdateInfo(data) {
   if (!data) return null;
 
   const latestVersionCode = parseInt(
-    data.latestVersionCode || data.versionCode || data.latest_code || 0
+    data.latestVersionCode || data.versionCode || data.latest_code || 0,
+    10
   );
 
   if (!latestVersionCode) return null;
 
   const current = app.getInfo();
-  const currentVersionCode = parseInt(current.versionCode || 0);
+  const currentVersionCode = parseInt(current.versionCode || 0, 10);
   const minSupportedVersionCode = parseInt(
-    data.minSupportedVersionCode || data.minVersionCode || data.min_supported_code || 0
+    data.minSupportedVersionCode || data.minVersionCode || data.min_supported_code || 0,
+    10
   );
   const needUpdate = latestVersionCode > currentVersionCode;
   const forceUpdate =
