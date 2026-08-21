@@ -8,8 +8,22 @@ export function addUrlParam(url, key, value) {
     urlObj.searchParams.set(key, value.toString());
     return urlObj.toString() + hash;
   } catch (error) {
-    if (baseUrl.includes("?" + key + "=") || baseUrl.includes("&" + key + "=")) {
-      return baseUrl + hash;
+    // key 已存在：原位替换其值（到 & 或结尾），与 try 分支 searchParams.set 的更新语义一致
+    const qMark = "?" + key + "=";
+    const aMark = "&" + key + "=";
+    let idx = baseUrl.indexOf(qMark);
+    let markLen = qMark.length;
+    if (idx < 0) {
+      idx = baseUrl.indexOf(aMark);
+      markLen = aMark.length;
+    }
+    if (idx >= 0) {
+      const valueStart = idx + markLen;
+      let valueEnd = baseUrl.indexOf("&", valueStart);
+      if (valueEnd < 0) valueEnd = baseUrl.length;
+      return (
+        baseUrl.slice(0, valueStart) + encodeURIComponent(value) + baseUrl.slice(valueEnd) + hash
+      );
     }
     const separator = baseUrl.includes("?") ? "&" : "?";
     return baseUrl + separator + key + "=" + encodeURIComponent(value) + hash;
@@ -26,7 +40,7 @@ export function addImageParams(url, width = 600, quality = 50, params = ["width"
 }
 
 export function addCoverParams(url) {
-  return addImageParams(url, 80, parseInt(global.APP_SETTING.imageQuality) || 50);
+  return addImageParams(url, 80, parseInt(global.APP_SETTING.imageQuality, 10) || 50);
 }
 
 export function appendLvglSuffix(url, suffix) {

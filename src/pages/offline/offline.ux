@@ -190,7 +190,7 @@ import { readComics, updateComicMeta, readHistory, updateJsonFile, HISTORY_URI, 
 const { getTime } = global;
 
 function getPageSize() {
-  return parseInt(global.APP_SETTING.searchPageSize) || 10;
+  return parseInt(global.APP_SETTING.searchPageSize, 10) || 10;
 }
 
 let del;
@@ -675,7 +675,7 @@ export default {
                   const parts = folderName.split("　");
                   const chapterNum = parts[0];
                   const chapterName = parts.slice(1).join("　");
-                  const num = parseInt(chapterNum);
+                  const num = parseInt(chapterNum, 10);
                   if (metaStale) {
                     // 页数按章节号记账，章节名/排序沿用元数据
                     // （同时兼容导入漫画的无数字前缀目录名）

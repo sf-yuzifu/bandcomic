@@ -286,7 +286,7 @@ export default {
           const pages = {};
           (data.subFiles || []).forEach((item) => {
             if (item.type !== "dir") return;
-            const num = parseInt(item.uri.split("/").pop().split("　")[0]);
+            const num = parseInt(item.uri.split("/").pop().split("　")[0], 10);
             if (!isNaN(num)) {
               pages[num] = (item.subFiles || []).length;
             }
@@ -644,7 +644,7 @@ export default {
                   size += len;
                   const parts = item.uri.split("/").pop().split("　");
                   scanned.push({
-                    num: parseInt(parts[0]),
+                    num: parseInt(parts[0], 10),
                     name: parts.slice(1).join("　"),
                     downloaded: (item.subFiles || []).length,
                   });
@@ -807,8 +807,8 @@ export default {
       imageUrl = ImageCache[page - 1];
       imageUrl = addImageParams(
         imageUrl,
-        parseInt(global.APP_SETTING.imageSize) || 600,
-        parseInt(global.APP_SETTING.imageQuality) || 50
+        parseInt(global.APP_SETTING.imageSize, 10) || 600,
+        parseInt(global.APP_SETTING.imageQuality, 10) || 50
       );
 
       const fileUri = `${folderUri}/${page}${global.APP_SETTING.imagePreTranscode ? ".bin" : ""}`;

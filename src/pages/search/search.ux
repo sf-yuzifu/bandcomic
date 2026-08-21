@@ -105,7 +105,7 @@
 import router from "@system.router";
 import prompt from "@system.prompt";
 import { addCoverParams } from "../../components/imageUrl";
-import { flattenParams } from "../../components/routerParams";
+import { serializeParams } from "../../components/routerParams";
 import {
   apiFetch,
   proxyImage,
@@ -116,7 +116,7 @@ import {
 
 const { getTime } = global;
 function getPageSize() {
-  return parseInt(global.APP_SETTING.searchPageSize) || 10;
+  return parseInt(global.APP_SETTING.searchPageSize, 10) || 10;
 }
 const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页
 
@@ -427,7 +427,7 @@ export default {
         }
         router.push({
           uri: "/pages/album",
-          params: flattenParams(response.data),
+          params: serializeParams(response.data),
         });
       },
       fail: (data, code) => {

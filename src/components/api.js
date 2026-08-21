@@ -55,7 +55,8 @@ export function buildSourceUrl(path, replacements) {
   let url = getCurrentSource().apiUrl + path;
   const map = replacements || {};
   Object.keys(map).forEach((key) => {
-    url = url.replace("<" + key + ">", map[key]);
+    // String.replace 字符串模式只替换首个匹配，split/join 全量替换（同一 key 出现多次时）
+    url = url.split("<" + key + ">").join(map[key]);
   });
   return url;
 }
