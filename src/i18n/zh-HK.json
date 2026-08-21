@@ -142,7 +142,7 @@
         "title": "編輯漫畫來源",
         "input": "輸入漫畫來源",
         "complete": "已新增",
-        "completeHttp": "已新增（未加密連線）",
+        "completeHttp": "已新增（HTTP 未加密，內容可能被竊聽或篡改，請確認來源可信）",
         "storageError": "無法寫入漫畫來源，儲存空間已滿",
         "unknownWriteError": "無法寫入漫畫來源，錯誤代碼",
         "domainError": "請輸入可用網域",

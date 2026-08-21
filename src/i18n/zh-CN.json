@@ -142,7 +142,7 @@
         "title": "编辑漫画源",
         "input": "输入漫画源",
         "complete": "已添加",
-        "completeHttp": "已添加（未加密连接）",
+        "completeHttp": "已添加（HTTP 未加密，内容可能被窃听或篡改，请确认来源可信）",
         "storageError": "无法写入漫画源，存储已满",
         "unknownWriteError": "无法写入漫画源，错误代码",
         "domainError": "请输入可用域名",
