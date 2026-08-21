@@ -212,6 +212,22 @@ function formatFileSize(size) {
 
 let delHistoryId;
 
+// metaStale 自愈扫描的会话级缓存：key = 漫画 id + chapters 元数据指纹。
+// 中断漫画的回写不会改变"未完成"状态（downloaded 仍 < page_count），
+// 不缓存的话每次重建书架（下载完 replace 回书架等）都对同一批漫画重复递归扫盘；
+// 下载/导入/删除会改写 chapters 元数据，指纹随之变化，缓存自然失效
+const metaScanCache = {};
+
+function metaScanCacheKey(comic) {
+  return (
+    comic.id +
+    "|" +
+    (comic.chapters || [])
+      .map((c) => c.num + ":" + (c.downloaded || 0) + "/" + (c.page_count || 0))
+      .join(",")
+  );
+}
+
 export default {
   private: {
     time: "",
@@ -630,6 +646,16 @@ export default {
             resolve({ index, length });
             return;
           }
+          // metaStale 自愈扫描走会话缓存：指纹未变直接复用上次的扫描结果
+          const cacheKey = metaStale ? metaScanCacheKey(comic) : "";
+          const cached = cacheKey ? metaScanCache[cacheKey] : null;
+          if (cached) {
+            comic.totalChapter = cached.totalChapter.map((trip) => trip.slice());
+            const length = cached.length;
+            comic.size = formatFileSize(length);
+            resolve({ index, length });
+            return;
+          }
           file.get({
             uri: `internal://files/${comic.id}`,
             recursive: true,
@@ -690,6 +716,13 @@ export default {
               }
               if (!metaStale && comic.totalChapter) {
                 comic.totalChapter.sort((a, b) => a[2] - b[2]);
+              }
+              // metaStale 扫描结果入会话缓存（深拷贝，防后续被运行时修改污染）
+              if (cacheKey) {
+                metaScanCache[cacheKey] = {
+                  totalChapter: (comic.totalChapter || []).map((trip) => trip.slice()),
+                  length: length,
+                };
               }
               comic.size = formatFileSize(length);
               this.backfillComicMeta(comic, length, scannedChapters);

@@ -234,29 +234,46 @@ export default {
     this.displayStart = 0;
     this.displayEnd = Math.min(18, this.total_chapters);
     if (this.is_serial) {
-      // 标记各章本地下载状态，让用户分辨哪些章已下载过。
-      // 已下页数以磁盘实际文件为准（下载中途退出时元数据 downloaded 滞后，
-      // syncComicStorageMeta 要等队列完整结束后才回写）；总页数取元数据登记的 API 页数
-      const comicId = global.API_SETTING.using + "_" + this.id;
-      const comics = await readComics().catch(() => []);
-      const comic = (Array.isArray(comics) ? comics : []).find((c) => c.id === comicId);
-      const pageCountMap = {};
-      ((comic && comic.chapters) || []).forEach((c) => {
-        pageCountMap[c.num] = c.page_count || 0;
-      });
-      const scannedPages = await this.scanLocalChapterPages(comicId);
+      // 先同步渲染章节网格，已下载标记异步补齐，进页不被 IO 阻塞
       this.chapterList = [];
       for (let i = 1; i <= this.total_chapters; i++) {
         this.chapterList.push({
           num: i,
           selected: false,
-          dlState: getChapterDlState({
-            downloaded: scannedPages[i] || 0,
-            page_count: pageCountMap[i] || 0,
-          }),
+          dlState: "",
         });
       }
+      this.markDownloadedChapters();
     }
+  },
+
+  // 异步标记各章本地下载状态，让用户分辨哪些章已下载过。
+  // 已下页数以磁盘实际文件为准（下载中途退出时元数据 downloaded 滞后，
+  // syncComicStorageMeta 要等队列完整结束后才回写）；总页数取元数据登记的 API 页数。
+  // 两个 IO 无依赖，并行发起
+  async markDownloadedChapters() {
+    const comicId = global.API_SETTING.using + "_" + this.id;
+    const results = await Promise.all([
+      readComics().catch(() => []),
+      this.scanLocalChapterPages(comicId),
+    ]);
+    // 页面已销毁（IO 期间退出）则不再 patch
+    if (this.destroyed) return;
+    const comics = results[0];
+    const scannedPages = results[1];
+    const comic = (Array.isArray(comics) ? comics : []).find((c) => c.id === comicId);
+    const pageCountMap = {};
+    ((comic && comic.chapters) || []).forEach((c) => {
+      pageCountMap[c.num] = c.page_count || 0;
+    });
+    // 一次性整体替换触发一次渲染；用户已勾选的 selected 状态保留
+    this.chapterList = this.chapterList.map((item) => ({
+      ...item,
+      dlState: getChapterDlState({
+        downloaded: scannedPages[item.num] || 0,
+        page_count: pageCountMap[item.num] || 0,
+      }),
+    }));
   },
 
   // 扫描本漫磁盘目录，返回 { 章节号: 实际页数 }；目录不存在/扫描失败回空对象
