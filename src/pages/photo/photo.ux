@@ -241,6 +241,8 @@ export default {
     ImageCache = [];
     PreloadCache = {};
     PreloadInflight = {};
+    // 整章图片缓存刚释放，主动收一次 GC（官方内存优化建议，勿高频调用）
+    if (typeof global !== "undefined" && global.runGC) global.runGC();
   },
 
   onInit() {

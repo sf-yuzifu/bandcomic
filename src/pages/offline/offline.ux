@@ -887,6 +887,8 @@ export default {
     }).then(
       () => {
         console.debug("comics.json更新成功");
+        // 整本漫画文件已删除，主动收一次 GC（官方内存优化建议，勿高频调用）
+        if (typeof global !== "undefined" && global.runGC) global.runGC();
         prompt.showToast({
           message: this.$t("offline.delComplete"),
           duration: 1000,

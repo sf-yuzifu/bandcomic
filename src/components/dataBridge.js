@@ -598,6 +598,9 @@ export function createDataBridge(interConnect) {
     if (_importState === state) {
       _importState = null;
     }
+
+    // 整本导入收尾，导入缓冲已释放，主动收一次 GC
+    if (typeof global !== "undefined" && global.runGC) global.runGC();
   }
 
   function handleImportComic(parsed) {
