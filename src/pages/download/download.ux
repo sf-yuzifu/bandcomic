@@ -160,6 +160,18 @@ const MAX_FAILED_TOLERANCE = 3;
 
 let ImageCache = [];
 
+// 以下状态与 UI 无关（不参与模板绑定），放模块级减少 viewModel 的 observer/数据
+// 代理开销；模块级变量跨页面实例共享，需 onInit/onDestroy 重置。
+// name/cover 为路由参数、is_serial 为 initData 派生值，未声明也可经 this.xxx 收到/赋值
+// （同 this.destroyed 既有用法），移出 private 后只是失去响应式，均不参与渲染，安全
+let failedChapters = []; // 下载失败的章节号列表
+let coverDone = false; // 连载封面是否已下载成功
+let currentChapterIndex = 0; // 下载队列当前章节下标
+let loadingMore = false; // 章节网格翻页窗口切换中（防重复触发）
+let scrollTopTriggered = false; // 触顶已预触发一次（二次触发才翻页）
+let scrollBottomTriggered = false; // 触底已预触发一次（二次触发才翻页）
+let originalName = ""; // 连载漫画原名（chapterName 随章节变化，登记用原名）
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -183,27 +195,17 @@ export default {
     time: "",
     id: 0,
     page_count: 0,
-    name: "",
     page: 0,
-    cover: "",
     processing: false,
     chapter: 0,
     downloadError: "",
-    originalName: "",
-    is_serial: false,
     showChapterSelect: false,
     chapterList: [],
     selectedChapters: [],
     total_chapters: 0,
-    currentChapterIndex: 0,
     chapterName: "",
     displayStart: 0,
     displayEnd: 18,
-    loadingMore: false,
-    scrollTopTriggered: false,
-    scrollBottomTriggered: false,
-    failedChapters: [],
-    coverDone: false,
     queuePosition: "",
   },
 
@@ -216,10 +218,18 @@ export default {
     // 避免僵尸回调继续下载、toast 串台或 router.replace 劫持导航
     this.destroyed = true;
     ImageCache = [];
+    failedChapters = [];
   },
 
   async onInit() {
     this.destroyed = false;
+    // 模块级状态跨页面实例共享，进页重置
+    failedChapters = [];
+    coverDone = false;
+    currentChapterIndex = 0;
+    loadingMore = false;
+    scrollTopTriggered = false;
+    scrollBottomTriggered = false;
     this.showChapterSelect = this.total_chapters > 1;
     await this.initData();
     if (!(this.is_serial && this.total_chapters > 1)) {
@@ -230,7 +240,7 @@ export default {
 
   async initData() {
     this.is_serial = this.total_chapters > 1;
-    this.originalName = this.name;
+    originalName = this.name;
     this.displayStart = 0;
     this.displayEnd = Math.min(18, this.total_chapters);
     if (this.is_serial) {
@@ -331,37 +341,37 @@ export default {
   },
 
   onScrollTop() {
-    if (this.displayStart === 0 || this.loadingMore) {
-      this.scrollTopTriggered = false;
+    if (this.displayStart === 0 || loadingMore) {
+      scrollTopTriggered = false;
       return;
     }
-    if (!this.scrollTopTriggered) {
-      this.scrollTopTriggered = true;
+    if (!scrollTopTriggered) {
+      scrollTopTriggered = true;
       return;
     }
-    this.scrollTopTriggered = false;
-    this.scrollBottomTriggered = false;
-    this.loadingMore = true;
+    scrollTopTriggered = false;
+    scrollBottomTriggered = false;
+    loadingMore = true;
     this.displayEnd = this.displayStart;
     this.displayStart = Math.max(0, this.displayStart - 18);
-    this.loadingMore = false;
+    loadingMore = false;
   },
 
   onScrollBottom() {
-    if (this.displayEnd >= this.total_chapters || this.loadingMore) {
-      this.scrollBottomTriggered = false;
+    if (this.displayEnd >= this.total_chapters || loadingMore) {
+      scrollBottomTriggered = false;
       return;
     }
-    if (!this.scrollBottomTriggered) {
-      this.scrollBottomTriggered = true;
+    if (!scrollBottomTriggered) {
+      scrollBottomTriggered = true;
       return;
     }
-    this.scrollTopTriggered = false;
-    this.scrollBottomTriggered = false;
-    this.loadingMore = true;
+    scrollTopTriggered = false;
+    scrollBottomTriggered = false;
+    loadingMore = true;
     this.displayStart = this.displayEnd;
     this.displayEnd = Math.min(this.displayEnd + 18, this.total_chapters);
-    this.loadingMore = false;
+    loadingMore = false;
   },
 
   async startBatchDownload() {
@@ -373,20 +383,20 @@ export default {
       return;
     }
     this.showChapterSelect = false;
-    this.failedChapters = [];
-    this.coverDone = false;
+    failedChapters = [];
+    coverDone = false;
     this.queuePosition = "";
-    this.currentChapterIndex = 0;
+    currentChapterIndex = 0;
     await this.downloadNextChapter();
   },
 
   async downloadNextChapter() {
     if (this.destroyed) return;
-    if (this.currentChapterIndex >= this.selectedChapters.length) {
+    if (currentChapterIndex >= this.selectedChapters.length) {
       // 队列结束，回写一次真实存储元数据（含失败章节的实际已下载页数）
       await this.syncComicStorageMeta();
       if (this.destroyed) return;
-      if (this.failedChapters.length === 0) {
+      if (failedChapters.length === 0) {
         this.processing = true;
         prompt.showToast({
           message: this.$t("download.allComplete"),
@@ -403,9 +413,8 @@ export default {
       return;
     }
 
-    this.chapter = this.selectedChapters[this.currentChapterIndex];
-    this.queuePosition =
-      "(" + (this.currentChapterIndex + 1) + "/" + this.selectedChapters.length + ")";
+    this.chapter = this.selectedChapters[currentChapterIndex];
+    this.queuePosition = "(" + (currentChapterIndex + 1) + "/" + this.selectedChapters.length + ")";
     this.chapterName = "";
     this.processing = false;
     this.page = 0;
@@ -419,7 +428,7 @@ export default {
     } catch (error) {
       if (this.destroyed) return;
       console.error(`章节 ${this.chapter} 下载失败:`, error);
-      this.failedChapters.push(this.chapter);
+      failedChapters.push(this.chapter);
       // 队列模式不用整屏错误 UI，toast 提示原因后继续下一章
       this.downloadError = "";
       const reason = typeof error === "string" ? error : String(error);
@@ -430,7 +439,10 @@ export default {
       await sleep(500);
     }
 
-    this.currentChapterIndex++;
+    // currentChapterIndex 已移模块级（跨实例共享），自增前必须确认页面未销毁，
+    // 防止旧实例僵尸回调污染新实例的队列位置
+    if (this.destroyed) return;
+    currentChapterIndex++;
     await sleep(500);
     await this.downloadNextChapter();
   },
@@ -438,13 +450,13 @@ export default {
   showSummaryView() {
     this.queuePosition = "";
     // 复用原本的失败 UI：fail 图标 + downloadError 文案，用户自行返回
-    if (this.failedChapters.length === this.selectedChapters.length) {
+    if (failedChapters.length === this.selectedChapters.length) {
       this.downloadError = this.$t("download.allFailed");
     } else {
       this.downloadError = this.$t("download.summaryWithFailed", {
-        success: this.selectedChapters.length - this.failedChapters.length,
+        success: this.selectedChapters.length - failedChapters.length,
         total: this.selectedChapters.length,
-        chapters: this.failedChapters.join("、"),
+        chapters: failedChapters.join("、"),
       });
     }
   },
@@ -465,7 +477,7 @@ export default {
   // 已存在则合并（保留 chapters/size/downloaded_at 等元数据），不存在则新建
   ensureComicRegistered() {
     const newComic = {
-      name: this.is_serial ? this.originalName : this.name,
+      name: this.is_serial ? originalName : this.name,
       page_count: this.page_count,
       id: global.API_SETTING.using + "_" + this.id,
       is_serial: this.is_serial,
@@ -512,10 +524,10 @@ export default {
 
       if (this.is_serial) {
         // 封面失败不应中断队列，下一章会重试
-        if (!this.coverDone) {
+        if (!coverDone) {
           try {
             await this.downloadCover(coverUri);
-            this.coverDone = true;
+            coverDone = true;
           } catch (e) {
             console.debug(`封面下载失败，将在下一章重试: ${e}`);
           }
@@ -590,7 +602,7 @@ export default {
     const chapterName = this.is_serial ? this.chapterName || this.name : "";
     const pageCount = this.page_count;
     return updateComicMeta(comicId, (comic) => {
-      comic.name = this.is_serial ? this.originalName : this.name;
+      comic.name = this.is_serial ? originalName : this.name;
       comic.is_serial = this.is_serial;
       if (this.is_serial) {
         if (this.total_chapters) {

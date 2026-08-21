@@ -695,7 +695,12 @@ export function createDataBridge(interConnect) {
       pending.forEach(function (w) {
         if (w.isCover) {
           // 封面不参与文件计数
-          writeBinaryFromBase64(w.uri, w.data, function () {}, function () {});
+          writeBinaryFromBase64(
+            w.uri,
+            w.data,
+            function () {},
+            function () {}
+          );
           return;
         }
         startImportWrite(state, w.uri, w.data);
@@ -847,7 +852,12 @@ export function createDataBridge(interConnect) {
       const isUncountedCover = _importState.mode === "multi" && fileKey === "cover";
       if (isUncountedCover) {
         if (_importState.dirReady) {
-          writeBinaryFromBase64(fileUri, fullBase64, function () {}, function () {});
+          writeBinaryFromBase64(
+            fileUri,
+            fullBase64,
+            function () {},
+            function () {}
+          );
         } else {
           _importState.pendingWrites.push({ uri: fileUri, data: fullBase64, isCover: true });
         }
