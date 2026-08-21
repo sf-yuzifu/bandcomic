@@ -371,6 +371,22 @@ export default {
       this.scale = 0;
     }
 
+    // 本地连载：先同步当前章的章节名与总页数，再做"到底"判断。
+    // 路由传入的顶层 page_count 对连载不可靠（下载流程登记的是 0 或残留值），
+    // 若先判断会用脏值永远早退 end，正确值永远没机会赋值
+    // （表现为第 0 页、无法翻页、章节名不显示）
+    let localChapterEntry = null;
+    if (this.local && this.is_serial) {
+      localChapterEntry = this.downloadChapter[this.chapter - 1];
+      if (!localChapterEntry) {
+        // 章节号越界（历史记录章数 > 本地登记章数）：显示加载失败而非卡死
+        this.loading = false;
+        return;
+      }
+      this.title = localChapterEntry[0];
+      this.page_count = localChapterEntry[1];
+    }
+
     if (this.page > this.page_count) {
       this.loading = "end";
       return;
@@ -382,10 +398,8 @@ export default {
       this.reachedEdge = null;
       this.pos = [0, 0];
       if (this.is_serial) {
-        const chapterNum = this.downloadChapter[this.chapter - 1][2];
-        const chapterName = this.downloadChapter[this.chapter - 1][0];
-        this.title = chapterName;
-        this.page_count = this.downloadChapter[this.chapter - 1][1];
+        const chapterNum = localChapterEntry[2];
+        const chapterName = localChapterEntry[0];
         const baseUri = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
         this.resolveLocalImage(baseUri);
       } else {

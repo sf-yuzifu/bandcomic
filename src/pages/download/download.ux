@@ -408,7 +408,13 @@ export default {
       id: global.API_SETTING.using + "_" + this.id,
       is_serial: this.is_serial,
     };
-    return updateComicMeta(newComic.id, (comic) => ({ ...comic, ...newComic })).catch((e) => {
+    return updateComicMeta(newComic.id, (comic) => ({
+      ...comic,
+      ...newComic,
+      // 连载每章登记时 this.page_count 已被重置为 0，不能用 0 覆盖旧值；
+      // 真实页数由 syncChapterMeta 写入 chapters[].page_count
+      page_count: this.page_count || comic.page_count || 0,
+    })).catch((e) => {
       if (e && e.parseError) {
         throw this.$t("download.parseIndexFailed");
       }
