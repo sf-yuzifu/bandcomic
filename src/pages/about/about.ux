@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
@@ -17,46 +17,56 @@
       "
       class="title"
     >
-      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
-      <span>{{ $t("about") }}</span>
+      <span class="iconfont" if.static="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span static>{{ $t("about") }}</span>
     </text>
-    <div style="height: 6px"></div>
+    <div static style="height: 6px"></div>
     <div class="box">
       <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
         <div id="info">
           <div id="inner">
-            <text class="bold" style="color: #fff; font-size: 30px">
+            <text static class="bold" style="color: #fff; font-size: 30px">
               {{ $t("appName") }}
             </text>
-            <text id="version" class="re">{{ ver }}({{ code }})</text>
+            <text static id="version" class="re">{{ ver }}({{ code }})</text>
           </div>
           <div id="logo-container">
-            <image id="logo" style="width: 76px" src="/common/logo.png" />
+            <image static id="logo" style="width: 76px" src="/common/logo.png" />
           </div>
         </div>
         <div id="copyright">
           <text class="re bold">
-            <span>{{ $t("author") }}</span>
+            <span static>{{ $t("author") }}</span>
             <!-- 这里是占位符 -->
-            <span style="color: transparent">2</span>
-            <span class="bold" style="color: #fff">小鱼yuzifu</span>
+            <span static style="color: transparent">2</span>
+            <span static class="bold" style="color: #fff">小鱼yuzifu</span>
           </text>
-          <div style="width: 1px; height: 10px"></div>
-          <text class="re bold">{{ $t("tks") }}</text>
-          <text class="bold" style="color: #fff">OrPudding</text>
-          <text class="bold" style="color: #fff">NEORUAA</text>
-          <text class="bold" style="color: #fff">无源流沙</text>
+          <div static style="width: 1px; height: 10px"></div>
+          <text static class="re bold">{{ $t("tks") }}</text>
+          <text static class="bold" style="color: #fff">OrPudding</text>
+          <text static class="bold" style="color: #fff">NEORUAA</text>
+          <text static class="bold" style="color: #fff">无源流沙</text>
         </div>
         <div class="settings">
-          <text class="re bold setting-title">
+          <text static class="re bold setting-title">
             {{ $t("setting") }}
           </text>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.searchPageSize") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.searchPageSize") }}
               </marquee>
             </div>
@@ -70,10 +80,20 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.imageQuality") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.imageQuality") }}
               </marquee>
             </div>
@@ -87,10 +107,20 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.imageSize") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.imageSize") }}
               </marquee>
             </div>
@@ -104,10 +134,20 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.showCoverInSearch") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.showCoverInSearch") }}
               </marquee>
             </div>
@@ -119,10 +159,20 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.keepDefaultZoom") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.keepDefaultZoom") }}
               </marquee>
             </div>
@@ -134,10 +184,20 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.imageUsePng") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.imageUsePng") }}
               </marquee>
             </div>
@@ -149,10 +209,20 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.imagePreTranscode") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.imagePreTranscode") }}
               </marquee>
             </div>
@@ -164,10 +234,20 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.imagePreload") }}
               </marquee>
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-info">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
                 {{ $t("settings.info.imagePreload") }}
               </marquee>
             </div>
@@ -179,11 +259,16 @@
           </div>
           <div class="setting-item">
             <div class="setting-item-content">
-              <marquee scrollamount="{{ 20 }}" text-offset="{{ 20 }}" class="setting-item-title">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
                 {{ $t("settings.preferBridge") }}
               </marquee>
               <marquee
-                if="{{ !isBand10Pro }}"
+                if.static="{{ !isBand10Pro }}"
                 scrollamount="{{ 20 }}"
                 text-offset="{{ 20 }}"
                 class="setting-item-info"
@@ -191,7 +276,7 @@
                 {{ $t("settings.info.preferBridge") }}
               </marquee>
               <marquee
-                if="{{ isBand10Pro }}"
+                if.static="{{ isBand10Pro }}"
                 scrollamount="{{ 20 }}"
                 text-offset="{{ 20 }}"
                 class="setting-item-info"
@@ -206,10 +291,14 @@
             ></switch>
           </div>
         </div>
-        <text class="bold" style="color: #fff; width: 276px; text-align: center; height: 100%">
+        <text
+          static
+          class="bold"
+          style="color: #fff; width: 276px; text-align: center; height: 100%"
+        >
           本项目由米坛社区开源项目支持计划提供支持
         </text>
-        <div class="padding"></div>
+        <div static class="padding"></div>
       </scroll>
     </div>
   </div>

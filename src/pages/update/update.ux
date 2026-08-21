@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <img
-      if="{{ global.screenShape != 'circle' && !forceUpdate }}"
+      if.static="{{ global.screenShape != 'circle' && !forceUpdate }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
@@ -17,47 +17,47 @@
         }
       "
     >
-      <span class="iconfont" if="{{ global.screenShape == 'circle' && !forceUpdate }}">
+      <span class="iconfont" if.static="{{ global.screenShape == 'circle' && !forceUpdate }}">
         &#xe685;
       </span>
-      <span>{{ $t("update.title") }}</span>
+      <span static>{{ $t("update.title") }}</span>
     </text>
 
     <div class="box">
       <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
         <div class="card">
-          <image class="logo" src="/common/logo.png"></image>
-          <text class="main-title">{{ updateTitle }}</text>
-          <text class="version">
+          <image static class="logo" src="/common/logo.png"></image>
+          <text static class="main-title">{{ updateTitle }}</text>
+          <text static class="version">
             {{ $t("update.currentVersion") }}{{ currentVersionName }}({{ currentVersionCode }})
           </text>
-          <text class="version">
+          <text static class="version">
             {{ $t("update.latestVersion") }}{{ latestVersionName }}({{ latestVersionCode }})
           </text>
-          <text class="force" if="{{ forceUpdate }}">
+          <text class="force" if.static="{{ forceUpdate }}">
             {{ $t("update.force") }}
           </text>
-          <text class="message" if="{{ message }}">{{ message }}</text>
+          <text class="message" if.static="{{ message }}">{{ message }}</text>
         </div>
 
         <div class="content-card">
-          <text class="section-title">{{ $t("update.changelog") }}</text>
-          <text class="content" for="{{ item in changelogList }}">
+          <text static class="section-title">{{ $t("update.changelog") }}</text>
+          <text class="content" for.static="{{ item in changelogList }}">
             {{ item }}
           </text>
-          <text class="content" if="{{ changelogList.length == 0 }}">
+          <text class="content" if.static="{{ changelogList.length == 0 }}">
             {{ $t("update.noChangelog") }}
           </text>
         </div>
 
-        <div class="content-card" if="{{ downloadUrl }}">
-          <text class="section-title">{{ $t("update.download") }}</text>
+        <div class="content-card" if.static="{{ downloadUrl }}">
+          <text static class="section-title">{{ $t("update.download") }}</text>
           <div class="qrcode-box">
-            <qrcode class="download-qrcode" value="{{ downloadUrl }}"></qrcode>
+            <qrcode static class="download-qrcode" value="{{ downloadUrl }}"></qrcode>
           </div>
-          <text class="qrcode-tip">{{ $t("update.scanTip") }}</text>
+          <text static class="qrcode-tip">{{ $t("update.scanTip") }}</text>
         </div>
-        <div class="padding"></div>
+        <div static class="padding"></div>
       </scroll>
     </div>
   </div>

@@ -2,13 +2,13 @@
 <template>
   <div class="demo-page">
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
     />
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="rightButton top"
       src="/common/info.png"
       @click="routeAbout"
@@ -16,11 +16,11 @@
 
     <text class="time">{{ time }}</text>
     <text if="{{ hide && global.screenShape == 'circle' }}" @click="routeBack" class="title">
-      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
-      <span>{{ $t("edit.title") }}</span>
+      <span class="iconfont" if.static="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span static>{{ $t("edit.title") }}</span>
     </text>
-    <text class="title" if="{{ global.screenShape != 'circle' }}">
-      <span>{{ $t("edit.title") }}</span>
+    <text class="title" if.static="{{ global.screenShape != 'circle' }}">
+      <span static>{{ $t("edit.title") }}</span>
     </text>
 
     <list if="{{ hide }}" class="search-results" bounces="true">
@@ -41,20 +41,20 @@
     </list>
 
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="rightButton bottom"
       src="/common/add.png"
       @click="changeState"
     />
     <img
-      if="{{ global.screenShape == 'circle' }}"
+      if.static="{{ global.screenShape == 'circle' }}"
       class="bottom"
       src="/common/add_s4.png"
       @click="changeState"
     />
 
     <div if="{{ !hide }}" class="line" style="margin-bottom: 10px">
-      <text style="margin-bottom: 4px">{{ $t("edit.input") }}</text>
+      <text static style="margin-bottom: 4px">{{ $t("edit.input") }}</text>
       <div class="input-line" @click="changeState">
         <scroll
           style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
@@ -65,7 +65,7 @@
           </text>
         </scroll>
       </div>
-      <div class="padding" style="height: 60%"></div>
+      <div static class="padding" style="height: 60%"></div>
       <div
         class="padding"
         style="height: 2%"
@@ -223,9 +223,7 @@ export default {
             prompt.showToast({
               message: this.$t(protocol === "http" ? "edit.completeHttp" : "edit.complete"),
             });
-            updateMultipleSources(
-              Object.keys(data).map((key) => ({ [key]: data[key] }))
-            );
+            updateMultipleSources(Object.keys(data).map((key) => ({ [key]: data[key] })));
             this.API_SETTING = global.API_SETTING;
           },
           ({ data: errData, code }) => {

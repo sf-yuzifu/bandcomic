@@ -10,13 +10,21 @@
       ></image>
     </div>
     <div id="mask" if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}">
-      <image style="top: 300px; width: 926px; height: 926px" src="/common/fail_s4.png"></image>
+      <image
+        static
+        style="top: 300px; width: 926px; height: 926px"
+        src="/common/fail_s4.png"
+      ></image>
     </div>
 
     <text class="time">{{ time }}</text>
 
     <div class="title" style="justify-content: center">
-      <text class="iconfont" style="margin-right: 10px" if="{{ global.screenShape == 'circle' }}">
+      <text
+        class="iconfont"
+        style="margin-right: 10px"
+        if.static="{{ global.screenShape == 'circle' }}"
+      >
         &#xe685;
       </text>
       <marquee
@@ -36,7 +44,7 @@
     </div>
 
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
@@ -58,7 +66,7 @@
             class="chapter-item {{ chapter.selected ? 'selected' : '' }} {{ chapter.dlState }}"
             @click="toggleChapter(chapter.num)"
           >
-            <text class="chapter-text">{{ $t("photo.chapter") }}</text>
+            <text static class="chapter-text">{{ $t("photo.chapter") }}</text>
             <text class="chapter-text">{{ chapter.num }}</text>
           </div>
         </scroll>
@@ -104,7 +112,7 @@
       class="downloading"
       if="{{ !showChapterSelect && global.screenShape != 'circle' && downloadError }}"
     >
-      <image src="/common/fail.png"></image>
+      <image static src="/common/fail.png"></image>
       <text class="dl-text">{{ downloadError }}</text>
     </div>
 
@@ -131,8 +139,8 @@
       class="downloading"
       if="{{ !showChapterSelect && global.screenShape == 'circle' && downloadError }}"
     >
-      <text class="dl-text">{{ $t("download.downloadFailed") }}</text>
-      <image src="/common/fail_icon.png"></image>
+      <text static class="dl-text">{{ $t("download.downloadFailed") }}</text>
+      <image static src="/common/fail_icon.png"></image>
     </div>
     <div
       id="process-s4"

@@ -2,25 +2,25 @@
 <template>
   <div class="demo-page">
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
     />
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="rightButton top"
       src="/common/info.png"
       @click="routeAbout"
     />
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="rightButton bottom"
       src="/common/More_B.png"
       @click="routeOffline"
     />
     <img
-      if="{{ global.screenShape == 'circle' }}"
+      if.static="{{ global.screenShape == 'circle' }}"
       class="bottom"
       src="/common/more_s4.png"
       @click="routeOffline"
@@ -29,12 +29,12 @@
     <text class="title" if="{{ hide && global.screenShape == 'circle' }}" @click="routeAbout">
       {{ $t("appName") }}
     </text>
-    <text class="title" if="{{ global.screenShape != 'circle' }}">
+    <text class="title" if.static="{{ global.screenShape != 'circle' }}">
       {{ $t("appName") }}
     </text>
 
     <div class="line" style="margin-bottom: 10px">
-      <text style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
+      <text static style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
       <div class="input-line" @click="changeState">
         <scroll
           style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
@@ -58,7 +58,7 @@
       <text if="{{ Object.keys(API_SETTING).length > 2 }}" class="iconfont" @click="toggleSource">
         &#xe628;
       </text>
-      <text class="iconfont" @click="routeEdit">&#xe607;</text>
+      <text class="iconfont" @click="routeEdit" static>&#xe607;</text>
     </div>
     <input-method
       hide="{{ hide }}"
@@ -79,9 +79,9 @@
         }
       "
     >
-      <image src="/common/donate.png" />
-      <text style="color: #fff; font-weight: bold">{{ $t("donate") }}</text>
-      <text style="color: rgba(255, 255, 255, 0.6); font-size: 20px; font-weight: bold">
+      <image static src="/common/donate.png" />
+      <text static style="color: #fff; font-weight: bold">{{ $t("donate") }}</text>
+      <text static style="color: rgba(255, 255, 255, 0.6); font-size: 20px; font-weight: bold">
         {{ $t("donateHint") }}
       </text>
     </div>
