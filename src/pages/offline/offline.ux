@@ -1,13 +1,13 @@
 <template>
   <div class="container">
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
     />
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="rightButton top"
       src="/common/trans.png"
       @click="changeTab"
@@ -23,7 +23,7 @@
       "
       class="title"
     >
-      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span class="iconfont" if.static="{{ global.screenShape == 'circle' }}">&#xe685;</span>
       <span>{{ currentTab === 'offline' ? $t("offline.offline") : $t("offline.historyTitle") }}</span>
     </text>
 
@@ -31,7 +31,7 @@
       <!-- 本地漫画标签页 -->
       <div class="tab-switcher">
         <div if="{{ storageLoaded }}" class="storage-container">
-          <text class="storage-label">{{ $t("offline.storage") }}</text>
+          <text static class="storage-label">{{ $t("offline.storage") }}</text>
           <div class="storage-bar">
             <div class="storage-bar-segment-reserved" style="width: {{ systemReservedPercent }}%"></div>
             <div class="storage-bar-segment-comics" style="width: {{ comicsUsedPercent }}%"></div>
@@ -40,32 +40,32 @@
           </div>
           <div class="storage-list">
             <div class="storage-list-item" @click="toggleStorageList">
-              <div class="storage-list-color storage-list-color-remaining"></div>
-              <text class="storage-list-label">{{ $t("offline.remaining") }}</text>
+              <div static class="storage-list-color storage-list-color-remaining"></div>
+              <text static class="storage-list-label">{{ $t("offline.remaining") }}</text>
               <text class="storage-list-value">{{ remaining }}</text>
               <text class="storage-list-arrow">{{ storageListExpanded ? '&#xe686' : '&#xe685' }}</text>
             </div>
             <div if="{{ storageListExpanded && systemReservedPercent }}" class="storage-list-item">
-              <div class="storage-list-color storage-list-color-reserved"></div>
-              <text class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
+              <div static class="storage-list-color storage-list-color-reserved"></div>
+              <text static class="storage-list-label">{{ $t("offline.legendReserved") }}</text>
               <text class="storage-list-value">{{ systemReserved }}</text>
-              <text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+              <text static class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
             </div>
             <div if="{{ storageListExpanded }}" class="storage-list-item">
-              <div class="storage-list-color storage-list-color-comics"></div>
-              <text class="storage-list-label">{{ $t("offline.comicsUsed") }}</text>
+              <div static class="storage-list-color storage-list-color-comics"></div>
+              <text static class="storage-list-label">{{ $t("offline.comicsUsed") }}</text>
               <text class="storage-list-value">{{ comicsUsed }}</text>
-              <text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+              <text static class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
             </div>
             <div if="{{ storageListExpanded }}" class="storage-list-item">
-              <div class="storage-list-color storage-list-color-other"></div>
-              <text class="storage-list-label">{{ $t("offline.otherUsed") }}</text>
+              <div static class="storage-list-color storage-list-color-other"></div>
+              <text static class="storage-list-label">{{ $t("offline.otherUsed") }}</text>
               <text class="storage-list-value">{{ otherUsed }}</text>
-              <text class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
+              <text static class="storage-list-arrow" style="opacity: 0;">&#xe686</text>
             </div>
           </div>
         </div>
-        <div style="height: 10px"></div>
+        <div static style="height: 10px"></div>
 
         <list if="{{ comicsList.length != 0 }}" id="comicsScroll" class="box" bounces="true">
           <list-item for="{{ comicsList }}" class="item" type="list-item">
@@ -74,7 +74,7 @@
                 <div class="cover-mask">
                   <image class="cover" src="internal://files/{{ $item.id }}/cover" alt="/common/empty.png"></image>
                   <text class="tri iconfont" if="{{ $item.incomplete }}">&#xeb65;</text>
-                  <image class="corner-mask" src="/common/coverMask.png"></image>
+                  <image static class="corner-mask" src="/common/coverMask.png"></image>
                 </div>
                 <div class="text-content">
                   <text class="itemText">{{ $item.name }}</text>
@@ -82,7 +82,7 @@
                 </div>
               </div>
               <div class="delete-btn" @click="del($item.id)">
-                <image src="/common/del.png" class="delete-icon"></image>
+                <image static src="/common/del.png" class="delete-icon"></image>
               </div>
             </scroll>
           </list-item>
@@ -109,25 +109,25 @@
               </div>
             </div>
           </list-item>
-          <div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
+          <div if.static="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
         </list>
 
         <div class="empty" if="{{ comicsList.length == 0 }}">
-          <image src="/common/empty.png"></image>
+          <image static src="/common/empty.png"></image>
           <text class="empty-text">{{ isLoading ? $t("offline.loading") : $t("offline.empty") }}</text>
         </div>
       </div>
 
       <!-- 历史记录标签页 -->
       <div class="tab-switcher">
-        <div style="height: 10px"></div>
+        <div static style="height: 10px"></div>
         <list if="{{ historyList.length != 0 }}" id="historyScroll" class="box" bounces="true">
           <list-item for="{{ historyList }}" class="item" type="list-item">
             <scroll class="swipe-item" scroll-x="true" id="history_scroll_{{ $idx }}" @scroll="(event) => onHistoryScroll(event.scrollX, $idx)">
               <div class="swipe-content" @click="toHistoryPhoto($item)">
                 <div class="cover-mask">
                   <image class="cover" src="{{ $item.coverLocal || $item.cover }}" alt="/common/empty.png"></image>
-                  <image class="corner-mask" src="/common/coverMask.png"></image>
+                  <image static class="corner-mask" src="/common/coverMask.png"></image>
                 </div>
                 <div class="text-content">
                   <text class="itemText">{{ $item.title }}</text>
@@ -138,7 +138,7 @@
                 </div>
               </div>
               <div class="delete-btn" @click="delHistory($item.id)">
-                <image src="/common/del.png" class="delete-icon"></image>
+                <image static src="/common/del.png" class="delete-icon"></image>
               </div>
             </scroll>
           </list-item>
@@ -165,11 +165,11 @@
               </div>
             </div>
           </list-item>
-          <div if="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
+          <div if.static="{{ global.screenShape == 'circle' }}" style="height: 56px"></div>
         </list>
 
         <div class="empty" if="{{ historyList.length == 0 }}">
-          <image src="/common/empty.png"></image>
+          <image static src="/common/empty.png"></image>
           <text class="empty-text">{{ isLoadingHistory ? $t("offline.historyLoading") : $t("offline.historyEmpty") }}</text>
         </div>
       </div>

@@ -122,8 +122,8 @@
           ></picker>
         </div>
         <div if="{{ total_chapters > 1 }}" style="height: 20px"></div>
-        <text class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
-        <div style="height: 10px"></div>
+        <text static class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
+        <div static style="height: 10px"></div>
         <slider
           class="slider"
           min="0"
@@ -132,7 +132,7 @@
           value="{{ scale }}"
           onchange="onSliderChange"
         ></slider>
-        <div style="height: 10px"></div>
+        <div static style="height: 10px"></div>
       </div>
     </div>
 

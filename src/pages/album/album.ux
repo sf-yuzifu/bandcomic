@@ -1,13 +1,13 @@
 <template>
   <div class="demo-page">
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
     />
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="rightButton top"
       src="/common/info.png"
       @click="routeAbout"
@@ -24,8 +24,8 @@
         }
       "
     >
-      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
-      <span>{{ $t("detail.detail") }}</span>
+      <span class="iconfont" if.static="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span static>{{ $t("detail.detail") }}</span>
     </text>
     <div class="box">
       <scroll id="scrollId" class="box" scroll-x="true" scroll-y="true" bounces="true">
@@ -41,15 +41,16 @@
             style="{{ `width:${size.width}px;height:${size.height}px;object-fit:${loading ? 'contain' : 'cover'};` }}"
           ></image>
         </div>
-        <text class="title1">{{ name }}</text>
+        <text static class="title1">{{ name }}</text>
         <div class="detail">
-          <div class="column" if="{{ gid }}">
-            <text class="bold grey">GID</text>
-            <text class="bold">{{ gid.toString() }}</text>
+          <div class="column" if.static="{{ gid }}">
+            <text static class="bold grey">GID</text>
+            <text static class="bold">{{ gid.toString() }}</text>
           </div>
           <div class="column" else>
-            <text class="bold grey" style="width: 48px">ID</text>
+            <text static class="bold grey" style="width: 48px">ID</text>
             <marquee
+              static
               style="font-size: 24px; width: 100%; text-align: right"
               scrollamount="{{ 20 }}"
               text-offset="{{ 20 }}"
@@ -58,40 +59,40 @@
               {{ item_id.toString() }}
             </marquee>
           </div>
-          <div class="column" if="{{ page_count }}">
-            <text class="bold grey">{{ $t("detail.page_count") }}</text>
-            <text class="bold">{{ page_count }}</text>
+          <div class="column" if.static="{{ page_count }}">
+            <text static class="bold grey">{{ $t("detail.page_count") }}</text>
+            <text static class="bold">{{ page_count }}</text>
           </div>
-          <div class="column" if="{{ total_chapters > 1 }}">
-            <text class="bold grey">{{ $t("detail.total_chapters") }}</text>
-            <text class="bold">{{ total_chapters }}</text>
+          <div class="column" if.static="{{ total_chapters > 1 }}">
+            <text static class="bold grey">{{ $t("detail.total_chapters") }}</text>
+            <text static class="bold">{{ total_chapters }}</text>
           </div>
-          <div class="column" if="{{ views }}">
-            <text class="bold grey">{{ $t("detail.views") }}</text>
-            <text class="bold">{{ views }}</text>
+          <div class="column" if.static="{{ views }}">
+            <text static class="bold grey">{{ $t("detail.views") }}</text>
+            <text static class="bold">{{ views }}</text>
           </div>
-          <div class="column" if="{{ rate }}">
-            <text class="bold grey">{{ $t("detail.rate") }}</text>
-            <text class="bold">{{ rate }}</text>
+          <div class="column" if.static="{{ rate }}">
+            <text static class="bold grey">{{ $t("detail.rate") }}</text>
+            <text static class="bold">{{ rate }}</text>
           </div>
-          <div class="column tags" if="{{ tags }}">
-            <text class="bold grey">{{ $t("detail.tags") }}</text>
-            <text for="{{ tag in tags }}" class="bold">
+          <div class="column tags" if.static="{{ tags }}">
+            <text static class="bold grey">{{ $t("detail.tags") }}</text>
+            <text for.static="{{ tag in tags }}" class="bold">
               {{ tag }}
             </text>
           </div>
         </div>
-        <div class="padding"></div>
+        <div static class="padding"></div>
       </scroll>
     </div>
     <img
-      if="{{ global.screenShape != 'circle' }}"
+      if.static="{{ global.screenShape != 'circle' }}"
       class="rightButton bottom"
       src="/common/dl.png"
       @click="download"
     />
     <img
-      if="{{ global.screenShape == 'circle' }}"
+      if.static="{{ global.screenShape == 'circle' }}"
       class="bottom"
       src="/common/dl_s4.png"
       @click="download"
