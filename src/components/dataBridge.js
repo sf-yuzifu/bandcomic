@@ -391,6 +391,42 @@ export function createDataBridge(interConnect) {
         let pending = comicsList.length;
 
         comicsList.forEach(function (c) {
+          const pushMeta = function (pageCount, chapterCount) {
+            comics.push({
+              name: c.name || "",
+              page_count: pageCount,
+              chapters: chapterCount,
+            });
+
+            pending--;
+            if (pending === 0) {
+              readSourcesAndSend(comics);
+            }
+          };
+
+          // 元数据可信（有 chapters 且无疑似下载中断的滞后）时直接算，避免每本递归扫盘。
+          // 口径与导入侧一致：页数 = 各章已下载页数之和（修复连载只数顶层文件恒为 0 的旧口径），
+          // 章数 = 登记章节数；中断滞后/无元数据的旧漫画才扫盘兜底（同一口径）
+          const chaptersMeta = Array.isArray(c.chapters) ? c.chapters : [];
+          const metaTrusted =
+            chaptersMeta.length > 0 &&
+            !chaptersMeta.some(function (ch) {
+              return (ch.downloaded || 0) < (ch.page_count || 0);
+            });
+
+          if (metaTrusted) {
+            let pageCount = 0;
+            let chapterCount = 0;
+            chaptersMeta.forEach(function (ch) {
+              pageCount += ch.downloaded || 0;
+              if (c.is_serial && ch.num > 0) {
+                chapterCount++;
+              }
+            });
+            pushMeta(pageCount, chapterCount);
+            return;
+          }
+
           file.get({
             uri: "internal://files/" + c.id,
             recursive: true,
@@ -400,36 +436,19 @@ export function createDataBridge(interConnect) {
 
               if (fileData.subFiles) {
                 fileData.subFiles.forEach(function (f) {
-                  if (f.type === "dir" && f.subFiles && f.subFiles.length > 0) {
+                  if (f.type === "dir") {
                     chapterCount++;
-                  } else if (f.type !== "dir" && f.uri.split("/").pop() !== "cover") {
+                    pageCount += (f.subFiles || []).length;
+                  } else if (f.uri.split("/").pop() !== "cover") {
                     pageCount++;
                   }
                 });
               }
 
-              comics.push({
-                name: c.name || "",
-                page_count: pageCount,
-                chapters: chapterCount,
-              });
-
-              pending--;
-              if (pending === 0) {
-                readSourcesAndSend(comics);
-              }
+              pushMeta(pageCount, chapterCount);
             },
             fail: function () {
-              comics.push({
-                name: c.name || "",
-                page_count: 0,
-                chapters: 0,
-              });
-
-              pending--;
-              if (pending === 0) {
-                readSourcesAndSend(comics);
-              }
+              pushMeta(0, 0);
             },
           });
         });
