@@ -142,7 +142,7 @@
         "title": "Edit Sources",
         "input": "Enter source",
         "complete": "Added",
-        "completeHttp": "Added (unencrypted connection)",
+        "completeHttp": "Added (unencrypted HTTP: content may be intercepted or tampered with, only add trusted sources)",
         "storageError": "Storage full",
         "unknownWriteError": "Write error, Code:",
         "domainError": "Invalid domain",
