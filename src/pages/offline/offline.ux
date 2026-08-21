@@ -930,6 +930,7 @@ export default {
 
 <style>
 @import "../../common/base.css";
+@import "../../common/pagination.css";
 
 .container {
   flex-direction: column;
@@ -1187,63 +1188,6 @@ export default {
 .meta {
   font-size: 20px;
   color: rgba(255, 255, 255, 0.6);
-}
-
-.pagination-wrapper {
-  height: 70px;
-  margin-top: 10px;
-  margin-bottom: 20px;
-}
-
-.pagination-controls {
-  display: flex;
-  flex-direction: row;
-  justify-content: space-around;
-  align-items: center;
-  width: 100%;
-}
-
-.pagination-button {
-  height: 56px;
-  width: 100px;
-  border-radius: 100%;
-  border: 3px rgba(255, 255, 255, 0.24);
-  background-color: #262626;
-  justify-content: center;
-  align-items: center;
-}
-
-.pagination-button-disabled {
-  height: 56px;
-  width: 100px;
-  border-radius: 100%;
-  border: 3px rgba(255, 255, 255, 0.06);
-  background-color: rgba(38, 38, 38, 0.12);
-  justify-content: center;
-  align-items: center;
-}
-
-.text-normal {
-  font-size: 24px;
-  color: #ffffff;
-  font-weight: bold;
-}
-
-.text-disabled {
-  font-size: 24px;
-  color: #555555;
-}
-
-.page-indicator {
-  font-size: 26px;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: bold;
-}
-
-@media (shape: circle) {
-  .pagination-controls {
-    justify-content: center;
-  }
 }
 
 /* 圆形手表适配 */
