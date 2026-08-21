@@ -13,6 +13,8 @@ import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
 import { ensureUsingSourceValid } from "./api";
 
+// 封面推送读盘切片（手表→手机）：保持 6144 小切片求稳；
+// 反方向（插件→设备 fetch 分片）才用 24K，见 interconnfetch.js MAX_CHUNK_SIZE
 const COVER_READ_CHUNK_SIZE = 6144;
 const ACK_TIMEOUT = 5000;
 const COVER_ACK_TIMEOUT = 3000;

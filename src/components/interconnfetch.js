@@ -9,7 +9,9 @@ const HS_TAG = "__hs__";
 const TIMEOUT = 3000;
 const IDLE_TIMEOUT = 10000;
 const REQUEST_TIMEOUT = 20000;
-const MAX_CHUNK_SIZE = 4096;
+// 分片上限：互联消息体上限传闻 48K，保险取 24K（base64 后约 32K 字符，留足 JSON 开销余量）；
+// 通过握手 caps.maxChunkSize 告知网桥插件，插件按此切片
+const MAX_CHUNK_SIZE = 24576;
 
 let systemFetch = null;
 
