@@ -106,18 +106,11 @@ import router from "@system.router";
 import prompt from "@system.prompt";
 import { addCoverParams } from "../../components/imageUrl";
 import { serializeParams } from "../../components/routerParams";
-import {
-  apiFetch,
-  proxyImage,
-  buildSearchUrl,
-  buildDetailUrl,
-  getFetchErrorType,
-} from "../../components/api";
+import { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType } from "../../components/api";
+import { getSearchPageSize } from "../../components/settings";
+import { loadCoverProxies } from "../../components/coverLoader";
 
 const { getTime } = global;
-function getPageSize() {
-  return parseInt(global.APP_SETTING.searchPageSize, 10) || 10;
-}
 const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页
 
 let requestSeq = 0; // 请求序号，过期请求的回调直接忽略
@@ -223,8 +216,8 @@ export default {
   // 填页模块：当前显示页填满设置项数（或已无更多数据）才渲染，否则继续请求
   fillCurrentPage() {
     const cachedEnd = this.apiDroppedCount + this.apiResults.length;
-    const startIndex = (this.displayPage - 1) * getPageSize();
-    if (cachedEnd >= startIndex + getPageSize() || !this.apiHasNext) {
+    const startIndex = (this.displayPage - 1) * getSearchPageSize();
+    if (cachedEnd >= startIndex + getSearchPageSize() || !this.apiHasNext) {
       lastFillEnd = -1;
       this.loading = false;
       this.updateSearchResults();
@@ -271,11 +264,11 @@ export default {
     if (targetPage < 1) return;
 
     lastFillEnd = -1;
-    const startIndex = (targetPage - 1) * getPageSize();
+    const startIndex = (targetPage - 1) * getSearchPageSize();
     const cachedEnd = this.apiDroppedCount + this.apiResults.length;
 
     if (startIndex >= this.apiDroppedCount && cachedEnd > startIndex) {
-      if (cachedEnd >= startIndex + getPageSize() || !this.apiHasNext) {
+      if (cachedEnd >= startIndex + getSearchPageSize() || !this.apiHasNext) {
         // 数据足够填满（或已是最后一页），直接更新显示
         this.displayPage = targetPage;
         this.updateSearchResults();
@@ -361,8 +354,8 @@ export default {
 
   // 更新显示列表的辅助函数
   updateSearchResults() {
-    const startIndex = (this.displayPage - 1) * getPageSize() - this.apiDroppedCount;
-    const endIndex = startIndex + getPageSize();
+    const startIndex = (this.displayPage - 1) * getSearchPageSize() - this.apiDroppedCount;
+    const endIndex = startIndex + getSearchPageSize();
     this.searchResults = this.apiResults.slice(startIndex, endIndex);
     this.loadResultCovers();
 
@@ -381,35 +374,27 @@ export default {
 
   // 不支持直接加载远程图片的设备，通过插件把封面拉为本地文件后替换显示
   loadResultCovers() {
-    this.searchResults.forEach((item) => {
-      if (!item.thumb || item.thumb.indexOf("http") !== 0) return;
-      proxyImage(
-        item.thumb,
-        `${global.API_SETTING.using}_${item.gid}_cover`,
-        (uri) => {
-          if (!uri || uri === item.thumb) return;
-          const updated = { ...item, thumb: uri };
-          const cacheIndex = this.apiResults.findIndex(
-            (r) => r.gid === item.gid && r.thumb === item.thumb
-          );
-          if (cacheIndex !== -1) {
-            this.apiResults[cacheIndex] = updated;
-          }
-          const showIndex = this.searchResults.findIndex(
-            (r) => r.gid === item.gid && r.thumb === item.thumb
-          );
-          if (showIndex !== -1) {
-            this.searchResults.splice(showIndex, 1, updated);
-          }
-        },
-        1
-      );
+    loadCoverProxies(this.searchResults, {
+      getUrl: (item) => item.thumb,
+      getName: (item) => `${global.API_SETTING.using}_${item.gid}_cover`,
+      match: (row, item) => row.gid === item.gid && row.thumb === item.thumb,
+      merge: (item, uri) => ({ ...item, thumb: uri }),
+      skipSame: true,
+      onLocal: (item, updated) => {
+        // 同步更新数据仓库，回翻页时不再重复代理
+        const cacheIndex = this.apiResults.findIndex(
+          (r) => r.gid === item.gid && r.thumb === item.thumb
+        );
+        if (cacheIndex !== -1) {
+          this.apiResults[cacheIndex] = updated;
+        }
+      },
     });
   },
 
   // 判断是否可以点击下一页
   canGoNext() {
-    const nextNeededIndex = this.displayPage * getPageSize();
+    const nextNeededIndex = this.displayPage * getSearchPageSize();
     return this.apiDroppedCount + this.apiResults.length > nextNeededIndex || this.apiHasNext;
   },
 

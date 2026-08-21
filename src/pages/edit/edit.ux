@@ -90,10 +90,11 @@ import prompt from "@system.prompt";
 import { updateJsonFile, FILE_ERROR, SOURCES_URI } from "../../components/storage";
 import { safeJsonParse } from "../../components/jsonUtils";
 import { apiFetch, getFetchErrorType, ensureUsingSourceValid } from "../../components/api";
+import { createConfirmGuard } from "../../components/confirmGuard";
 
 const { getTime } = global;
 
-let delSource;
+const confirmDelSource = createConfirmGuard();
 
 function replaceIfDuplicate(configArray, newConfigObject) {
   // 处理多个源的情况：如果传入的是对象，将其转换为数组
@@ -262,20 +263,7 @@ export default {
   },
 
   del(source) {
-    if (delSource !== source) {
-      // 第一次点击，提示二次确认
-      delSource = source;
-      prompt.showToast({ message: this.$t("edit.delConfirm"), duration: 2000 });
-      // 3秒后重置
-      setTimeout(() => {
-        if (delSource === source) {
-          delSource = null;
-        }
-      }, 3000);
-      return;
-    }
-    // 第二次点击，执行删除
-    delSource = null;
+    if (!confirmDelSource(source, this.$t("edit.delConfirm"), { duration: 2000 })) return;
     updateJsonFile(SOURCES_URI, [], (datas) => {
       const list = Array.isArray(datas) ? datas : [];
       return list.filter((item) => Object.keys(item)[0] !== source);
