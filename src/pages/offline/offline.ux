@@ -184,16 +184,14 @@ import prompt from "@system.prompt";
 import device from "@system.device";
 import { serializeParams } from "../../components/routerParams";
 import { addCoverParams } from "../../components/imageUrl";
-import { proxyImage } from "../../components/api";
 import { readComics, updateComicMeta, readHistory, updateJsonFile, HISTORY_URI, COMICS_URI } from "../../components/storage";
+import { getSearchPageSize } from "../../components/settings";
+import { loadCoverProxies } from "../../components/coverLoader";
+import { createConfirmGuard } from "../../components/confirmGuard";
 
 const { getTime } = global;
 
-function getPageSize() {
-  return parseInt(global.APP_SETTING.searchPageSize, 10) || 10;
-}
-
-let del;
+const confirmDelComic = createConfirmGuard();
 
 function formatFileSize(size) {
   if (size < 0) {
@@ -210,7 +208,7 @@ function formatFileSize(size) {
   }
 }
 
-let delHistoryId;
+const confirmDelHistory = createConfirmGuard();
 
 // metaStale 自愈扫描的会话级缓存：key = 漫画 id + chapters 元数据指纹。
 // 中断漫画的回写不会改变"未完成"状态（downloaded 仍 < page_count），
@@ -336,18 +334,18 @@ export default {
   },
 
   historyTotalPages() {
-    return Math.max(1, Math.ceil(this.allHistory.length / getPageSize()));
+    return Math.max(1, Math.ceil(this.allHistory.length / getSearchPageSize()));
   },
 
   comicsTotalPages() {
-    return Math.max(1, Math.ceil(this.allComics.length / getPageSize()));
+    return Math.max(1, Math.ceil(this.allComics.length / getSearchPageSize()));
   },
 
   updateHistoryList() {
-    const start = (this.historyPage - 1) * getPageSize();
+    const start = (this.historyPage - 1) * getSearchPageSize();
     // 拷贝一份，封面代理结果只覆盖 coverLocal，不污染待持久化的原始数据
     this.historyList = this.allHistory
-      .slice(start, start + getPageSize())
+      .slice(start, start + getSearchPageSize())
       .map((item) => ({ ...item }));
     this.loadHistoryCovers();
     this.openedHistoryIndex = -1;
@@ -356,25 +354,17 @@ export default {
 
   // 不支持直接加载远程图片的设备，通过插件把封面拉为本地文件后替换显示
   loadHistoryCovers() {
-    this.historyList.forEach((item) => {
-      if (!item.cover || item.cover.indexOf("http") !== 0) return;
-      proxyImage(
-        addCoverParams(item.cover),
-        `${item.source}_${item.originalId}_cover`,
-        (uri) => {
-          if (!uri) return;
-          const index = this.historyList.findIndex((r) => r.id === item.id);
-          if (index === -1) return;
-          this.historyList.splice(index, 1, { ...item, coverLocal: uri });
-        },
-        1
-      );
+    loadCoverProxies(this.historyList, {
+      getUrl: (item) => (item.cover ? addCoverParams(item.cover) : ""),
+      getName: (item) => `${item.source}_${item.originalId}_cover`,
+      match: (row, item) => row.id === item.id,
+      merge: (item, uri) => ({ ...item, coverLocal: uri }),
     });
   },
 
   updateComicsList() {
-    const start = (this.comicsPage - 1) * getPageSize();
-    this.comicsList = this.allComics.slice(start, start + getPageSize());
+    const start = (this.comicsPage - 1) * getSearchPageSize();
+    this.comicsList = this.allComics.slice(start, start + getSearchPageSize());
     this.openedComicsIndex = -1;
     this.scrollListToTop("comicsScroll");
   },
@@ -453,20 +443,7 @@ export default {
   },
 
   delHistory(id) {
-    if (delHistoryId !== id) {
-      // 第一次点击，提示二次确认
-      delHistoryId = id;
-      prompt.showToast({
-        message: this.$t("offline.historyDel"),
-      });
-      // 3秒后重置
-      setTimeout(() => {
-        if (delHistoryId === id) {
-          delHistoryId = null;
-        }
-      }, 3000);
-      return;
-    }
+    if (!confirmDelHistory(id, this.$t("offline.historyDel"))) return;
     // 第二次点击，执行删除
     prompt.showToast({
       message: this.$t("offline.historySecondDel"),
@@ -496,8 +473,6 @@ export default {
         });
       }
     );
-
-    delHistoryId = null;
   },
 
   // 书架排序：按 max(最近阅读时间, 下载时间) 降序，都没有的保持原顺序沉底
@@ -820,23 +795,8 @@ export default {
   },
 
   del(id) {
-    if (del !== id) {
-      // 第一次点击，提示二次确认
-      del = id;
-      prompt.showToast({
-        message: this.$t("offline.del"),
-        duration: 2000,
-      });
-      // 3秒后重置
-      setTimeout(() => {
-        if (del === id) {
-          del = null;
-        }
-      }, 3000);
-      return;
-    }
+    if (!confirmDelComic(id, this.$t("offline.del"), { duration: 2000 })) return;
     // 第二次点击，执行删除
-    del = null;
     prompt.showToast({
       message: this.$t("offline.secondDel"),
       duration: 1000,
