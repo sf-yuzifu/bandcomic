@@ -404,6 +404,9 @@ export default {
       // 队列结束，回写一次真实存储元数据（含失败章节的实际已下载页数）
       await this.syncComicStorageMeta();
       if (this.destroyed) return;
+      // 整批下载结束，清掉大对象后主动收一次 GC
+      ImageCache = [];
+      if (typeof global !== "undefined" && global.runGC) global.runGC();
       if (failedChapters.length === 0) {
         this.processing = true;
         prompt.showToast({
@@ -549,6 +552,9 @@ export default {
       if (!this.is_serial) {
         await this.syncComicStorageMeta();
         if (this.destroyed) return;
+        // 整本下载完成，ImageCache 等大对象不再使用，主动收一次 GC
+        ImageCache = [];
+        if (typeof global !== "undefined" && global.runGC) global.runGC();
         this.processing = true;
         prompt.showToast({
           message: this.$t("download.complete"),
