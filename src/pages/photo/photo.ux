@@ -1,12 +1,12 @@
 <template>
   <div class="demo-page">
     <img
-      if="{{ showit && global.screenShape == 'circle' }}"
+      show="{{ showit && global.screenShape == 'circle' }}"
       src="/common/mask.png"
       class="leftButton"
     />
     <img
-      if="{{ showit&& global.screenShape == 'circle' }}"
+      show="{{ showit && global.screenShape == 'circle' }}"
       src="/common/mask.png"
       class="rightButton"
     />
@@ -57,25 +57,48 @@
     </div>
 
     <img
-      if="{{ showit }}"
+      show="{{ showit }}"
       src="/common/upCover.png"
       style="position: absolute; top: 0px; width: {{ global.screenSize.width }}px;"
     />
     <img
-      if="{{ showit }}"
+      show="{{ showit }}"
       src="/common/bottomCover.png"
       style="position: absolute; bottom: 0px; width: {{ global.screenSize.width }}px;"
     />
 
+    <!-- 阅读进度（纯展示）：方屏底部横条，左右让出屏幕圆角（band 48px / watch 104px）。
+         层级：z-index 无效只能按文档序渲染——插在此处使其位于图片/遮罩条之上、
+         翻页箭头与返回等按钮之下，遮图不挡按钮 -->
+    <div
+      class="progress-wrap"
+      show="{{ showit && page_count > 0 && global.screenShape != 'circle' }}"
+    >
+      <progress
+        class="progress-bar"
+        percent="{{ Math.min(100, Math.floor((page / page_count) * 100)) }}"
+      ></progress>
+    </div>
+    <!-- 圆屏：沿圆周走的小圆点（12 点起步顺时针）。不用整圆环——progress 组件按
+         组件盒而非绘制区域命中，全屏圆环会把图片滚动手势全吃掉（真机验证）；
+         12px 圆点的命中面积可忽略 -->
+    <div
+      show="{{ showit && page_count > 0 && global.screenShape == 'circle' }}"
+      class="progress-dot"
+      style="left: {{ global.screenSize.width / 2 + (global.screenSize.width / 2 - 7) * Math.sin(Math.min(1, page /
+page_count) * 6.2832) - 6 }}px; top: {{ global.screenSize.height / 2 - (global.screenSize.width / 2 - 7) * Math.cos(Math.min(1, page /
+page_count) * 6.2832) - 6 }}px"
+    ></div>
+
     <!-- 方表适配 -->
     <img
-      if="{{ showit && global.screenShape != 'circle' }}"
+      show="{{ showit && global.screenShape != 'circle' }}"
       src="/common/left.png"
       onclick="toPage('-')"
       class="leftButton bottom"
     />
     <img
-      if="{{ showit && global.screenShape != 'circle' }}"
+      show="{{ showit && global.screenShape != 'circle' }}"
       src="/common/right.png"
       onclick="toPage('+')"
       class="rightButton bottom"
@@ -83,13 +106,13 @@
 
     <!-- 圆表适配 -->
     <img
-      if="{{ showit && global.screenShape == 'circle' }}"
+      show="{{ showit && global.screenShape == 'circle' }}"
       src="/common/left_s4.png"
       onclick="toPage('-')"
       class="leftButton"
     />
     <img
-      if="{{ showit&& global.screenShape == 'circle' }}"
+      show="{{ showit&& global.screenShape == 'circle' }}"
       src="/common/right_s4.png"
       onclick="toPage('+')"
       class="rightButton"
@@ -97,65 +120,83 @@
 
     <div class="com" if="{{ showSlider }}">
       <div class="shade">
-        <div if="{{ total_chapters > 1 }}" class="chapter">
-          <img src="/common/left.png" onclick="toChapter('-')" class="" />
-          <marquee class="subtitle" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
-            {{ title }}
-          </marquee>
-          <img src="/common/right.png" onclick="toChapter('+')" class="" />
-        </div>
-        <text class="subtitle" if="{{ total_chapters > 1 }}">
-          {{ $t("photo.chapterChange") }}
-        </text>
-        <div if="{{ total_chapters > 1 }}" style="height: 10px"></div>
-        <div
-          if="{{ total_chapters > 1 }}"
-          style="flex-direction: row; justify-content: space-around; height: 40px"
-        >
-          <picker
-            for="pickerValue in pickerValues"
-            type="text"
-            style="width:{{ 80/pickerValues.length }}%; selected-font-size: 32px;"
-            range="{{ pickerValue }}"
-            selected="{{ chapter.toString().padStart(pickerValues.length, '0')[$idx] }}"
-            onchange="onPickerChange($idx)"
-          ></picker>
-        </div>
-        <div if="{{ total_chapters > 1 }}" style="height: 20px"></div>
-        <text static class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
-        <div static style="height: 10px"></div>
-        <slider
-          class="slider"
-          min="0"
-          max="100"
-          step="1"
-          value="{{ scale }}"
-          onchange="onSliderChange"
-        ></slider>
-        <div static style="height: 10px"></div>
+        <scroll class="shade-scroll" scroll-y="true" bounces="true">
+          <div if="{{ total_chapters > 1 }}" class="chapter">
+            <img src="/common/left.png" onclick="toChapter('-')" class="" />
+            <marquee class="subtitle" scrollamount="{{ 20 }}" text-offset="{{ 20 }}">
+              {{ title }}
+            </marquee>
+            <img src="/common/right.png" onclick="toChapter('+')" class="" />
+          </div>
+          <text class="subtitle" if="{{ total_chapters > 1 }}">
+            {{ $t("photo.chapterChange") }}
+          </text>
+          <div if="{{ total_chapters > 1 }}" style="height: 10px; flex-shrink: 0"></div>
+          <div
+            if="{{ total_chapters > 1 }}"
+            style="flex-direction: row; justify-content: space-around; height: 40px; flex-shrink: 0"
+          >
+            <picker
+              for="pickerValue in pickerValues"
+              type="text"
+              style="width:{{ 80/pickerValues.length }}%; selected-font-size: 32px;"
+              range="{{ pickerValue }}"
+              selected="{{ chapter.toString().padStart(pickerValues.length, '0')[$idx] }}"
+              onchange="onPickerChange($idx)"
+            ></picker>
+          </div>
+          <div if="{{ total_chapters > 1 }}" style="height: 20px; flex-shrink: 0"></div>
+          <text class="subtitle" if="{{ page_count > 0 }}">{{ $t("photo.pageJump") }}</text>
+          <div if="{{ page_count > 0 }}" style="height: 10px; flex-shrink: 0"></div>
+          <div
+            if="{{ page_count > 0 }}"
+            style="flex-direction: row; justify-content: space-around; height: 40px; flex-shrink: 0"
+          >
+            <picker
+              for="pickerValue in pagePickerValues"
+              type="text"
+              style="width:{{ 80/pagePickerValues.length }}%; selected-font-size: 32px;"
+              range="{{ pickerValue }}"
+              selected="{{ page.toString().padStart(pagePickerValues.length, '0')[$idx] }}"
+              onchange="onPagePickerChange($idx)"
+            ></picker>
+          </div>
+          <div if="{{ page_count > 0 }}" style="height: 20px; flex-shrink: 0"></div>
+          <text static class="subtitle">{{ $t("photo.photoSizeChange") }}</text>
+          <div static style="height: 10px; flex-shrink: 0"></div>
+          <slider
+            class="slider"
+            min="0"
+            max="100"
+            step="1"
+            value="{{ scale }}"
+            onchange="onSliderChange"
+          ></slider>
+          <div static style="height: 10px"></div>
+        </scroll>
       </div>
     </div>
 
     <img
-      if="{{ showit && global.screenShape != 'circle' }}"
+      show="{{ showit && global.screenShape != 'circle' }}"
       src="/common/left.png"
       @click="routeBack"
       class="leftButton top"
     />
     <img
-      if="{{ showit && global.screenShape != 'circle' }}"
+      show="{{ showit && global.screenShape != 'circle' }}"
       src="/common/more.png"
       class="rightButton top"
-      @click="() => (showSlider = !showSlider)"
+      @click="toggleSettings"
     />
     <img
-      if="{{ showit && global.screenShape == 'circle' }}"
+      show="{{ showit && global.screenShape == 'circle' }}"
       src="/common/check.png"
       class="bottom"
-      @click="() => (showSlider = !showSlider)"
+      @click="toggleSettings"
     />
 
-    <text class="time" if="{{ showit }}">{{ time }}</text>
+    <text class="time" show="{{ showit }}">{{ time }}</text>
     <text
       class="title"
       @click="
@@ -165,7 +206,7 @@
           }
         }
       "
-      if="{{ showit }}"
+      show="{{ showit }}"
     >
       <span class="iconfont" if.static="{{ global.screenShape == 'circle' }}">&#xe685;</span>
       <span>
@@ -204,6 +245,42 @@ let shownPage = 0; // 当前实际显示图片对应的页码（翻页时回存�
 // 翻多少页才把阅读历史落盘一次
 const HISTORY_FLUSH_INTERVAL = 5;
 
+// 生成数字轮盘每一位的可选范围：以 total 的位数为准，结合当前值 current 钳制
+// 每一位的最大可选数字，保证拼出来的值不超出 total（章节/页码两个 picker 共用）
+function buildDigitRanges(total, current) {
+  const values = [];
+  const totalStr = Math.max(total, 0).toString();
+  const digits = totalStr.length;
+  const currentStr = Math.max(current, 0).toString().padStart(digits, "0");
+
+  for (let i = 0; i < digits; i++) {
+    const digit = parseInt(totalStr[i], 10);
+    let maxDigit;
+    if (i === 0) {
+      maxDigit = digit;
+    } else {
+      maxDigit = 9;
+      for (let k = 0; k < i; k++) {
+        if (parseInt(currentStr[k], 10) < parseInt(totalStr[k], 10)) {
+          maxDigit = 9;
+          break;
+        } else if (parseInt(currentStr[k], 10) > parseInt(totalStr[k], 10)) {
+          maxDigit = 0;
+          break;
+        } else if (k === i - 1) {
+          maxDigit = digit;
+        }
+      }
+    }
+    const valueRange = [];
+    for (let j = 0; j <= maxDigit; j++) {
+      valueRange.push(j.toString());
+    }
+    values.push(valueRange);
+  }
+  return values;
+}
+
 export default {
   private: {
     id: "",
@@ -223,6 +300,7 @@ export default {
     total_chapters: 0,
     is_serial: false,
     pickerValues: [],
+    pagePickerValues: [], // 页码跳转 picker 的逐位可选范围（页码随章变化，需重建）
   },
 
   onShow() {
@@ -287,31 +365,17 @@ export default {
       originalName = this.title;
       this.is_serial = this.total_chapters > 1;
       if (this.is_serial) {
-        this.generatePickerRanges(this.total_chapters);
+        this.pickerValues = buildDigitRanges(this.total_chapters, this.chapter);
       }
     } else if (this.is_serial) {
       this.downloadChapter = parseParam(this.downloadChapter);
       this.total_chapters = this.downloadChapter.length;
-      this.generatePickerRanges(this.total_chapters);
+      this.pickerValues = buildDigitRanges(this.total_chapters, this.chapter);
+    } else {
+      // 本地单本：page_count 来自路由参数，直接生成页码轮盘范围
+      this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
     }
     this.processData();
-  },
-
-  generatePickerRanges(total) {
-    const values = [];
-    const totalStr = total.toString();
-    const digits = totalStr.length;
-
-    for (let i = 0; i < digits; i++) {
-      const digit = parseInt(totalStr[i], 10);
-      const maxDigit = i === 0 ? digit : 9;
-      const valueRange = [];
-      for (let j = 0; j <= maxDigit; j++) {
-        valueRange.push(j.toString());
-      }
-      values.push(valueRange);
-    }
-    this.pickerValues = values;
   },
 
   processData() {
@@ -351,6 +415,8 @@ export default {
         ImageCache = urls;
         this.title = body.title;
         this.page_count = ImageCache.length;
+        // 页码轮盘范围随章节总页数重建
+        this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
         this.getImageForPage();
       },
       fail: (data, code) => {
@@ -396,6 +462,8 @@ export default {
       }
       this.title = localChapterEntry[0];
       this.page_count = localChapterEntry[1];
+      // 页码轮盘范围随章节总页数重建
+      this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
     }
 
     if (this.page > this.page_count) {
@@ -690,7 +758,7 @@ export default {
     }
     this.chapter = newChapter;
 
-    this.updatePickerRanges();
+    this.pickerValues = buildDigitRanges(this.total_chapters, this.chapter);
 
     if (this.local) {
       this.title = this.downloadChapter[this.chapter - 1][0];
@@ -706,40 +774,42 @@ export default {
     this.saveHistory(true);
   },
 
-  updatePickerRanges() {
-    const values = [];
-    const totalStr = this.total_chapters.toString();
-    const digits = totalStr.length;
-    const chapterStr = this.chapter.toString().padStart(digits, "0");
-
-    for (let i = 0; i < digits; i++) {
-      const digit = parseInt(totalStr[i], 10);
-      const valueRange = [];
-
-      if (i === 0) {
-        for (let j = 0; j <= digit; j++) {
-          valueRange.push(j.toString());
-        }
-      } else {
-        let maxDigit = 9;
-        for (let k = 0; k < i; k++) {
-          if (parseInt(chapterStr[k], 10) < parseInt(totalStr[k], 10)) {
-            maxDigit = 9;
-            break;
-          } else if (parseInt(chapterStr[k], 10) > parseInt(totalStr[k], 10)) {
-            maxDigit = 0;
-            break;
-          } else if (k === i - 1) {
-            maxDigit = digit;
-          }
-        }
-        for (let j = 0; j <= maxDigit; j++) {
-          valueRange.push(j.toString());
-        }
+  // 打开设置面板时按当前章/页刷新两个数字轮盘的可选范围，
+  // 消除 ±1 翻章/翻页后轮盘范围停留在旧值的滞后
+  toggleSettings() {
+    this.showSlider = !this.showSlider;
+    if (this.showSlider) {
+      this.pickerValues = buildDigitRanges(this.total_chapters, this.chapter);
+      if (this.page_count > 0) {
+        this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
       }
-      values.push(valueRange);
     }
-    this.pickerValues = values;
+  },
+
+  // 页码跳转：数字轮盘逐位拼页码，钳制在 1..page_count 后按 toPage 同款收尾跳页
+  onPagePickerChange(pickerIndex, e) {
+    const pageStr = this.page.toString().padStart(this.pagePickerValues.length, "0");
+    const newDigits = [...pageStr];
+    newDigits[pickerIndex] = e.newValue;
+
+    let newPage = parseInt(newDigits.join(""), 10);
+
+    if (newPage > this.page_count) {
+      newPage = this.page_count;
+    }
+    if (newPage < 1) {
+      newPage = 1;
+    }
+    this.page = newPage;
+
+    this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
+
+    this.$element("scrollId").scrollTo({
+      top: 1,
+      left: 0,
+    });
+    this.getImageForPage(global.APP_SETTING.keepDefaultZoom);
+    this.saveHistory();
   },
 
   onSliderChange(e) {
@@ -830,6 +900,7 @@ text {
   justify-content: center;
   width: 100%;
   height: 100%;
+  padding: 84px 6px;
 }
 
 .title {
@@ -850,11 +921,46 @@ text {
   background-color: rgba(38, 38, 38, 0.6);
   border-radius: 36px;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
-  width: 90%;
+  width: 100%;
   padding: 20px 10px;
   border: 3px rgba(255, 255, 255, 0.24);
+}
+
+/* 弹层内容滚动：shade 定高 → scroll height:100% 亦为定高，内容超高即可滚动；
+   各行已统一 flex-shrink:0，内容超高时溢出走滚动而非被压缩 */
+.shade-scroll {
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 阅读进度：方屏底部横条（左右让出屏幕圆角弧度，band 48px / watch 104px 见媒体查询），
+   圆屏为整圆环；均随 showit 显示，纯展示不可交互 */
+.progress-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  padding: 0 48px;
+}
+
+/* horizontal 类型的进度条 height 属性无效，粗细用 stroke-width */
+.progress-bar {
+  width: 100%;
+  stroke-width: 6px;
+  color: #4fc3f7;
+  layer-color: rgba(255, 255, 255, 0.15);
+}
+
+/* 圆屏阅读进度点：沿屏幕圆周顺时针走（12 点起步），12px 小盒几乎不挡触摸 */
+.progress-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+  background-color: #4fc3f7;
+  border: 2px solid rgba(255, 255, 255, 0.9);
 }
 
 .chapter {
@@ -862,8 +968,12 @@ text {
   justify-content: space-between;
   width: 100%;
   margin-bottom: 20px;
+  flex-shrink: 0;
 }
 
+/* 弹层内各行一律 flex-shrink: 0：固定高度的间隔/picker 行在内容超高时
+   会被 flex 默认 shrink 压扁（空 div 内容高度为 0，能压没），禁压缩后
+   超出部分才真正交给 scroll 滚动 */
 .subtitle {
   display: flex;
   justify-items: center;
@@ -893,8 +1003,14 @@ text {
     position: absolute;
     bottom: 6px;
   }
+
+  .com {
+    padding: 0;
+  }
+
   .shade {
-    width: 75%;
+    width: 67%;
+    max-height: 67%;
   }
 }
 
@@ -932,6 +1048,16 @@ text {
 @media (device-type: watch) and (shape: rect) {
   .padding {
     height: 10%;
+  }
+
+  /* 方屏手表弹层：四周留 96px */
+  .com {
+    padding: 94px 20px;
+  }
+
+  /* 方屏手表进度条：左右让出 104px 圆角 */
+  .progress-wrap {
+    padding: 0 104px;
   }
 }
 </style>
