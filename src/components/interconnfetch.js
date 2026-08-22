@@ -5,6 +5,11 @@ import { getConnection, registerFetchHandler, registerActivityHandler } from "./
 const FETCH_TAG = "fetch";
 const FETCH_CHUNK_TAG = "fetch-chunk";
 const FETCH_ACK_TAG = "fetch-ack";
+// v4 开放长度流（仅文件下载使用，协商不到 stream 时插件自动回落 v1-v3）
+const FETCH_STREAM_TAG = "fetch-stream";
+const FETCH_STREAM_ACK_TAG = "fetch-stream-ack";
+const FETCH_STREAM_CANCEL_TAG = "fetch-stream-cancel";
+const FETCH_STREAM_ERROR_TAG = "fetch-stream-error";
 const HS_TAG = "__hs__";
 const TIMEOUT = 3000;
 const IDLE_TIMEOUT = 10000;
@@ -152,14 +157,35 @@ function preferBridge() {
 }
 
 const LOCAL_CAPS = {
-  version: 3,
+  version: 4,
   chunk: true,
   maxChunkSize: MAX_CHUNK_SIZE,
   encodings: ["text", "base64", "hex"],
   compressions: ["none"],
   ack: true,
   ackWindow: 4,
+  stream: true,
 };
+
+// v4 流帧完整性校验：IEEE CRC-32（编码前原始字节），查表法 ~1 操作/字节
+let CRC_TABLE = null;
+function crc32Hex(bytes) {
+  if (!CRC_TABLE) {
+    CRC_TABLE = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) {
+        c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      }
+      CRC_TABLE[n] = c >>> 0;
+    }
+  }
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return ((crc ^ 0xffffffff) >>> 0).toString(16).padStart(8, "0");
+}
 
 class InterconnFetchClient {
   constructor() {
@@ -230,7 +256,19 @@ class InterconnFetchClient {
       const { resp, id } = payload;
       const req = this.requests.get(id);
       if (!req || req.settled) return;
-      if (resp && resp.chunked) {
+      if (resp && resp.stream) {
+        // v4 开放长度流：无 chunkCount，长度未知直到 final 帧
+        req.header = resp;
+        req.stream = true;
+        req.received = 0;
+        req.ack = resp.ack === true;
+        req.chunkBuffer = {};
+        req.nextAck = 0;
+        req.chunkPromises = [];
+        req.finalSeq = -1;
+        req.streamEncoding = resp.bodyEncoding || "base64";
+        req.resetTimer();
+      } else if (resp && resp.chunked) {
         req.header = resp;
         req.received = 0;
         req.ack = resp.ack === true;
@@ -360,6 +398,113 @@ class InterconnFetchClient {
           finish();
         }
       }
+    } else if (tag === FETCH_STREAM_TAG) {
+      // v4 流数据帧/最终帧：先验 CRC 再推进累计 ACK；final 帧也占一个序号
+      const { id, seq, data: frameData, crc32, final } = payload;
+      const req = this.requests.get(id);
+      if (!req || req.settled || !req.stream) return;
+      req.resetTimer();
+      const encoding = req.streamEncoding;
+      const sendStreamAck = () => {
+        if (req.ack) {
+          this.conn.send({
+            data: { tag: FETCH_STREAM_ACK_TAG, id: id, ack: req.nextAck },
+          });
+        }
+      };
+      // 重复帧（go-back-N 重传）：忽略数据，回当前累计 ACK 让发送方推进窗口
+      if (req.chunkBuffer[seq] !== undefined) {
+        sendStreamAck();
+        return;
+      }
+      // final 帧 data 为空，跳过解码；数据帧先解码再验 CRC
+      let decoded = true; // 占位标记（onChunk 路径不驻留字节）
+      if (!final) {
+        let bytes;
+        if (encoding === "text") {
+          bytes = frameData;
+        } else {
+          bytes = decodeBody(frameData, encoding);
+        }
+        // CRC 校验失败不得推进 ACK：丢弃本帧并回重复 ACK，
+        // 触发发送方对当前未确认窗口 go-back-N 重传
+        if (typeof crc32 === "string" && bytes instanceof Uint8Array) {
+          if (crc32Hex(bytes) !== crc32) {
+            console.debug(`流帧 CRC 校验失败(seq=${seq})，等待重传`);
+            sendStreamAck();
+            return;
+          }
+        }
+        if (!req.onChunk) {
+          decoded = bytes; // 无 onChunk 时驻留字节，EOF 时合并
+        }
+        if (req.onChunk) {
+          req.chunkPromises.push(req.onChunk(bytes, seq));
+        }
+      }
+      req.chunkBuffer[seq] = decoded;
+      req.received++;
+      // 推进连续前沿
+      while (req.chunkBuffer[req.nextAck] !== undefined) {
+        req.nextAck++;
+      }
+      sendStreamAck();
+      if (final) {
+        req.finalSeq = seq;
+      }
+      // EOF 提交：final 帧及其前所有序号连续到齐（含 CRC 全部通过）
+      if (req.finalSeq >= 0 && req.nextAck > req.finalSeq) {
+        req.settled = true;
+        this.requests.delete(id);
+        const finish = () => {
+          if (req.onChunk) {
+            // 分片已按序落盘，无需拼接
+            req.resolve({ ...req.header, body: null });
+            return;
+          }
+          // 无 onChunk 的流（本应用不会走到）：按序合并
+          if (encoding === "text") {
+            const parts = [];
+            for (let i = 0; i < req.finalSeq; i++) {
+              parts.push(req.chunkBuffer[i] || "");
+            }
+            req.resolve({ ...req.header, body: parts.join("") });
+          } else {
+            let totalLen = 0;
+            for (let i = 0; i < req.finalSeq; i++) {
+              const buf = req.chunkBuffer[i];
+              if (buf instanceof Uint8Array) totalLen += buf.length;
+            }
+            const merged = new Uint8Array(totalLen);
+            let offset = 0;
+            for (let i = 0; i < req.finalSeq; i++) {
+              const buf = req.chunkBuffer[i];
+              if (buf instanceof Uint8Array) {
+                merged.set(buf, offset);
+                offset += buf.length;
+              }
+            }
+            req.resolve({ ...req.header, body: merged });
+          }
+        };
+        if (req.chunkPromises.length > 0) {
+          Promise.all(req.chunkPromises)
+            .then(finish)
+            .catch(function (e) {
+              req.reject(new Error("stream write failed: " + e));
+            });
+        } else {
+          finish();
+        }
+      }
+    } else if (tag === FETCH_STREAM_ERROR_TAG) {
+      // 插件读 HTTP 源中途失败：直接 reject 让页面报错
+      const { id, message } = payload;
+      const req = this.requests.get(id);
+      if (!req || req.settled) return;
+      req.settled = true;
+      this.requests.delete(id);
+      req.reject(new Error(message || "stream error"));
     }
   }
 
@@ -411,6 +556,15 @@ class InterconnFetchClient {
         if (req && !req.settled) {
           req.settled = true;
           this.requests.delete(id);
+          // v4 流：主动取消让插件立即删除状态并关闭 HTTP 源，
+          // 否则插件会继续读源灌帧直到 30s 空闲清理，白耗双方资源
+          if (req.stream && this.open) {
+            try {
+              this.conn.send({
+                data: { tag: FETCH_STREAM_CANCEL_TAG, id, reason: "request timeout" },
+              });
+            } catch (e) {}
+          }
           this.open = false;
           req.reject(new Error("request timeout"));
         }
@@ -481,7 +635,7 @@ class InterconnFetchClient {
         headers: resp.headers,
       };
     }
-    if (!resp.chunked) {
+    if (!resp.chunked && !resp.stream) {
       const encoding = resp.bodyEncoding;
       if (encoding) {
         body = decodeBody(body, encoding);
@@ -572,6 +726,8 @@ export default {
         headers: header || {},
         body: body || undefined,
         raw: responseType === "file" || responseType === "arraybuffer",
+        // 文件下载走 v4 开放流（旧插件协商不到 stream 会自动回落 v1-v3）
+        stream: responseType === "file" ? true : undefined,
       };
       // 文件下载按序落盘：seq 连续的分片直接 append 到最终文件，乱序到达的暂存内存
       // （ACK 窗口 ≤4 片 × ≤4KB，内存代价有界），消除"分片文件→读出→拼接→删除"的三倍 I/O
