@@ -1845,9 +1845,9 @@ aiot-parse5@^1.0.2:
   dependencies:
     entities "^4.4.0"
 
-aiot-toolkit@^2.0.4:
+aiot-toolkit@^2.0.5:
   version "2.0.5"
-  resolved "https://registry.yarnpkg.com/aiot-toolkit/-/aiot-toolkit-2.0.5.tgz#bc6e5fcd1e2797215f58f800e60ded35052893fc"
+  resolved "https://registry.npmjs.org/aiot-toolkit/-/aiot-toolkit-2.0.5.tgz#bc6e5fcd1e2797215f58f800e60ded35052893fc"
   integrity sha512-X3smajodc2Msh41ILKrNsabh8KxqxlNs3yYAJSatnhu2tQGPsYj3WO6HPZkmhUIdYlWEQPgDtTamA5iYqVDEwg==
   dependencies:
     "@aiot-toolkit/aiotpack" "2.0.5"
