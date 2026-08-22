@@ -1,4 +1,3 @@
-<import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
 <template>
   <div class="demo-page">
     <img
@@ -26,7 +25,7 @@
       @click="routeOffline"
     />
     <text class="time">{{ time }}</text>
-    <text class="title" if="{{ hide && global.screenShape == 'circle' }}" @click="routeAbout">
+    <text class="title" if="{{ global.screenShape == 'circle' }}" @click="routeAbout">
       {{ $t("appName") }}
     </text>
     <text class="title" if.static="{{ global.screenShape != 'circle' }}">
@@ -35,7 +34,7 @@
 
     <div class="line" style="margin-bottom: 10px">
       <text static style="margin-bottom: 4px">{{ $t("elsePlaceholder") }}</text>
-      <div class="input-line" @click="changeState">
+      <div class="input-line" @click="openIme">
         <scroll
           style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
           scroll-x="true"
@@ -45,29 +44,15 @@
           </text>
         </scroll>
       </div>
-      <div class="padding" style="height: 60%" if="{{ !hide }}"></div>
-      <div
-        class="padding"
-        style="height: 2%"
-        if="{{ !hide && global.screenShape == 'circle' }}"
-      ></div>
     </div>
 
-    <div if="{{ hide }}" class="source-selector">
+    <div class="source-selector">
       <text class="source-text">{{ $t("currentSourceName") }}{{ currentSourceName }}</text>
       <text if="{{ Object.keys(API_SETTING).length > 2 }}" class="iconfont" @click="toggleSource">
         &#xe628;
       </text>
       <text class="iconfont" @click="routeEdit" static>&#xe607;</text>
     </div>
-    <input-method
-      hide="{{ hide }}"
-      keyboardtype="qwerty"
-      maxlength="5"
-      screentype="{{ global.screenShape }}"
-      @delete="deleteit"
-      @complete="complete"
-    ></input-method>
 
     <div
       class="donate"
@@ -108,7 +93,6 @@ const { getTime } = global;
 export default {
   private: {
     context: "",
-    hide: true,
     time: "",
     currentSourceName: global.API_SETTING[global.API_SETTING.using].name,
     API_SETTING: global.API_SETTING,
@@ -116,16 +100,20 @@ export default {
   },
 
   onBackPress() {
-    if (this.hide) {
-      return false;
-    } else {
-      this.hide = !this.hide;
-      return true;
-    }
+    return false;
   },
 
   onShow() {
     this.time = getTime();
+    // 输入法页面回传：确认走提交流程，取消仅保留文本
+    const imeResult = global.__imeResult;
+    if (imeResult) {
+      global.__imeResult = null;
+      this.context = imeResult.text;
+      if (imeResult.confirmed) {
+        this.submitSearch();
+      }
+    }
     // 源/设置的全部写入路径（edit 增删、about saveSetting、AstroBox 同步）都会同步
     // global，文件只在 onInit 冷启动读一次；但 global 变更不会触发本页重渲染，
     // 所以每次回首页仍要把 global 同步进 viewModel（纯赋值，零 IO）
@@ -246,39 +234,36 @@ export default {
     });
   },
 
-  deleteit() {
-    this.context = this.context.slice(0, -1);
+  openIme() {
+    global.__imeText = this.context;
+    global.__imeLabel = this.$t("elsePlaceholder");
+    router.push({
+      uri: "/pages/ime",
+    });
   },
 
-  changeState() {
-    this.hide = !this.hide;
-    if (this.hide) {
-      if (this.context == "") {
-        prompt.showToast({
-          message: this.$t("tip"),
-          duration: 3000,
-        });
-        return;
-      }
+  submitSearch() {
+    if (this.context == "") {
       prompt.showToast({
-        message: this.$t("loading"),
-        duration: 5000,
+        message: this.$t("tip"),
+        duration: 3000,
       });
-      if (/^\d{1,20}$/.test(this.context)) {
-        this.getAlbum();
-      } else {
-        router.push({
-          uri: "/pages/search",
-          params: {
-            keyword: this.context.trim(),
-          },
-        });
-      }
+      return;
     }
-  },
-
-  complete(evt) {
-    this.context += evt.detail.content;
+    prompt.showToast({
+      message: this.$t("loading"),
+      duration: 5000,
+    });
+    if (/^\d{1,20}$/.test(this.context)) {
+      this.getAlbum();
+    } else {
+      router.push({
+        uri: "/pages/search",
+        params: {
+          keyword: this.context.trim(),
+        },
+      });
+    }
   },
 
   toAlbum(data) {
@@ -342,11 +327,7 @@ export default {
   },
 
   routeBack() {
-    if (this.hide) {
-      router.back();
-    } else {
-      this.hide = !this.hide;
-    }
+    router.back();
   },
 
   routeAbout() {

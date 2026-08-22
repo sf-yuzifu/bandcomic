@@ -1,5 +1,23 @@
 <template>
-  <div class="page" style="flex-direction: column" show="{{ !hide }}">
+  <div class="ime-page">
+    <!-- 与调用页一致的输入行：展示当前文本，点击确认并返回 -->
+    <div
+      class="line"
+      style="margin-bottom: 10px; justify-content: {{ screentype === 'circle' ? 'flex-end' : 'center' }};"
+    >
+      <text static if="{{ label }}" style="margin-bottom: 4px; color: #fff;">{{ label }}</text>
+      <div class="input-line" @click="finish(true)">
+        <scroll
+          style="position: absolute; width: 100%; height: 42px; margin: 6px 0"
+          scroll-x="true"
+        >
+          <text class="input-text">
+            {{ context }}
+          </text>
+        </scroll>
+      </div>
+    </div>
+    <div class="page" style="flex-direction: column">
     <div style="background-color: black">
       <!-- 圆屏62 -->
       <div if="{{ screentype==='circle' }}" style="width: 480px; height: 321px">
@@ -50,7 +68,7 @@
           />
           <!-- 带变量的相对路径在 aiot-tookit 2.0.4 中修复 -->
           <img
-            src="./assets/full/{{ lang }}.png"
+            src="/pages/ime/assets/full/{{ lang }}.png"
             style="position: absolute; top: 38px; left: 7px; width: 67px; height: 52px"
             @click="onBtnClick('lang')"
             show="{{ downFlag==='' && !numFlag }}"
@@ -285,7 +303,7 @@
           />
           <!-- 带变量的相对路径在 aiot-tookit 2.0.4 中修复 -->
           <img
-            src="./assets/t9/{{ lang }}.png"
+            src="/pages/ime/assets/t9/{{ lang }}.png"
             style="position: absolute; top: 35px; left: 31px; width: 60px; height: 60px"
             @click="onBtnClick('lang')"
             show="{{ downFlag==='' && !numFlag }}"
@@ -799,7 +817,7 @@
           />
           <!-- 带变量的相对路径在 aiot-tookit 2.0.4 中修复 -->
           <img
-            src="./assets/arc/{{ lang }}.png"
+            src="/pages/ime/assets/arc/{{ lang }}.png"
             style="position: absolute; top: 0px; left: 9px; width: 48px; height: 42px"
             @click="onBtnClick('lang')"
             show="{{ downFlag==='' && !numFlag }}"
@@ -865,11 +883,13 @@
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <script>
 import vibrator from "@system.vibrator";
 import device from "@system.device";
+import router from "@system.router";
 import { SimpleInputMethod } from "./assets/dicUtil.js";
 function doSearchDic(word, cb) {
   const hanzi = SimpleInputMethod.getHanzi(word);
@@ -886,24 +906,15 @@ function deleteLast(t) {
   return "";
 }
 export default {
-  props: {
-    hide: {
-      default: true,
-    },
-    keyboardtype: {
-      default: "QWERTY",
-    },
-    maxlength: {
-      default: 5,
-    },
-    vibratemode: {
-      default: "",
-    },
-    screentype: {
-      default: "circle",
-    },
-  },
-  data: {
+  private: {
+    // 页面化改造（原自定义组件 InputMethod）：props 改 private/启动参数，
+    // $emit 事件改直接维护自身 context，完成/取消经 global.__imeResult 回传
+    context: "",
+    label: "",
+    keyboardtype: "QWERTY",
+    maxlength: 5,
+    vibratemode: "",
+    screentype: "circle",
     cval: "",
     resultList: [],
     resultList2: [],
@@ -949,6 +960,10 @@ export default {
     },
   },
   onInit() {
+    // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
+    this.context = global.__imeText || "";
+    this.label = global.__imeLabel || "";
+    this.screentype = global.screenShape || "circle";
     if (this.maxlength) {
       const tempCvalList = [];
       for (let i = 0; i < this.maxlength; i++) {
@@ -959,11 +974,19 @@ export default {
     if (this.screentype === "rect" || this.screentype === "pill-shaped") {
       this.adjustScreenWidth();
     }
-    this.$watch("hide", "watchHidePropsChange");
-    this.$watch("maxlength", "watchMaxLengthPropsChange");
+  },
+  // 确认（点输入行）或取消（返回键）：结果写 global 后返回调用页
+  finish(confirmed) {
+    global.__imeResult = { text: this.context, confirmed: confirmed };
+    router.back();
+  },
+  onBackPress() {
+    this.finish(false);
+    return true;
   },
   addAllTxt(txt) {
-    this.$emit("complete", { content: txt });
+    // 原 $emit("complete")：增量回传已输入文本，现直接维护页面自身 context
+    this.context += txt;
   },
   onRsSelect(txt) {
     this.onVibrate();
@@ -999,7 +1022,8 @@ export default {
           this.cval = deleteLast(this.cval);
           this.resetReslutList();
         } else {
-          this.$emit("delete", {});
+          // 原 $emit("delete")：候选与拼音都空时删已输入文本
+          this.context = this.context.slice(0, -1);
         }
         break;
       case "space":
@@ -1118,7 +1142,6 @@ export default {
     });
   },
   onSelect(num) {
-    this.$emit("keyDown", { content: num });
     if (this.keyboardtype === "T9" && this.screentype !== "pill-shaped") {
       this.onBtnClick(num);
       return;
@@ -1151,18 +1174,6 @@ export default {
     this.clearWaiting();
     this.resetReslutList();
   },
-  watchHidePropsChange(newV, oldV) {
-    this.$emit("visibilityChange", { visible: newV });
-  },
-  watchMaxLengthPropsChange(newV, oldV) {
-    if (newV) {
-      const tempCvalList = [];
-      for (let i = 0; i < newV; i++) {
-        tempCvalList.push(i);
-      }
-      this.cvalList = tempCvalList;
-    }
-  },
   onVibrate() {
     if (this.vibratemode != "") {
       vibrator.vibrate({ mode: this.vibratemode });
@@ -1193,11 +1204,41 @@ export default {
 </script>
 
 <style>
+/* 输入行样式与 index/edit 页一致，保证页面化后 UI 无变化 */
+.ime-page {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  background-color: #000000;
+}
+.line {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* 填满键盘上方的空白区域（键盘容器在文档流底部），输入行在其中居中 */
+  flex-grow: 1;
+  width: 100%;
+}
+.input-line {
+  height: 54px;
+  width: 256px;
+  background-color: #262626;
+  border: 3px solid rgba(255, 255, 255, 0.06);
+  border-radius: 100%;
+  align-items: center;
+  justify-content: center;
+}
+.input-text {
+  lines: 1;
+  position: absolute;
+  color: #fff;
+  padding: 0 12px;
+}
 .page {
   width: 100%;
-  position: absolute;
-  left: 0;
-  bottom: 0;
+  /* 保持文档流（位于 .line 之下即屏幕底部）；relative 使其仍是内部
+     绝对定位键位的定位上下文，与组件时代 absolute 的定位语义一致 */
+  position: relative;
 }
 .item {
   height: 52px;

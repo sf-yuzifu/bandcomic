@@ -68,6 +68,9 @@
       "pages/edit": {
         "component": "edit"
       },
+      "pages/ime": {
+        "component": "ime"
+      },
       "pages/update": {
         "component": "update"
       }
