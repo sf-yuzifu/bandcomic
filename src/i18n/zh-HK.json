@@ -51,7 +51,8 @@
         "up": "上一頁",
         "down": "下一頁",
         "totalPage": "{page}頁",
-        "page": "第 {page} 頁"
+        "page": "第 {page} 頁",
+        "historyClear": "再次點擊清空搜尋紀錄"
     },
     "detail": {
         "detail": "詳情",
