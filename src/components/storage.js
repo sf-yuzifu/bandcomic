@@ -137,10 +137,6 @@ export function readComics(strict) {
   return readJsonFile(COMICS_URI, [], strict);
 }
 
-export function writeComics(list) {
-  return writeJsonFile(COMICS_URI, list);
-}
-
 // 更新单个漫画的元数据：updater 接收现有记录（不存在则为 { id }），返回新记录。
 // 基于 updateJsonFile：文件不存在时新建列表；串行队列内完成读-改-写，原子落盘。
 export function updateComicMeta(id, updater) {
@@ -172,16 +168,8 @@ export function readHistory() {
   return readJsonFile(HISTORY_URI, []);
 }
 
-export function writeHistory(list) {
-  return writeJsonFile(HISTORY_URI, list);
-}
-
 export function readSources() {
   return readJsonFile(SOURCES_URI, []);
-}
-
-export function writeSources(list) {
-  return writeJsonFile(SOURCES_URI, list);
 }
 
 export function readCookie() {

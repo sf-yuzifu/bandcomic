@@ -41,18 +41,11 @@
         "unknownError": "Error: ",
         "invalidResponse": "Invalid response from comic source"
     },
-    "cookie": {
-        "receive": "Cookie received",
-        "success": "Cookie saved",
-        "fail": "Save failed",
-        "wrong": "Data format error"
-    },
     "search": {
         "search": "Search: ",
         "searching": "Searching...",
         "noFound": "No results",
         "fail": "Failed: ",
-        "APIError": "API error",
         "networkError": "Network failed",
         "requestError": "Request failed",
         "up": "Prev",
@@ -72,8 +65,7 @@
         "page": "P{page}",
         "chapterChange": "Switch",
         "photoSizeChange": "Resize",
-        "chapter": "Ch",
-        "dl": "Download Ch"
+        "chapter": "Ch"
     },
     "offline": {
         "offline": "Local",
@@ -86,8 +78,6 @@
         "delComplete": "Deleted",
         "indexUpdateFailed": "Deleted, but index update failed",
         "indexReadFailed": "Deleted, but index read failed",
-        "deleteFailed": "Delete failed: {code}",
-        "folderNotExist": "Folder not found, deleting index",
         "legendReserved": "System reserved",
         "comicsUsed": "Comics used",
         "otherUsed": "Other used",
@@ -127,7 +117,6 @@
         "writeIndexFailed": "Write index failed, code: {code}",
         "parseIndexFailed": "Parse index failed",
         "createFolderFailed": "Create folder failed, code: {code}",
-        "selectChapters": "Select chapters to download",
         "selectAll": "All",
         "deselectAll": "Deselect",
         "startDownload": "Download",

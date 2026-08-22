@@ -167,7 +167,7 @@
       "
       if="{{ showit }}"
     >
-      <span class="iconfont" if="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span class="iconfont" if.static="{{ global.screenShape == 'circle' }}">&#xe685;</span>
       <span>
         {{ $t("photo.page", { page: page > page_count ? page_count : page }) }}
       </span>
@@ -823,12 +823,6 @@ text {
   font-size: 20px;
 }
 
-.button {
-  height: 50px;
-  font-size: 25px;
-  color: white;
-}
-
 .com {
   position: absolute;
   flex-direction: column;
@@ -879,13 +873,6 @@ text {
   text-align: center;
   font-weight: bold;
   color: rgba(255, 255, 255, 1);
-}
-
-.dl {
-  border-radius: 100%;
-  border: 3px rgba(255, 255, 255, 0.24);
-  background-color: #262626;
-  padding: 10px;
 }
 
 /* 看看是不是小米手表 */

@@ -207,10 +207,6 @@ export default {
   width: 100%;
 }
 
-.primary {
-  background-color: #3d7eff;
-}
-
 .padding {
   height: 10px;
 }

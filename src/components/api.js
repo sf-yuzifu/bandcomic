@@ -41,6 +41,42 @@ export function ensureUsingSourceValid() {
   setting.using = Object.keys(defaults)[0] || "";
 }
 
+// 源配置数组按 key 合并去重：同 key 原位替换，新 key 追加（sources.json 落盘结构，
+// 数组元素为单键对象）；支持一次传入多 key 对象（edit 页远端 config 原文）
+export function replaceIfDuplicate(configArray, newConfigObject) {
+  const keys = Object.keys(newConfigObject);
+
+  keys.forEach((newKey) => {
+    const singleConfig = { [newKey]: newConfigObject[newKey] };
+    let found = false;
+
+    for (let i = 0; i < configArray.length; i++) {
+      const existingConfig = configArray[i];
+      const existingKey = Object.keys(existingConfig)[0];
+
+      if (existingKey === newKey) {
+        configArray[i] = singleConfig;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      configArray.push(singleConfig);
+    }
+  });
+
+  return configArray;
+}
+
+// 源配置数组（单键对象列表）合并进 global.API_SETTING，同步内存真相
+export function mergeSourcesToGlobal(sourceArray) {
+  sourceArray.forEach((newSourceConfig) => {
+    const newKey = Object.keys(newSourceConfig)[0];
+    global.API_SETTING[newKey] = newSourceConfig[newKey];
+  });
+}
+
 export function buildHeaders(extra) {
   return {
     "User-Agent": global.userAgent(),

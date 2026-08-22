@@ -317,7 +317,6 @@ const { getTime } = global;
 export default {
   private: {
     ver: app.getInfo().versionName,
-    name: app.getInfo().name,
     code: app.getInfo().versionCode,
     time: "",
     preferBridgeChecked: false,

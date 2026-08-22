@@ -41,18 +41,11 @@
         "unknownError": "發生未知錯誤，錯誤：",
         "invalidResponse": "漫畫來源回傳資料格式錯誤"
     },
-    "cookie": {
-        "receive": "接收到Cookie！",
-        "success": "儲存Cookie成功！",
-        "fail": "儲存Cookie失敗！",
-        "wrong": "同步資料格式錯誤"
-    },
     "search": {
         "search": "搜尋: ",
         "searching": "搜尋中...",
         "noFound": "未找到相關漫畫",
         "fail": "搜尋失敗: ",
-        "APIError": "API 回傳失敗",
         "networkError": "網絡連線失敗",
         "requestError": "請求失敗",
         "up": "上一頁",
@@ -72,8 +65,7 @@
         "page": "第 {page} 頁",
         "chapterChange": "章節切換",
         "photoSizeChange": "圖片大小調整",
-        "chapter": "章節",
-        "dl": "下載目前章節"
+        "chapter": "章節"
     },
     "offline": {
         "offline": "本地漫畫",
@@ -86,8 +78,6 @@
         "delComplete": "已刪除！",
         "indexUpdateFailed": "刪除成功，但索引更新失敗",
         "indexReadFailed": "刪除成功，但索引讀取失敗",
-        "deleteFailed": "刪除失敗：{code}",
-        "folderNotExist": "資料夾不存在，直接刪除索引",
         "legendReserved": "系統預留",
         "comicsUsed": "漫畫佔用",
         "otherUsed": "其他已用",
@@ -127,7 +117,6 @@
         "writeIndexFailed": "寫入索引檔案失敗，錯誤碼：{code}",
         "parseIndexFailed": "解析索引檔案失敗",
         "createFolderFailed": "建立資料夾失敗，錯誤碼：{code}",
-        "selectChapters": "選擇要下載的章節",
         "selectAll": "全選",
         "deselectAll": "反選",
         "startDownload": "開始下載",

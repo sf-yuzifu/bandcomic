@@ -554,13 +554,6 @@ export default {
     this.isLoading = false;
   },
 
-  checkFileExists() {
-    return readComics().then(
-      () => true,
-      () => false
-    );
-  },
-
   async getStorage(comics) {
     let totalStorage = 0;
     let availableStorage = 0;
@@ -1047,18 +1040,6 @@ export default {
   font-style: normal;
   color: rgba(255, 255, 255, 0.8);
   margin-left: 4px;
-}
-
-.storage {
-  text-align: center;
-  font-size: 24px;
-  color: #ffffff;
-  font-weight: bold;
-}
-
-.time-text {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.4);
 }
 
 .empty {
