@@ -38,6 +38,13 @@
             @complete="getPhoto"
             src="{{ cover || '/common/loading.png' }}"
             alt="/common/loading.png"
+            @error="
+              () => {
+                if (cover) {
+                  cover = '';
+                }
+              }
+            "
             style="{{ `width:${size.width}px;height:${size.height}px;object-fit:${loading ? 'contain' : 'cover'};` }}"
           ></image>
         </div>
@@ -106,6 +113,7 @@ import router from "@system.router";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addCoverParams } = global.$img;
 const { parseParams } = global.$route;
+const { proxyImage } = global.$api;
 
 const { screenSize, getTime } = global;
 
@@ -145,7 +153,22 @@ export default {
     this.size.width = (screenSize.width * 3) / 4;
     this.size.height = this.size.width * (4 / 3);
     if (this.cover) {
-      this.cover = addCoverParams(this.cover);
+      const coverUrl = addCoverParams(this.cover);
+      this.cover = coverUrl;
+      // 不支持直接加载远程图片的设备（如 10 Pro 强制网桥）：经插件把封面拉为
+      // 本地文件后替换显示，命名与搜索/历史封面一致；直连设备回调原地址，值不变无感知
+      if (coverUrl.indexOf("http") === 0) {
+        proxyImage(
+          coverUrl,
+          `${global.API_SETTING.using}_${this.item_id}_cover`,
+          (uri) => {
+            if (uri && uri !== coverUrl) {
+              this.cover = uri;
+            }
+          },
+          1
+        );
+      }
     }
   },
 
