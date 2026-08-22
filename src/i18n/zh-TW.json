@@ -65,6 +65,7 @@
     "photo": {
         "page": "第 {page} 頁",
         "chapterChange": "章節切換",
+        "pageJump": "頁碼跳轉",
         "photoSizeChange": "圖片大小調整",
         "chapter": "章節"
     },

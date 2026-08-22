@@ -65,6 +65,7 @@
     "photo": {
         "page": "P{page}",
         "chapterChange": "Switch",
+        "pageJump": "Go to page",
         "photoSizeChange": "Resize",
         "chapter": "Ch"
     },
