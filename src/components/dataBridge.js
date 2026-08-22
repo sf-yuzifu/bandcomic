@@ -11,7 +11,7 @@ import {
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
-import { ensureUsingSourceValid } from "./api";
+import { ensureUsingSourceValid, replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
 import { createStopWaitQueue } from "./stopWaitQueue";
 
 // 封面推送读盘切片（手表→手机）：保持 6144 小切片求稳；
@@ -42,27 +42,6 @@ function detectImageFormat(bytes) {
     return "image/webp";
   if (bytes[0] === 0x42 && bytes[1] === 0x4d) return "image/bmp";
   return "image/jpeg";
-}
-
-function replaceIfDuplicate(configArray, newConfigObject) {
-  const newKey = Object.keys(newConfigObject)[0];
-  const singleConfig = { [newKey]: newConfigObject[newKey] };
-  let found = false;
-
-  for (let i = 0; i < configArray.length; i++) {
-    const existingKey = Object.keys(configArray[i])[0];
-    if (existingKey === newKey) {
-      configArray[i] = singleConfig;
-      found = true;
-      break;
-    }
-  }
-
-  if (!found) {
-    configArray.push(singleConfig);
-  }
-
-  return configArray;
 }
 
 function updateComicsIndexAfterDelete(deletedId, comicName) {
@@ -433,10 +412,7 @@ export function createDataBridge(interConnect) {
       return list;
     }).then(
       function () {
-        configs.forEach(function (newConfig) {
-          const key = Object.keys(newConfig)[0];
-          global.API_SETTING[key] = newConfig[key];
-        });
+        mergeSourcesToGlobal(configs);
         bridge.onSourceConfigSaved();
         prompt.showToast({ message: "漫画源配置已保存！" });
       },

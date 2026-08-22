@@ -25,7 +25,7 @@
       @click="routeOffline"
     />
     <text class="time">{{ time }}</text>
-    <text class="title" if="{{ global.screenShape == 'circle' }}" @click="routeAbout">
+    <text class="title" if.static="{{ global.screenShape == 'circle' }}" @click="routeAbout">
       {{ $t("appName") }}
     </text>
     <text class="title" if.static="{{ global.screenShape != 'circle' }}">
@@ -86,7 +86,7 @@ const { checkUpdate } = global;
 const { serializeParams } = global.$route;
 const { readSources, readSettings, readCookie } = global.$storage;
 const { safeJsonParse } = global.$json;
-const { apiFetch, buildDetailUrl, getFetchErrorType } = global.$api;
+const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal } = global.$api;
 
 const { getTime } = global;
 
@@ -132,10 +132,7 @@ export default {
     // about 改设置、AstroBox 同步）都先写文件再同步 global，内存即真相
     readSources()
       .then((datas) => {
-        datas.forEach((newSourceConfig) => {
-          const newKey = Object.keys(newSourceConfig)[0];
-          global.API_SETTING[newKey] = newSourceConfig[newKey];
-        });
+        mergeSourcesToGlobal(datas);
       })
       .catch(() => {})
       .then(() => {
@@ -389,15 +386,6 @@ export default {
   font-size: 24px;
   color: rgba(255, 255, 255, 0.8);
   margin-right: 10px;
-}
-.source-button {
-  height: 36px;
-  padding: 0 15px;
-  background-color: #262626;
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 18px;
-  justify-content: center;
-  align-items: center;
 }
 
 .donate {
