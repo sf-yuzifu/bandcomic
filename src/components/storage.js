@@ -21,6 +21,7 @@ export const SETTINGS_URI = "internal://files/settings.json";
 export const HISTORY_URI = "internal://files/history.json";
 export const SOURCES_URI = "internal://files/sources.json";
 export const COOKIE_URI = "internal://files/cookie.json";
+export const SEARCH_HISTORY_URI = "internal://files/search_history.json";
 
 // ---- 文件级串行队列：同一 URI 的读-改-写操作排队执行，杜绝并发丢更新 ----
 // 纯内存排队，不增加任何 IO；前序失败不阻塞后续操作。
@@ -178,4 +179,26 @@ export function readCookie() {
 
 export function writeCookie(cookie) {
   return writeJsonFile(COOKIE_URI, cookie);
+}
+
+// ---- 搜索历史：独立文件（不混阅读历史热路径），最多保留 SEARCH_HISTORY_MAX 条 ----
+
+export function readSearchHistory() {
+  return readJsonFile(SEARCH_HISTORY_URI, []);
+}
+
+const SEARCH_HISTORY_MAX = 5;
+
+// 记录一次搜索关键词：去重（含过滤历史脏数据）后插到最前，超长截断队尾。
+// 走 updateJsonFile 串行队列 + 原子写；返回落盘后的完整列表供页面校对
+export function addSearchHistory(keyword) {
+  return updateJsonFile(SEARCH_HISTORY_URI, [], (list) => {
+    const arr = Array.isArray(list) ? list : [];
+    const next = [keyword].concat(arr.filter((k) => typeof k === "string" && k !== keyword));
+    return next.slice(0, SEARCH_HISTORY_MAX);
+  });
+}
+
+export function clearSearchHistory() {
+  return writeJsonFile(SEARCH_HISTORY_URI, []);
 }

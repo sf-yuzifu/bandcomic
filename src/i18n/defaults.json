@@ -51,7 +51,8 @@
         "up": "Prev",
         "down": "Next",
         "totalPage": "{page}p",
-        "page": "P{page}"
+        "page": "P{page}",
+        "historyClear": "Tap again to clear search history"
     },
     "detail": {
         "detail": "Details",

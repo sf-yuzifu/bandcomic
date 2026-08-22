@@ -44,6 +44,19 @@
           </text>
         </scroll>
       </div>
+      <scroll class="history-scroll" scroll-x="true" if="{{ historyList.length > 0 }}">
+        <div class="history-chips">
+          <text
+            for="{{ word in historyList.slice(0, 5) }}"
+            class="history-chip"
+            @click="searchFromHistory(word)"
+          >
+            {{ word }}
+          </text>
+          <div class="history-spacer"></div>
+          <image static class="history-clear" src="/common/del.png" @click="clearHistory"></image>
+        </div>
+      </scroll>
     </div>
 
     <div class="source-selector">
@@ -84,11 +97,21 @@ const { createDataBridge } = global.$bridge;
 const { getConnection, registerBridgeHandler } = global.$hub;
 const { checkUpdate } = global;
 const { serializeParams } = global.$route;
-const { readSources, readSettings, readCookie } = global.$storage;
+const {
+  readSources,
+  readSettings,
+  readCookie,
+  readSearchHistory,
+  addSearchHistory,
+  clearSearchHistory,
+} = global.$storage;
 const { safeJsonParse } = global.$json;
 const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal } = global.$api;
 
-const { getTime } = global;
+const { getTime, createConfirmGuard } = global;
+
+// 清空搜索历史的二次确认守卫（与 offline/edit 删除确认同一组件）
+const confirmClearHistory = createConfirmGuard();
 
 export default {
   private: {
@@ -97,6 +120,7 @@ export default {
     currentSourceName: global.API_SETTING[global.API_SETTING.using].name,
     API_SETTING: global.API_SETTING,
     display: global.display,
+    historyList: [], // 搜索历史（最新在前），onInit 冷启动读一次，本页是唯一写入方
   },
 
   onBackPress() {
@@ -154,6 +178,12 @@ export default {
       .catch(() => {
         global.cookie = {};
       });
+    // 搜索历史仅本页读写，冷启动读一次后内存即真相
+    readSearchHistory()
+      .then((list) => {
+        this.historyList = Array.isArray(list) ? list.filter((k) => typeof k === "string") : [];
+      })
+      .catch(() => {});
 
     const connect = getConnection();
     if (connect) {
@@ -185,6 +215,7 @@ export default {
           "cookie.json",
           "sources.json",
           "history.json",
+          "search_history.json",
         ];
 
         const filesToDelete = files.filter(function (item) {
@@ -247,6 +278,10 @@ export default {
       });
       return;
     }
+    const keyword = this.context.trim();
+    if (keyword) {
+      this.recordSearchHistory(keyword);
+    }
     prompt.showToast({
       message: this.$t("loading"),
       duration: 5000,
@@ -261,6 +296,34 @@ export default {
         },
       });
     }
+  },
+
+  // 记录搜索关键词：先乐观更新本地列表（去重置顶，上限与存储层一致），
+  // 落盘完成后以文件内容校对一次；写盘失败仅记日志，不影响搜索主流程
+  recordSearchHistory(keyword) {
+    this.historyList = [keyword].concat(this.historyList.filter((k) => k !== keyword)).slice(0, 5);
+    addSearchHistory(keyword)
+      .then((list) => {
+        this.historyList = Array.isArray(list) ? list : [];
+      })
+      .catch((e) => {
+        console.debug("搜索历史写入失败: " + (e && e.code));
+      });
+  },
+
+  searchFromHistory(keyword) {
+    this.context = keyword;
+    this.submitSearch();
+  },
+
+  clearHistory() {
+    if (!confirmClearHistory("searchHistory", this.$t("search.historyClear"), { duration: 2000 })) {
+      return;
+    }
+    this.historyList = [];
+    clearSearchHistory().catch((e) => {
+      console.debug("搜索历史清空失败: " + (e && e.code));
+    });
   },
 
   toAlbum(data) {
@@ -402,6 +465,45 @@ export default {
   lines: 1;
   position: absolute;
   padding: 0 12px;
+}
+
+/* 搜索历史条：输入行下方横向滚动，词条自适应宽度 */
+.history-scroll {
+  width: 256px;
+  height: 48px;
+  margin-top: 10px;
+}
+
+/* min-width 大于 scroll 可视宽（256）+ 清空按钮（36+4），词条少时由 spacer 把
+   清空按钮挤出首屏可视区（右滑 ~44px 才可达），词条多时 spacer 收缩为 0 自然排布 */
+.history-chips {
+  flex-direction: row;
+  align-items: center;
+  min-width: 300px;
+}
+
+.history-spacer {
+  flex-grow: 1;
+  height: 1px;
+}
+
+.history-chip {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.85);
+  background-color: #262626;
+  border: 3px solid rgba(255, 255, 255, 0.06);
+  border-radius: 24px;
+  padding: 2px 10px;
+  margin-right: 8px;
+  lines: 1;
+  flex-shrink: 0;
+}
+
+.history-clear {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  margin-right: 4px;
 }
 
 /* 看看是不是小米手表s3/s4 */
