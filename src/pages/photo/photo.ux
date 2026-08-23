@@ -1,5 +1,12 @@
 <template>
   <div class="demo-page">
+    <progress
+      show="{{ showit && page_count > 0 && global.screenShape == 'circle' }}"
+      class="progress-arc"
+      type="arc"
+      percent="{{ Math.min(100, Math.floor((page / page_count) * 100)) }}"
+      style="start-angle: 0; total-angle: 360deg; radius: {{ global.screenSize.width / 2 - 2 }}px"
+    ></progress>
     <img
       show="{{ showit && global.screenShape == 'circle' }}"
       src="/common/mask.png"
@@ -10,44 +17,50 @@
       src="/common/mask.png"
       class="rightButton"
     />
-    <scroll
-      id="scrollId"
-      class="box"
-      scroll-x="true"
-      scroll-y="true"
-      bounces="true"
-      @scroll="onScroll"
+    <div
+      class="arc-container"
+      style="{{ global.screenShape == 'circle' ? `width: ${global.screenSize.width - 12}px; height:
+${global.screenSize.height - 12}px` : '' }}"
     >
-      <div @click="showButton" if="{{ images }}" class="padding"></div>
-      <div
-        if="{{ images }}"
-        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/
+      <scroll
+        id="scrollId"
+        class="box"
+        scroll-x="true"
+        scroll-y="true"
+        bounces="true"
+        @scroll="onScroll"
+      >
+        <div @click="showButton" if="{{ images }}" class="padding"></div>
+        <div
+          if="{{ images }}"
+          style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/
 2 + 2)}px;` }}"
-      ></div>
-      <image
-        if="{{ images }}"
-        class="cover"
-        src="{{ images }}"
-        @complete="getPhoto"
-        alt="blank"
-        @error="
-          () => {
-            if (images != '') {
-              loading = '';
-              images = '';
+        ></div>
+        <image
+          if="{{ images }}"
+          class="cover"
+          src="{{ images }}"
+          @complete="getPhoto"
+          alt="blank"
+          @error="
+            () => {
+              if (images != '') {
+                loading = '';
+                images = '';
+              }
             }
-          }
-        "
-        @click="showButton"
-        style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale / 100 * 2)}px;` }}"
-      ></image>
-      <div
-        if="{{ images }}"
-        style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/
+          "
+          @click="showButton"
+          style="{{ `width:${size.width * (1 + scale / 100 * 2)}px;height:${size.height * (1 + scale / 100 * 2)}px;` }}"
+        ></image>
+        <div
+          if="{{ images }}"
+          style="{{ `width:100%; height:${Math.max(0, (global.screenSize.height - size.height * (1 + scale / 100 * 2))/
 2 + 2)}px;` }}"
-      ></div>
-      <div @click="showButton" if="{{ images }}" class="padding"></div>
-    </scroll>
+        ></div>
+        <div @click="showButton" if="{{ images }}" class="padding"></div>
+      </scroll>
+    </div>
 
     <div if="{{ !images }}" class="state-wrap" @click="showButton">
       <image
@@ -67,9 +80,6 @@
       style="position: absolute; bottom: 0px; width: {{ global.screenSize.width }}px;"
     />
 
-    <!-- 阅读进度（纯展示）：方屏底部横条，左右让出屏幕圆角（band 48px / watch 104px）。
-         层级：z-index 无效只能按文档序渲染——插在此处使其位于图片/遮罩条之上、
-         翻页箭头与返回等按钮之下，遮图不挡按钮 -->
     <div
       class="progress-wrap"
       show="{{ showit && page_count > 0 && global.screenShape != 'circle' }}"
@@ -79,16 +89,6 @@
         percent="{{ Math.min(100, Math.floor((page / page_count) * 100)) }}"
       ></progress>
     </div>
-    <!-- 圆屏：沿圆周走的小圆点（12 点起步顺时针）。不用整圆环——progress 组件按
-         组件盒而非绘制区域命中，全屏圆环会把图片滚动手势全吃掉（真机验证）；
-         12px 圆点的命中面积可忽略 -->
-    <div
-      show="{{ showit && page_count > 0 && global.screenShape == 'circle' }}"
-      class="progress-dot"
-      style="left: {{ global.screenSize.width / 2 + (global.screenSize.width / 2 - 7) * Math.sin(Math.min(1, page /
-page_count) * 6.2832) - 6 }}px; top: {{ global.screenSize.height / 2 - (global.screenSize.width / 2 - 7) * Math.cos(Math.min(1, page /
-page_count) * 6.2832) - 6 }}px"
-    ></div>
 
     <!-- 方表适配 -->
     <img
@@ -866,7 +866,6 @@ export default {
 }
 
 .box {
-  position: relative;
   width: 100%;
   height: 100%;
   flex-direction: column;
@@ -953,14 +952,24 @@ text {
   layer-color: rgba(255, 255, 255, 0.15);
 }
 
-/* 圆屏阅读进度点：沿屏幕圆周顺时针走（12 点起步），12px 小盒几乎不挡触摸 */
-.progress-dot {
+/* 圆屏整圆环：全屏绝对定位、渲染在最底层（文档序最前），圆心默认取组件中心，
+   半径内缩半个笔宽贴屏幕边缘；圆屏图片左右各让 8px（见 getPhoto）露出此环 */
+.progress-arc {
   position: absolute;
-  width: 12px;
-  height: 12px;
-  border-radius: 6px;
-  background-color: #4fc3f7;
-  border: 2px solid rgba(255, 255, 255, 0.9);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  stroke-width: 4px;
+  color: #4fc3f7;
+  layer-color: rgba(255, 255, 255, 0.15);
+}
+
+.arc-container {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
 }
 
 .chapter {
@@ -989,6 +998,18 @@ text {
 @media (device-type: watch) and (shape: circle) {
   .padding {
     height: 50%;
+  }
+
+  /* 圆屏：图片水平居中，与 getPhoto 的宽度内缩配合形成左右对称走廊 */
+  .box {
+    align-items: center;
+  }
+
+  /* 圆屏：容器动态取设备宽/高 - 8（模板内联 style 绑定 global.screenSize，
+     CSS 算不了算术），left/top 各 4px 保持居中；border-radius + overflow 裁圆 */
+  .arc-container {
+    border-radius: 2500px;
+    overflow: hidden;
   }
 
   .leftButton {
