@@ -19,8 +19,12 @@
     />
     <div
       class="arc-container"
-      style="{{ global.screenShape == 'circle' ? `width: ${global.screenSize.width - 12}px; height:
-${global.screenSize.height - 12}px` : '' }}"
+      style="{{
+      global.screenShape == 'circle' ? `
+      width: ${global.screenSize.width - 12}px;
+      height: ${global.screenSize.height - 12}px`
+      : 'width: 100%; height: 100%'
+      }}"
     >
       <scroll
         id="scrollId"
@@ -1053,8 +1057,6 @@ text {
 
 .arc-container {
   position: absolute;
-  width: 100%;
-  height: 100%;
   flex-direction: column;
 }
 
