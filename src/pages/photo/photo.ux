@@ -173,6 +173,17 @@ ${global.screenSize.height - 12}px` : '' }}"
             onchange="onSliderChange"
           ></slider>
           <div static style="height: 10px"></div>
+          <text static class="subtitle">{{ $t("photo.brightness") }}</text>
+          <div static style="height: 10px; flex-shrink: 0"></div>
+          <slider
+            class="slider"
+            min="0"
+            max="100"
+            step="1"
+            value="{{ brightVal }}"
+            onchange="onBrightnessChange"
+          ></slider>
+          <div static style="height: 10px"></div>
         </scroll>
       </div>
     </div>
@@ -219,6 +230,7 @@ ${global.screenSize.height - 12}px` : '' }}"
 <script>
 import router from "@system.router";
 import file from "@system.file";
+import brightness from "@system.brightness";
 
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addImageParams, appendLvglSuffix } = global.$img;
@@ -241,6 +253,14 @@ let reachedEdge = null; // 滚边翻页戒备状态：记录已到达过的边�
 let posX = 0; // 上一次滚动位置（标量对，替代原每个滚动事件都重建的 pos 数组）
 let posY = 0;
 let shownPage = 0; // 当前实际显示图片对应的页码（翻页时回存预加载缓存用）
+// 亮度临时调节：首次拖动时记录的原始 {mode, value}，onDestroy 恢复；
+// null 表示本次阅读未动过亮度。App 被杀不恢复为可接受边界
+let origBrightness = null;
+// slider onchange 拖动中高频连发（每秒几十次），逐次调原生 setMode/setValue
+// 会把系统亮度 IPC 打爆卡死 UI；以下三个变量做"模式只切一次 + 设值节流"
+let brightManual = false; // 是否已切过手动模式
+let brightTimer = 0; // 节流定时器句柄（0=无在途）
+let pendingBright = -1; // 待生效的亮度值（0..255）
 
 // 翻多少页才把阅读历史落盘一次
 const HISTORY_FLUSH_INTERVAL = 5;
@@ -301,6 +321,10 @@ export default {
     is_serial: false,
     pickerValues: [],
     pagePickerValues: [], // 页码跳转 picker 的逐位可选范围（页码随章变化，需重建）
+    // 亮度滑杆初值（0..100，onInit 时同步一次系统当前值）。
+    // 命名避开上方 import 的 brightness 模块：模板表达式作用域内同名字段
+    // 可能与模块冲突，slider value 绑到模块对象会卡死
+    brightVal: 50,
   },
 
   onShow() {
@@ -318,6 +342,16 @@ export default {
 
   onDestroy() {
     this.flushHistory();
+    // 恢复进入阅读页前的亮度（临时调节语义）；只动过亮度（origBrightness 非 null）才恢复
+    if (brightTimer) {
+      clearTimeout(brightTimer);
+      brightTimer = 0;
+    }
+    if (origBrightness) {
+      brightness.setMode({ mode: origBrightness.mode });
+      brightness.setValue({ value: origBrightness.value });
+      origBrightness = null;
+    }
     ImageCache = [];
     PreloadCache = {};
     PreloadInflight = {};
@@ -330,7 +364,13 @@ export default {
     reachedEdge = null;
     posX = 0;
     posY = 0;
-    shownPage = 0;
+    origBrightness = null;
+    brightManual = false;
+    pendingBright = -1;
+    if (brightTimer) {
+      clearTimeout(brightTimer);
+      brightTimer = 0;
+    }
 
     // 如果有传入的 source 参数，切换到对应的漫画源
     if (this.source) {
@@ -783,7 +823,53 @@ export default {
       if (this.page_count > 0) {
         this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
       }
+      // getValue 返回当前实际生效亮度（自动模式下同样是当前值，0..255），
+      // 每次打开弹层刷新一次滑杆位置，跟住系统自动亮度的变化
+      const self = this;
+      brightness.getValue({
+        success: (data) => {
+          if (self.showSlider) {
+            self.brightVal = Math.round(((data.value || 0) / 255) * 100);
+          }
+        },
+      });
     }
+  },
+
+  // 亮度临时调节：首次拖动异步记下原始 {mode, value}；退出阅读页时 onDestroy 恢复。
+  // 拖动事件高频连发：setMode(0) 只切一次，setValue 经 100ms 节流只生效最新值；
+  // 不回写 this.brightVal（slider 已自显示），防数据回写再次触发 onchange
+  onBrightnessChange(e) {
+    pendingBright = Math.round((e.progress / 100) * 255);
+    if (!origBrightness) {
+      origBrightness = { mode: 0, value: 128 }; // 占位默认值 + 防回调返回前重复捕获
+      brightness.getMode({
+        success: (data) => {
+          origBrightness.mode = data.mode || 0;
+        },
+      });
+      brightness.getValue({
+        success: (data) => {
+          origBrightness.value = data.value || 0;
+        },
+      });
+    }
+    if (brightTimer) {
+      return;
+    }
+    brightTimer = setTimeout(() => {
+      brightTimer = 0;
+      if (pendingBright < 0) {
+        return;
+      }
+      const value = pendingBright;
+      pendingBright = -1;
+      if (!brightManual) {
+        brightManual = true;
+        brightness.setMode({ mode: 0 });
+      }
+      brightness.setValue({ value });
+    }, 100);
   },
 
   // 页码跳转：数字轮盘逐位拼页码，钳制在 1..page_count 后按 toPage 同款收尾跳页
