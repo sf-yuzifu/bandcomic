@@ -13,6 +13,7 @@ import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
 import { ensureUsingSourceValid, replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
 import { createStopWaitQueue } from "./stopWaitQueue";
+import { createWindowedSender } from "./windowedSender";
 
 // 封面推送读盘切片（手表→手机）：保持 6144 小切片求稳；
 // 反方向（插件→设备 fetch 分片）才用 24K，见 interconnfetch.js MAX_CHUNK_SIZE
@@ -22,6 +23,11 @@ const COVER_ACK_TIMEOUT = 3000;
 const COVER_MAX_RETRY = 2;
 const SLICE_MAX_RETRY = 3;
 const COVER_PACING_MS = 20;
+// 滑窗传输（与插件 transfer.rs 对偶）：方向 A 接收窗口随 hs_pong caps 声明给插件；
+// 方向 B 发送窗口以插件 hs_ping caps 为准（clamp [1,16]）
+const IMPORT_WINDOW = 4;
+const SYNC_ACK_TIMEOUT = 3000;
+const SYNC_MAX_RETRY = 5;
 
 function detectImageFormat(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
@@ -66,6 +72,8 @@ export function createDataBridge(interConnect) {
   let _coverDoneSent = false;
   let _coverFlow = null; // 当前封面停等队列（createStopWaitQueue 实例）
   let _coverMime = "image/jpeg";
+  let _syncSender = null; // 方向 B 滑窗发送器（createWindowedSender 实例，新协议）
+  let _pluginCaps = null; // 插件 hs_ping 携带的能力（syncWindow 等），无则走旧停等协议
 
   // 单张封面的发送动作：file.get 拿大小 → 逐切片连发（片间节流 COVER_PACING_MS），
   // 全部发完 ctx.sent() 进入等 cover_ack；任一环失败 ctx.failed() 跳过本张。
@@ -247,6 +255,147 @@ export function createDataBridge(interConnect) {
     bridge.onAppDataAck = flow.notifyAck;
   }
 
+  // 预读单张封面的全部切片为帧数组；读失败/无封面回调 null（跳过该张，
+  // 与旧停等路径 ctx.failed() 跳过单张语义一致）
+  function readOneCover(c, uri, total, cb) {
+    const totalChunks = Math.ceil(total / COVER_READ_CHUNK_SIZE);
+    if (totalChunks <= 0) {
+      cb(null);
+      return;
+    }
+    const frames = [];
+    let pos = 0;
+    function step() {
+      if (pos >= total) {
+        cb(frames);
+        return;
+      }
+      const len = Math.min(COVER_READ_CHUNK_SIZE, total - pos);
+      const isFirst = pos === 0;
+      const chunkIndex = Math.floor(pos / COVER_READ_CHUNK_SIZE);
+      file.readArrayBuffer({
+        uri: uri,
+        position: pos,
+        length: len,
+        success: function (bufData) {
+          if (!bufData.buffer) {
+            cb(null);
+            return;
+          }
+          const bytes = new Uint8Array(bufData.buffer);
+          const header = isFirst ? "data:" + detectImageFormat(bytes) + ";base64," : "";
+          frames.push({
+            type: "cover_data_chunk",
+            name: c.name || "",
+            index: chunkIndex,
+            total: totalChunks,
+            data: header + base64Encode(bufData.buffer),
+          });
+          pos += len;
+          step();
+        },
+        fail: function () {
+          cb(null);
+        },
+      });
+    }
+    step();
+  }
+
+  // 串行预读全部封面切片（80px 小图，总量仅数百 KB，可一次驻留）
+  function buildCoverFramesSerial(queue, done) {
+    const frames = [];
+    let ci = 0;
+    function nextCover() {
+      if (ci >= queue.length) {
+        done(frames);
+        return;
+      }
+      const c = queue[ci++];
+      const uri = "internal://files/" + c.id + "/cover";
+      file.get({
+        uri: uri,
+        success: function (info) {
+          readOneCover(c, uri, info.length || 0, function (coverFrames) {
+            if (coverFrames) {
+              frames.push.apply(frames, coverFrames);
+            }
+            nextCover();
+          });
+        },
+        fail: function () {
+          nextCover();
+        },
+      });
+    }
+    nextCover();
+  }
+
+  // 滑窗同步会话：列表消息 + 全部封面切片 + cover_done 打平成一条帧流，
+  // 乱序由插件按 gseq 还原，本端只管窗口推进（不再依赖逐条停等保证顺序）
+  function sendAppDataWindowed(comics, sourceList, windowN) {
+    prompt.showToast({
+      message: "正在发送数据 (comic=" + comics.length + " source=" + sourceList.length + ")",
+    });
+
+    const frames = [];
+    frames.push({
+      type: "app_data_header",
+      comic_count: comics.length,
+      source_count: sourceList.length,
+    });
+    for (let i = 0; i < comics.length; i++) {
+      frames.push({ type: "app_data_comic", index: i, comic: comics[i] });
+    }
+    for (let i = 0; i < sourceList.length; i++) {
+      frames.push({ type: "app_data_source", index: i, source: sourceList[i] });
+    }
+    frames.push({ type: "app_data_done" });
+
+    buildCoverFramesSerial(_coverQueue || [], function (coverFrames) {
+      for (let i = 0; i < coverFrames.length; i++) {
+        frames.push(coverFrames[i]);
+      }
+      frames.push({ type: "cover_done" });
+
+      _syncSender = createWindowedSender({
+        label: "同步",
+        frames: frames,
+        window: windowN,
+        ackTimeout: SYNC_ACK_TIMEOUT,
+        maxRetry: SYNC_MAX_RETRY,
+        sendFrame: function (f) {
+          interConnect.send({
+            data: f,
+            success: function () {},
+            fail: function () {
+              // 发送失败不立即中止：该帧视为丢失，由 ACK 超时整窗重发兜底
+            },
+          });
+        },
+        onAllDone: function () {
+          _syncSender = null;
+          prompt.showToast({ message: "数据发送完成" });
+        },
+        onAbort: function () {
+          _syncSender = null;
+          prompt.showToast({ message: "发送中断，请重试" });
+        },
+      });
+    });
+  }
+
+  // 按插件握手能力分发：声明了 syncWindow 走滑窗新协议，否则旧停等
+  function dispatchAppData(comics, sourceList) {
+    const win =
+      _pluginCaps && typeof _pluginCaps.syncWindow === "number" ? _pluginCaps.syncWindow : 0;
+    if (win > 0) {
+      sendAppDataWindowed(comics, sourceList, Math.min(Math.max(win, 1), 16));
+      return;
+    }
+    sendAppDataBatched(comics, sourceList);
+  }
+
   function readSourcesAndSend(comics) {
     readSources().then(
       function (rawSources) {
@@ -262,10 +411,10 @@ export function createDataBridge(interConnect) {
           });
         }
 
-        sendAppDataBatched(comics, sourceList);
+        dispatchAppData(comics, sourceList);
       },
       function () {
-        sendAppDataBatched(comics, []);
+        dispatchAppData(comics, []);
       }
     );
   }
@@ -277,6 +426,11 @@ export function createDataBridge(interConnect) {
     if (_coverFlow) {
       _coverFlow.cancel();
       _coverFlow = null;
+    }
+    // 滑窗会话同理：新一轮 request_data 打断在途发送器
+    if (_syncSender) {
+      _syncSender.cancel();
+      _syncSender = null;
     }
     readComics().then(
       function (comicsList) {
@@ -554,7 +708,15 @@ export function createDataBridge(interConnect) {
       failedFiles: 0,
       inflightWrites: 0, // 在途异步写入数：done 收尾前必须归零
       doneReceived: false,
+      // 滑窗会话（头部带 wchunks）：gseq 乱序缓存 + 连续前沿；旧插件无 wchunks 保持 null
+      gbuf: null,
+      gnext: 0,
+      gtotal: 0,
     };
+    if (typeof parsed.wchunks === "number") {
+      _importState.gbuf = {};
+      _importState.gtotal = parsed.wchunks;
+    }
 
     if (mode === "single") {
       files.forEach(function (f) {
@@ -668,84 +830,43 @@ export function createDataBridge(interConnect) {
     });
   }
 
-  function handleImportComicChunk(parsed) {
-    if (!_importState) {
-      console.debug("收到分片但没有 importState");
-      return;
-    }
-
-    const comicName = parsed.name || "";
-    const fileKey = parsed.file || "";
-    const index = parsed.index;
-    const total = parsed.total;
-    const data = parsed.data || "";
-
-    if (comicName !== _importState.comicName) {
-      // 漫画名含特殊字符时传输中可能被转义导致不一致
-      // _importState 是单例，本身即代表当前唯一导入会话，名不匹配只告警不丢弃
-      console.debug("分片漫画名不匹配: " + comicName + " vs " + _importState.comicName);
-    }
-
+  // 单片落位：校验清单 → 写入 per-file 缓冲 → 齐则合并落盘。
+  // 纯数据逻辑不含 ACK 回复，逐片旧协议与滑窗新协议共用
+  function consumeImportChunk(fileKey, index, total, data) {
+    const state = _importState;
     // 严格匹配：fileKey 必须在头部声明的文件清单内，否则视为异常分片
-    if (_importState.files.indexOf(fileKey) === -1) {
+    if (state.files.indexOf(fileKey) === -1) {
       console.debug("未知分片文件: " + fileKey);
-      // 仍需回 ACK，避免插件端超时重传死循环
-      interConnect.send({
-        data: {
-          type: "import_chunk_ack",
-          name: comicName,
-          file: fileKey,
-          index: index,
-        },
-      });
       return;
     }
 
-    if (!_importState.buffers[fileKey]) {
-      _importState.buffers[fileKey] = {
+    if (!state.buffers[fileKey]) {
+      state.buffers[fileKey] = {
         chunks: new Array(total),
         received: 0,
         total: total,
       };
     }
 
-    const buf = _importState.buffers[fileKey];
+    const buf = state.buffers[fileKey];
     if (buf.chunks[index]) {
-      // 重复分片：数据忽略，但仍需重发 ACK，否则插件端超时重传会死循环
-      interConnect.send({
-        data: {
-          type: "import_chunk_ack",
-          name: comicName,
-          file: fileKey,
-          index: index,
-        },
-      });
+      // 重复分片：数据忽略（ACK 由调用方按协议形态回复）
       return;
     }
 
     buf.chunks[index] = data;
     buf.received++;
 
-    // 收到每个分片后发送 ACK，告知插件可以发下一片
-    interConnect.send({
-      data: {
-        type: "import_chunk_ack",
-        name: comicName,
-        file: fileKey,
-        index: index,
-      },
-    });
-
     if (buf.received === buf.total) {
       const fullBase64 = buf.chunks.join("");
-      const fileUri = _importState.dirUri + "/" + fileKey;
-      delete _importState.buffers[fileKey];
+      const fileUri = state.dirUri + "/" + fileKey;
+      delete state.buffers[fileKey];
 
       // 多章模式书级封面不参与文件计数（插件端可选发送，缺失不报错）；
       // 单本模式的 cover 在 header files 清单内，走正常计数路径
-      const isUncountedCover = _importState.mode === "multi" && fileKey === "cover";
+      const isUncountedCover = state.mode === "multi" && fileKey === "cover";
       if (isUncountedCover) {
-        if (_importState.dirReady) {
+        if (state.dirReady) {
           writeBinaryFromBase64(
             fileUri,
             fullBase64,
@@ -753,20 +874,82 @@ export function createDataBridge(interConnect) {
             function () {}
           );
         } else {
-          _importState.pendingWrites.push({ uri: fileUri, data: fullBase64, isCover: true });
+          state.pendingWrites.push({ uri: fileUri, data: fullBase64, isCover: true });
         }
         return;
       }
 
-      if (_importState.dirReady) {
-        startImportWrite(_importState, fileUri, fullBase64);
+      if (state.dirReady) {
+        startImportWrite(state, fileUri, fullBase64);
       } else {
-        _importState.pendingWrites.push({
+        state.pendingWrites.push({
           uri: fileUri,
           data: fullBase64,
         });
       }
     }
+  }
+
+  // 滑窗会话的累计 ACK：ack = 下一个仍缺失的连续 gseq
+  function sendImportCumAck(comicName, ack) {
+    interConnect.send({
+      data: { type: "import_chunk_ack", name: comicName, ack: ack },
+      success: function () {},
+      fail: function () {},
+    });
+  }
+
+  // 滑窗分片：乱序落位 gbuf，从连续前沿按序消费；每收一片回一次累计 ACK
+  // （增量 ACK 是发送方窗口不死锁的硬性前提）；重复片只回 ACK 不落数据
+  function handleImportChunkWindowed(parsed, comicName) {
+    const state = _importState;
+    const gseq = parsed.gseq;
+    if (gseq < state.gnext || state.gbuf[gseq] !== undefined) {
+      sendImportCumAck(comicName, state.gnext);
+      return;
+    }
+    state.gbuf[gseq] = parsed;
+    while (state.gbuf[state.gnext] !== undefined) {
+      const frame = state.gbuf[state.gnext];
+      delete state.gbuf[state.gnext];
+      state.gnext++;
+      // 未知 fileKey 也照常推进前沿（只不落盘），否则发送方窗口停滞
+      consumeImportChunk(frame.file || "", frame.index, frame.total, frame.data || "");
+    }
+    sendImportCumAck(comicName, state.gnext);
+  }
+
+  function handleImportComicChunk(parsed) {
+    if (!_importState) {
+      console.debug("收到分片但没有 importState");
+      return;
+    }
+
+    const comicName = parsed.name || "";
+
+    if (comicName !== _importState.comicName) {
+      // 漫画名含特殊字符时传输中可能被转义导致不一致
+      // _importState 是单例，本身即代表当前唯一导入会话，名不匹配只告警不丢弃
+      console.debug("分片漫画名不匹配: " + comicName + " vs " + _importState.comicName);
+    }
+
+    // 滑窗会话（头部带 wchunks 且帧带 gseq）
+    if (_importState.gbuf && typeof parsed.gseq === "number") {
+      handleImportChunkWindowed(parsed, comicName);
+      return;
+    }
+
+    // 旧版逐片停等路径：每片回逐片 ACK（未知文件/重复片也回，防插件超时重传死循环）
+    const fileKey = parsed.file || "";
+    consumeImportChunk(fileKey, parsed.index, parsed.total, parsed.data || "");
+    interConnect.send({
+      data: {
+        type: "import_chunk_ack",
+        name: comicName,
+        file: fileKey,
+        index: parsed.index,
+      },
+    });
   }
 
   function handleImportComicDone(parsed) {
@@ -832,7 +1015,17 @@ export function createDataBridge(interConnect) {
     if (isSerial && Array.isArray(chapters)) {
       chaptersMeta = chapters.map(function (ch, i) {
         const count = (ch.files || []).length;
-        return { num: i + 1, name: ch.name || "", page_count: count, downloaded: count };
+        // 插件按 "<章号><全角空格><章名>" 命名章节目录与分片键；
+        // 元数据沿用下载链路约定：num 单列、name 不带前缀（阅读页再拼回带前缀的目录名）
+        const rawName = ch.name || "";
+        const parts = rawName.split("　");
+        const hasPrefix = parts.length > 1 && /^\d+$/.test(parts[0]);
+        return {
+          num: hasPrefix ? parseInt(parts[0], 10) : i + 1,
+          name: hasPrefix ? parts.slice(1).join("　") : rawName,
+          page_count: count,
+          downloaded: count,
+        };
       });
     } else {
       chaptersMeta = [{ num: 0, name: "", page_count: pageCount || 0, downloaded: pageCount || 0 }];
@@ -970,16 +1163,25 @@ export function createDataBridge(interConnect) {
   }
 
   // 握手应答：新会话建立时清理残缺的导入状态，并回传快应用设置
+  // 顺带交换能力：存下插件 caps（syncWindow 决定方向 B 走滑窗还是旧停等），
+  // 并在 hs_pong 里声明本端导入接收窗口（importWindow）
   function handleHandshakePing(parsed) {
     if (_importState) {
       console.debug("新握手会话，清理未完成的导入状态");
       _importState = null;
     }
+    // 新会话打断可能在途的滑窗同步：旧会话帧序号对新 frontier 无意义
+    if (_syncSender) {
+      _syncSender.cancel();
+      _syncSender = null;
+    }
+    _pluginCaps = parsed && parsed.caps && typeof parsed.caps === "object" ? parsed.caps : null;
     interConnect.send({
       data: {
         type: "hs_pong",
         session: parsed.session || "",
         settings: global.APP_SETTING || {},
+        caps: { importWindow: IMPORT_WINDOW },
       },
       success: function () {},
       fail: function () {},
@@ -1009,6 +1211,11 @@ export function createDataBridge(interConnect) {
       const ackIndex = parsed.index || 0;
       if (typeof bridge.onAppDataAck === "function") {
         bridge.onAppDataAck(ackIndex);
+      }
+    } else if (msgType === "sync_ack") {
+      // 滑窗会话的累计 ACK：ack = 下一个仍缺失的连续 gseq
+      if (_syncSender) {
+        _syncSender.notifyAck(parsed.ack);
       }
     } else if (msgType === "cover_ack") {
       // 插件端拼完整张封面，继续发送下一张
