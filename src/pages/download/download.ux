@@ -167,6 +167,8 @@ const MAX_RETRY = 3;
 // 失败页数超过该阈值视为网络/服务器整体故障
 const MAX_FAILED_TOLERANCE = 3;
 
+const CHAPTER_WINDOW = 18;
+
 let ImageCache = [];
 
 // 以下状态与 UI 无关（不参与模板绑定），放模块级减少 viewModel 的 observer/数据
@@ -251,7 +253,7 @@ export default {
     this.is_serial = this.total_chapters > 1;
     originalName = this.name;
     this.displayStart = 0;
-    this.displayEnd = Math.min(18, this.total_chapters);
+    this.displayEnd = Math.min(CHAPTER_WINDOW, this.total_chapters);
     if (this.is_serial) {
       // 先同步渲染章节网格，已下载标记异步补齐，进页不被 IO 阻塞
       this.chapterList = [];
@@ -361,8 +363,9 @@ export default {
     scrollTopTriggered = false;
     scrollBottomTriggered = false;
     loadingMore = true;
-    this.displayEnd = this.displayStart;
-    this.displayStart = Math.max(0, this.displayStart - 18);
+    this.displayStart = Math.max(0, this.displayStart - CHAPTER_WINDOW);
+    // 窗口长度恒 min(CHAPTER_WINDOW, total)：首窗不满时向尾部取满，保证可滚动
+    this.displayEnd = Math.min(this.displayStart + CHAPTER_WINDOW, this.total_chapters);
     loadingMore = false;
   },
 
@@ -378,8 +381,9 @@ export default {
     scrollTopTriggered = false;
     scrollBottomTriggered = false;
     loadingMore = true;
-    this.displayStart = this.displayEnd;
-    this.displayEnd = Math.min(this.displayEnd + 18, this.total_chapters);
+    this.displayEnd = Math.min(this.displayEnd + CHAPTER_WINDOW, this.total_chapters);
+    // 末窗不足一页时向前回填取满，保证窗口内容始终超高可滚动回翻
+    this.displayStart = Math.max(0, this.displayEnd - CHAPTER_WINDOW);
     loadingMore = false;
   },
 
@@ -1071,6 +1075,10 @@ export default {
 
 /* 圆形手表适配 */
 @media (device-type: watch) and (shape: circle) {
+  .chapter-select {
+    width: 90%;
+  }
+
   .container {
     justify-content: center;
   }
