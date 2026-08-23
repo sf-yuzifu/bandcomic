@@ -14,10 +14,10 @@ const HS_TAG = "__hs__";
 const TIMEOUT = 3000;
 const IDLE_TIMEOUT = 10000;
 const REQUEST_TIMEOUT = 20000;
-// 分片上限：24K（base64 后约 32K 字符，留足 JSON 开销余量），已实测可行；
-// 通过握手 caps.maxChunkSize 告知网桥插件——新版插件协商为对端主导（clamp 到 [256, 64K]），
+// 分片上限：32K（base64 后约 43.7K 字符 + JSON 外壳，仍在 QAIC 传闻 48K 上限内；24K 已实测可行，
+// 32K 待真机验证——若失败退回 24576）。新版插件协商为对端主导（clamp 到 [256, 64K]），
 // 本声明即实际生效片长；旧版插件按自身 4096 上限钳制，同样兼容
-const MAX_CHUNK_SIZE = 24576;
+const MAX_CHUNK_SIZE = 32768;
 
 let systemFetch = null;
 
@@ -190,28 +190,57 @@ const LOCAL_CAPS = {
   encodings: ["text", "base64", "hex"],
   compressions: ["none"],
   ack: true,
+  // 在途窗口 6 帧（32K×6≈192KB）：直写落地后手表端无乱序驻留顾虑，更大窗口压缩 ACK 往返占比；
+  // 插件侧 clamp 到 [1,64]。若真机验证窗口非瓶颈可回调 4
   ackWindow: 4,
   stream: true,
 };
 
-// v4 流帧完整性校验：IEEE CRC-32（编码前原始字节），查表法 ~1 操作/字节
-let CRC_TABLE = null;
-function crc32Hex(bytes) {
-  if (!CRC_TABLE) {
-    CRC_TABLE = new Uint32Array(256);
+// v4 流帧完整性校验：IEEE CRC-32（编码前原始字节）。slice-by-8 查表（8 张静态表，
+// 每帧循环次数降为逐字节版的 1/8）——CRC 在 ACK 关键路径上（验过才回 ACK、插件才泵下一帧），
+// 手环 JS 上逐字节版对 32K 帧要 3 万+ 次循环，是 v4 传输的 CPU 大头
+let CRC_TABLES = null;
+function crc32Num(bytes) {
+  if (!CRC_TABLES) {
+    CRC_TABLES = [new Uint32Array(256)];
     for (let n = 0; n < 256; n++) {
       let c = n;
       for (let k = 0; k < 8; k++) {
         c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
       }
-      CRC_TABLE[n] = c >>> 0;
+      CRC_TABLES[0][n] = c >>> 0;
+    }
+    for (let t = 1; t < 8; t++) {
+      CRC_TABLES[t] = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        CRC_TABLES[t][n] = (CRC_TABLES[t - 1][n] >>> 8) ^ CRC_TABLES[0][CRC_TABLES[t - 1][n] & 0xff];
+      }
     }
   }
+  const T = CRC_TABLES;
   let crc = 0xffffffff;
-  for (let i = 0; i < bytes.length; i++) {
-    crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+  let i = 0;
+  const len = bytes.length;
+  while (i + 8 <= len) {
+    const lo =
+      (crc ^ (bytes[i] | (bytes[i + 1] << 8) | (bytes[i + 2] << 16) | (bytes[i + 3] << 24))) >>> 0;
+    const hi = (bytes[i + 4] | (bytes[i + 5] << 8) | (bytes[i + 6] << 16) | (bytes[i + 7] << 24)) >>> 0;
+    crc =
+      T[7][lo & 0xff] ^
+      T[6][(lo >>> 8) & 0xff] ^
+      T[5][(lo >>> 16) & 0xff] ^
+      T[4][lo >>> 24] ^
+      T[3][hi & 0xff] ^
+      T[2][(hi >>> 8) & 0xff] ^
+      T[1][(hi >>> 16) & 0xff] ^
+      T[0][hi >>> 24];
+    i += 8;
   }
-  return ((crc ^ 0xffffffff) >>> 0).toString(16).padStart(8, "0");
+  while (i < len) {
+    crc = T[0][(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8);
+    i++;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 class InterconnFetchClient {
@@ -463,7 +492,7 @@ class InterconnFetchClient {
         // CRC 校验失败不得推进 ACK：丢弃本帧并回重复 ACK，
         // 触发发送方对当前未确认窗口 go-back-N 重传
         if (typeof crc32 === "string" && bytes instanceof Uint8Array) {
-          if (crc32Hex(bytes) !== crc32) {
+          if (crc32Num(bytes) !== parseInt(crc32, 16)) {
             console.debug(`流帧 CRC 校验失败(seq=${seq})，等待重传`);
             sendStreamAck();
             return;
