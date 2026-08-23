@@ -1,5 +1,18 @@
 const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+// 解码查表：模块级惰性单例（此前每次调用都重建 64 项对象，分片场景每片白建一次）；
+// Int8Array 越界访问返回 undefined，与旧对象查表对非法字符的语义一致（调用前已正则清洗）
+let B64_LOOKUP = null;
+function getLookup() {
+  if (!B64_LOOKUP) {
+    B64_LOOKUP = new Int8Array(128).fill(-1);
+    for (let i = 0; i < BASE64_CHARS.length; i++) {
+      B64_LOOKUP[BASE64_CHARS.charCodeAt(i)] = i;
+    }
+  }
+  return B64_LOOKUP;
+}
+
 export function base64Encode(input) {
   const bytes = new Uint8Array(input);
   const len = bytes.length;
@@ -17,10 +30,7 @@ export function base64Encode(input) {
 }
 
 export function base64ToBytes(base64) {
-  const lookup = {};
-  for (let i = 0; i < BASE64_CHARS.length; i++) {
-    lookup[BASE64_CHARS[i]] = i;
-  }
+  const lookup = getLookup();
   base64 = base64.replace(/[^A-Za-z0-9+/=]/g, "");
   const len = base64.length;
   let padding = 0;
@@ -31,10 +41,10 @@ export function base64ToBytes(base64) {
   const bytes = new Uint8Array(bufLen);
   let p = 0;
   for (let i = 0; i < len; i += 4) {
-    const enc1 = lookup[base64.charAt(i)];
-    const enc2 = lookup[base64.charAt(i + 1)];
-    const enc3 = lookup[base64.charAt(i + 2)];
-    const enc4 = lookup[base64.charAt(i + 3)];
+    const enc1 = lookup[base64.charCodeAt(i)];
+    const enc2 = lookup[base64.charCodeAt(i + 1)];
+    const enc3 = lookup[base64.charCodeAt(i + 2)];
+    const enc4 = lookup[base64.charCodeAt(i + 3)];
     bytes[p++] = (enc1 << 2) | (enc2 >> 4);
     if (base64.charAt(i + 2) !== "=") {
       bytes[p++] = ((enc2 & 15) << 4) | (enc3 >> 2);

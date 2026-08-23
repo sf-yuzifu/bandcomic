@@ -14,8 +14,9 @@ const HS_TAG = "__hs__";
 const TIMEOUT = 3000;
 const IDLE_TIMEOUT = 10000;
 const REQUEST_TIMEOUT = 20000;
-// 分片上限：互联消息体上限传闻 48K，保险取 24K（base64 后约 32K 字符，留足 JSON 开销余量）；
-// 通过握手 caps.maxChunkSize 告知网桥插件，插件按此切片
+// 分片上限：24K（base64 后约 32K 字符，留足 JSON 开销余量），已实测可行；
+// 通过握手 caps.maxChunkSize 告知网桥插件——新版插件协商为对端主导（clamp 到 [256, 64K]），
+// 本声明即实际生效片长；旧版插件按自身 4096 上限钳制，同样兼容
 const MAX_CHUNK_SIZE = 24576;
 
 let systemFetch = null;
@@ -138,6 +139,32 @@ function writeChunkFile(uri, bytes, append) {
           append: append || false,
           success: () => resolve(),
           fail: (__, code2) => reject(new Error("chunk write: " + code2)),
+        });
+      },
+    });
+  });
+}
+
+// 定点覆盖写（含双类型回退）。真机固件在 position >= 文件长度时直接失败（202），
+// 调用方必须保证 position 严格小于当前文件长度（水位线引擎的补洞场景天然满足）。
+function writeChunkFileAt(uri, bytes, position) {
+  return new Promise((resolve, reject) => {
+    if (!fileModule) {
+      reject(new Error("no file"));
+      return;
+    }
+    fileModule.writeArrayBuffer({
+      uri: uri,
+      buffer: bytes,
+      position: position,
+      success: () => resolve(),
+      fail: (_, code) => {
+        fileModule.writeArrayBuffer({
+          uri: uri,
+          buffer: bytes.buffer,
+          position: position,
+          success: () => resolve(),
+          fail: (__, code2) => reject(new Error("chunk write@: " + code2)),
         });
       },
     });
@@ -315,11 +342,17 @@ class InterconnFetchClient {
         }
       }
 
-      // 如果用了 onChunk，记录其 Promise 以便后续等待
+      // 如果用了 onChunk，记录其 Promise 以便后续等待。
+      // offset 供水位线直写：v3 定长分片的偏移 = seq × chunkSize 精确可推算；
+      // 压缩流的分片偏移与文件偏移不对应，禁止直写（协商 compressions:["none"] 不会触发）
       if (req.onChunk) {
         const toWrite = encoding === "text" ? chunkData : decoded;
         if (toWrite !== undefined) {
-          req.chunkPromises.push(req.onChunk(toWrite, seq));
+          const cs = req.header && req.header.chunkSize;
+          const compressed =
+            req.header && req.header.compression && req.header.compression !== "none";
+          const offset = !compressed && typeof cs === "number" && cs > 0 ? seq * cs : null;
+          req.chunkPromises.push(req.onChunk(toWrite, seq, offset));
         }
       }
 
@@ -399,8 +432,9 @@ class InterconnFetchClient {
         }
       }
     } else if (tag === FETCH_STREAM_TAG) {
-      // v4 流数据帧/最终帧：先验 CRC 再推进累计 ACK；final 帧也占一个序号
-      const { id, seq, data: frameData, crc32, final } = payload;
+      // v4 流数据帧/最终帧：先验 CRC 再推进累计 ACK；final 帧也占一个序号。
+      // 新版插件每帧带显式 offset（帧自定位，供 onChunk 水位线直写；旧插件无此字段自动回退有序 append）
+      const { id, seq, data: frameData, crc32, final, offset, totalBytes } = payload;
       const req = this.requests.get(id);
       if (!req || req.settled || !req.stream) return;
       req.resetTimer();
@@ -439,7 +473,9 @@ class InterconnFetchClient {
           decoded = bytes; // 无 onChunk 时驻留字节，EOF 时合并
         }
         if (req.onChunk) {
-          req.chunkPromises.push(req.onChunk(bytes, seq));
+          req.chunkPromises.push(
+            req.onChunk(bytes, seq, typeof offset === "number" ? offset : null)
+          );
         }
       }
       req.chunkBuffer[seq] = decoded;
@@ -451,6 +487,10 @@ class InterconnFetchClient {
       sendStreamAck();
       if (final) {
         req.finalSeq = seq;
+        // final 帧带流总长：记入头部，供完工时"水位 === totalBytes"完整性校验
+        if (typeof totalBytes === "number") {
+          req.header.totalBytes = totalBytes;
+        }
       }
       // EOF 提交：final 帧及其前所有序号连续到齐（含 CRC 全部通过）
       if (req.finalSeq >= 0 && req.nextAck > req.finalSeq) {
@@ -621,7 +661,9 @@ class InterconnFetchClient {
     if (!this._init()) {
       throw new Error("interconnect not available");
     }
-    const id = url + Math.random().toFixed(5);
+    // 短 id：会话内自增即唯一（插件按 addr+pkg+id 键控，同 id 的 begin 会顶掉陈旧传输）；
+    // 完整 URL 不进帧——此前每个分片帧与 ACK 双向都背负一两百字符的 URL
+    const id = "r" + ++_reqSeq;
     const resp = await this._sendFetch(id, url, options, onChunk);
     if (resp.ok === false && !resp.status) {
       throw new Error(resp.statusText || "interconnect fetch failed");
@@ -633,6 +675,7 @@ class InterconnFetchClient {
         statusCode: resp.status,
         statusText: resp.statusText,
         headers: resp.headers,
+        totalBytes: resp.totalBytes, // 分片头/流尾的总长，供调用方校验直写完整性
       };
     }
     if (!resp.chunked && !resp.stream) {
@@ -697,6 +740,7 @@ function enqueueFetch(run, priority) {
 }
 
 let _tempId = 0;
+let _reqSeq = 0;
 function getTempUri(url) {
   _tempId++;
   let hash = 0;
@@ -726,20 +770,63 @@ export default {
         headers: header || {},
         body: body || undefined,
         raw: responseType === "file" || responseType === "arraybuffer",
-        // 文件下载走 v4 开放流（旧插件协商不到 stream 会自动回落 v1-v3）
+        // 文件下载走 v4 开放流 + 固定分片（新版插件）：HTTP 下载与 BLE 传输重叠省整段 body 时间；
+        // 每帧带显式 offset（帧自定位 → 水位线直写，无需定长推算），fixedChunks 让插件合并
+        // HTTP 短读保持满帧（帧数最小化）。旧插件忽略 unknown 字段自动回落 v1-v3（v3 定长
+        // 分片 offset = seq × chunkSize 推算，同样直写；更老的无 offset 则回退有序 append）
         stream: responseType === "file" ? true : undefined,
+        fixedChunks: responseType === "file" ? true : undefined,
+        // 跟随 3xx 重定向（漫画 CDN 签名跳转常见；插件侧上限 10 跳，旧插件忽略该字段）
+        followRedirects: true,
       };
-      // 文件下载按序落盘：seq 连续的分片直接 append 到最终文件，乱序到达的暂存内存
-      // （ACK 窗口 ≤4 片 × ≤4KB，内存代价有界），消除"分片文件→读出→拼接→删除"的三倍 I/O
+      // 文件下载落盘：优先"水位线偏移直写"——v3 定长分片偏移 = seq × chunkSize 精确，
+      // 收片不问先后：offset<水位 原位补洞、==水位 append（顺序到达与旧逻辑逐字节等价）、
+      // >水位 间隙补零与数据合并一次 append（零区即未来的洞，等迟到片原位回填）；
+      // 乱序片零内存驻留，全程无 position >= 文件长度 的写（真机固件越界报 202 的坑）。
+      // 头部缺 chunkSize / 压缩流 / 文本分片等异常回退"有序 append"（乱序片暂存内存等洞补齐）。
       const finalUri = responseType === "file" ? getTempUri(url) : null;
       let chunksWritten = 0;
+      let writePos = 0; // 直写水位线 = 当前文件长度
+      let directWrite = null; // null 首片定型 / true 偏移直写 / false 有序回退
       try {
         let onChunk = null;
         if (responseType === "file") {
           let nextWriteSeq = 0;
           const pendingChunks = {};
           let writeChain = Promise.resolve();
-          onChunk = function (bytes, seq) {
+          onChunk = function (bytes, seq, offset) {
+            if (directWrite === null) {
+              directWrite = typeof offset === "number" && bytes instanceof Uint8Array;
+            }
+            if (directWrite) {
+              // 写链串行执行且判定在入链时完成：分片到达顺序即链执行顺序，水位线演化确定
+              let op;
+              if (offset < writePos) {
+                op = function () {
+                  return writeChunkFileAt(finalUri, bytes, offset).then(function () {
+                    chunksWritten++;
+                  });
+                };
+              } else if (offset === writePos) {
+                writePos += bytes.length;
+                op = function () {
+                  return writeChunkFile(finalUri, bytes, true).then(function () {
+                    chunksWritten++;
+                  });
+                };
+              } else {
+                const pad = new Uint8Array(offset - writePos + bytes.length);
+                pad.set(bytes, offset - writePos);
+                writePos = offset + bytes.length;
+                op = function () {
+                  return writeChunkFile(finalUri, pad, true).then(function () {
+                    chunksWritten++;
+                  });
+                };
+              }
+              writeChain = writeChain.then(op);
+              return writeChain;
+            }
             pendingChunks[seq] = bytes;
             while (pendingChunks[nextWriteSeq] !== undefined) {
               const ordered = pendingChunks[nextWriteSeq];
@@ -761,9 +848,17 @@ export default {
         if (responseType === "json") {
           data = safeJsonParse(data, data);
         } else if (responseType === "file") {
+          // 直写完整性校验：最终水位应与头部 totalBytes 对齐（v3 无逐帧 CRC 的兜底）
+          if (
+            directWrite === true &&
+            typeof resp.totalBytes === "number" &&
+            writePos !== resp.totalBytes
+          ) {
+            throw new Error("size mismatch: " + writePos + "/" + resp.totalBytes);
+          }
           try {
             if (chunksWritten > 0) {
-              // 分片已按序落盘完毕
+              // 分片已落盘完毕
               data = finalUri;
             } else if (data instanceof Uint8Array) {
               data = await writeBinaryFile(finalUri, data);
