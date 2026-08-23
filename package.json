@@ -1,6 +1,6 @@
 {
   "name": "bandcomic",
-  "version": "2.1",
+  "version": "2.2",
   "description": "在Vela设备上浏览并本地保存在线漫画~",
   "engines": {
     "node": ">=8.10"
