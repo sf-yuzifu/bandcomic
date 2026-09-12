@@ -51,6 +51,26 @@
           <text static class="re bold setting-title">
             {{ $t("setting") }}
           </text>
+          <div class="setting-item" @click="routeOobe">
+            <div class="setting-item-content">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
+                {{ $t("oobe.quickCheck") }}
+              </marquee>
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
+                {{ $t("oobe.quickCheckInfo") }}
+              </marquee>
+            </div>
+          </div>
           <div class="setting-item">
             <div class="setting-item-content">
               <marquee
@@ -356,6 +376,13 @@ export default {
 
   routeBack() {
     router.back();
+  },
+
+  routeOobe() {
+    global.__oobeMode = "check";
+    router.push({
+      uri: "/pages/oobe",
+    });
   },
 
   onPicker1Change(value) {

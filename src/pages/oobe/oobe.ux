@@ -1,0 +1,839 @@
+<template>
+  <div class="container">
+    <img
+      if.static="{{ global.screenShape != 'circle' }}"
+      class="leftButton top"
+      src="/common/back.png"
+      @click="routeBack"
+    />
+    <text class="time">{{ time }}</text>
+    <text
+      class="title"
+      @click="
+        () => {
+          if (global.screenShape == 'circle') {
+            routeBack();
+          }
+        }
+      "
+    >
+      <span class="iconfont" if.static="{{ global.screenShape == 'circle' }}">&#xe685;</span>
+      <span static>{{ mode == 'firstRun' ? $t('oobe.title') : $t('oobe.quickCheck') }}</span>
+    </text>
+    <text static class="subtitle" if="{{ mode == 'firstRun' }}">
+      {{ $t("oobe.subtitle") }}
+    </text>
+
+    <div class="box">
+      <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
+        <div class="card">
+          <div class="card-head">
+            <text static class="card-title">{{ $t("oobe.device.title") }}</text>
+            <text class="badge {{ deviceBadgeClass }}">{{ deviceLevelText }}</text>
+          </div>
+          <text class="card-desc">{{ deviceDesc }}</text>
+          <text class="card-info" if="{{ deviceProduct }}">{{ deviceProduct }}</text>
+        </div>
+
+        <div class="card" if="{{ bridgeVisible }}">
+          <div class="card-head">
+            <text static class="card-title">{{ $t("oobe.bridge.title") }}</text>
+            <text class="badge {{ bridgeOk ? 'ok' : 'warn' }}">
+              {{ bridgeOk ? $t("oobe.bridge.connected") : $t("oobe.bridge.offline") }}
+            </text>
+          </div>
+          <text class="card-desc" if="{{ !bridgeOk }}">{{ $t("oobe.bridge.stepsTitle") }}</text>
+          <text class="bridge-step" if="{{ !bridgeOk }}">{{ $t("oobe.bridge.step1") }}</text>
+          <text class="bridge-step" if="{{ !bridgeOk }}">{{ $t("oobe.bridge.step2") }}</text>
+          <text class="bridge-step" if="{{ !bridgeOk }}">{{ $t("oobe.bridge.step3") }}</text>
+          <div class="actions" if="{{ !bridgeOk && !isBand10Pro }}">
+            <div class="action-btn" @click="enableBridge">
+              <text static class="action-text">{{ $t("oobe.bridge.enable") }}</text>
+            </div>
+          </div>
+          <text class="card-info" if="{{ isBand10Pro }}">{{ $t("oobe.bridge.forced") }}</text>
+        </div>
+        <div class="card" if="{{ !bridgeVisible }}">
+          <div class="card-head">
+            <text static class="card-title">{{ $t("oobe.bridge.title") }}</text>
+            <text class="badge muted">{{ $t("oobe.bridge.notNeeded") }}</text>
+          </div>
+        </div>
+
+        <!-- 流畅显示：红黄绿自检，进阅读前就能看出会不会卡 -->
+        <div class="card">
+          <div class="card-head">
+            <text static class="card-title">{{ $t("oobe.smooth.title") }}</text>
+            <text class="badge {{ smoothBadgeClass }}">{{ smoothSummary }}</text>
+          </div>
+          <div class="check-row" for="{{ row in smoothRows }}">
+            <text class="check-label">{{ row.label }}</text>
+            <text class="check-value">{{ row.value }}</text>
+            <text class="badge {{ row.badgeClass }}">{{ row.levelText }}</text>
+          </div>
+          <text class="card-desc" if="{{ smoothTip }}">{{ smoothTip }}</text>
+        </div>
+
+        <!-- 漫画源：进入本页自动串行检测全部源 -->
+        <div class="card">
+          <div class="card-head">
+            <text static class="card-title">{{ $t("oobe.source.title") }}</text>
+            <text class="badge {{ sourceBadgeClass }}">{{ sourceBadgeText }}</text>
+          </div>
+          <text class="card-desc">{{ $t("oobe.source.desc") }}</text>
+          <div class="source-item" for="{{ item in sourceList }}">
+            <div class="source-sep"></div>
+            <text class="source-name">{{ item.name }}</text>
+            <text class="source-status {{ item.badgeClass }}">{{ item.statusText }}</text>
+            <text class="source-url">{{ item.apiUrl }}</text>
+            <text class="card-desc" if="{{ item.hint }}">{{ item.hint }}</text>
+            <div class="source-actions" if="{{ item.failed || item.needBridge }}">
+              <div
+                class="row-action"
+                if="{{ item.needBridge }}"
+                @click="enableBridge"
+              >
+                <text static class="row-action-text">{{ $t("oobe.bridge.enable") }}</text>
+              </div>
+              <div class="row-action" @click="routeEdit">
+                <text static class="row-action-text">{{ $t("oobe.source.edit") }}</text>
+              </div>
+              <div
+                class="row-action"
+                if="{{ !item.buildin }}"
+                @click="removeSource(item.key)"
+              >
+                <text static class="row-action-text danger-text">{{ $t("oobe.source.remove") }}</text>
+              </div>
+            </div>
+          </div>
+          <div class="source-actions">
+            <div class="row-action" if="{{ !sourceTesting }}" @click="retestSources">
+              <text static class="row-action-text">{{ $t("oobe.source.retest") }}</text>
+            </div>
+            <div class="row-action" if="{{ sourceTesting }}" @click="noop">
+              <text static class="row-action-text">{{ $t("oobe.testing") }}</text>
+            </div>
+            <div class="row-action" @click="routeEdit">
+              <text static class="row-action-text">{{ $t("oobe.source.edit") }}</text>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <text static class="card-title">{{ $t("oobe.help.title") }}</text>
+          </div>
+          <div class="faq-item" for="{{ item in faqList }}" @click="toggleFaq(item.id)">
+            <text class="faq-q">{{ item.q }}</text>
+            <text class="faq-a" if="{{ expandedFaq == item.id }}">{{ item.a }}</text>
+          </div>
+        </div>
+
+        <div class="padding"></div>
+      </scroll>
+    </div>
+  </div>
+</template>
+
+<script>
+import router from "@system.router";
+import prompt from "@system.prompt";
+
+// 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
+const { writeSettings, updateJsonFile, SOURCES_URI } = global.$storage;
+const { ensureUsingSourceValid, checkSourceHealth } = global.$api;
+const { createConfirmGuard } = global;
+
+const { getTime } = global;
+
+const confirmRemoveSource = createConfirmGuard();
+
+function sourceStatusMeta(status, code, $t, canUseBridge) {
+  if (status === "ok") {
+    return {
+      badgeClass: "ok",
+      statusText: $t("oobe.source.ok"),
+      hint: $t("oobe.source.okDesc"),
+      failed: false,
+      needBridge: false,
+    };
+  }
+  if (status === "testing") {
+    return { badgeClass: "muted", statusText: $t("oobe.testing"), hint: "", failed: false, needBridge: false };
+  }
+  if (status === "pending") {
+    return { badgeClass: "muted", statusText: $t("oobe.source.pending"), hint: "", failed: false, needBridge: false };
+  }
+  // SSL/网络类失败：提示开网桥，并在可开时给出一键按钮
+  const bridgeStatuses = { ssl: 1, timeout: 1, connection: 1 };
+  const needBridge = !!(canUseBridge && bridgeStatuses[status]);
+  const codeTail = typeof code === "number" || (code !== null && code !== undefined && code !== "")
+    ? " (" + code + ")"
+    : "";
+  let statusText = $t("oobe.source.fail");
+  let hint = $t("oobe.source.unknown") + codeTail;
+  if (status === "ssl") {
+    statusText = $t("oobe.source.failSsl");
+    hint = (canUseBridge ? $t("oobe.source.sslHint") : $t("oobe.source.sslHintBridgeOn")) + codeTail;
+  } else if (status === "timeout") {
+    statusText = $t("oobe.source.failTimeout");
+    hint = (canUseBridge ? $t("oobe.source.timeout") : $t("oobe.source.timeoutBridgeOn")) + codeTail;
+  } else if (status === "connection") {
+    statusText = $t("oobe.source.failConnect");
+    hint = (canUseBridge ? $t("oobe.source.connection") : $t("oobe.source.connectionBridgeOn")) + codeTail;
+  } else if (status === "domain") {
+    statusText = $t("oobe.source.failDomain");
+    hint = $t("oobe.source.domain") + codeTail;
+  } else if (status === "http") {
+    statusText = $t("oobe.source.failHttp");
+    hint = $t("oobe.source.http", { code: code || "" });
+  } else if (status === "invalid" || status === "missing") {
+    statusText = $t("oobe.source.failConfig");
+    hint = $t("oobe.source.invalid");
+  }
+  return {
+    badgeClass: status === "ssl" ? "danger" : "warn",
+    statusText: statusText,
+    hint: hint,
+    failed: true,
+    needBridge: needBridge,
+  };
+}
+
+export default {
+  private: {
+    time: "",
+    mode: "check",
+    deviceLevel: "unknown",
+    deviceBadgeClass: "muted",
+    deviceLevelText: "",
+    deviceDesc: "",
+    deviceProduct: "",
+    isBand10Pro: false,
+    bridgeVisible: false,
+    bridgeOk: false,
+    preferBridge: false,
+    smoothRows: [],
+    smoothBadgeClass: "muted",
+    smoothSummary: "",
+    smoothTip: "",
+    sourceList: [],
+    sourceTesting: false,
+    sourceBadgeClass: "muted",
+    sourceBadgeText: "",
+    expandedFaq: "",
+    faqList: [],
+    destroyed: false,
+    sourceStop: false,
+  },
+
+  onInit() {
+    this.destroyed = false;
+    this.sourceStop = false;
+    // 启动页已用 bootstrapAppData 判定；此处 firstRun / 关于页 check
+    this.mode = global.__oobeMode === "check" ? "check" : "firstRun";
+    this.enterChecklist();
+  },
+
+  enterChecklist() {
+    this.refreshDevice();
+    this.refreshBridge();
+    this.refreshDisplay();
+    this.buildSourceList();
+    this.faqList = [
+      { id: "q1", q: this.$t("oobe.help.q1"), a: this.$t("oobe.help.a1") },
+      { id: "q2", q: this.$t("oobe.help.q2"), a: this.$t("oobe.help.a2") },
+      { id: "q3", q: this.$t("oobe.help.q3"), a: this.$t("oobe.help.a3") },
+      { id: "q4", q: this.$t("oobe.help.q4"), a: this.$t("oobe.help.a4") },
+      { id: "q5", q: this.$t("oobe.help.q5"), a: this.$t("oobe.help.a5") },
+    ];
+    this.startSourceTest();
+  },
+
+  onShow() {
+    this.time = getTime();
+    this.refreshDevice();
+    this.refreshBridge();
+    this.refreshDisplay();
+  },
+
+  onDestroy() {
+    this.destroyed = true;
+    this.sourceStop = true;
+    global.__oobeMode = null;
+  },
+
+  // 流畅自检：开预解码后基本不会卡；卡顿只在「未开预解码 + 尺寸过大」。
+  // 质量只反映清晰度，不计入卡顿。
+  refreshDisplay() {
+    const s = global.APP_SETTING || {};
+    const size = parseInt(s.imageSize, 10) || 0;
+    const quality = parseInt(s.imageQuality, 10) || 0;
+    const pre = !!s.imagePreTranscode;
+
+    function lagText(level, $t) {
+      if (level === "ok") return $t("oobe.smooth.levelOk");
+      if (level === "warn") return $t("oobe.smooth.levelWarn");
+      return $t("oobe.smooth.levelDanger");
+    }
+
+    // 尺寸：仅在未开预解码时评估卡顿风险
+    let sizeLevel = "ok";
+    if (!pre) {
+      if (size > 560) sizeLevel = "danger";
+      else if (size > 480) sizeLevel = "warn";
+    }
+
+    // 质量 → 清晰度（与卡顿无关）
+    let clarityLevel = "ok";
+    let clarityText = this.$t("oobe.smooth.clarityOk");
+    if (quality < 30) {
+      clarityLevel = "danger";
+      clarityText = this.$t("oobe.smooth.clarityLow");
+    } else if (quality < 40) {
+      clarityLevel = "warn";
+      clarityText = this.$t("oobe.smooth.clarityMid");
+    }
+
+    const preLevel = pre ? "ok" : sizeLevel === "ok" ? "warn" : "danger";
+
+    this.smoothRows = [
+      {
+        label: this.$t("oobe.smooth.size"),
+        value: String(size || s.imageSize || "-"),
+        level: sizeLevel,
+        badgeClass: sizeLevel,
+        levelText: lagText(sizeLevel, this.$t.bind(this)),
+      },
+      {
+        label: this.$t("oobe.smooth.quality"),
+        value: String(quality || s.imageQuality || "-"),
+        level: clarityLevel,
+        badgeClass: clarityLevel,
+        levelText: clarityText,
+      },
+      {
+        label: this.$t("oobe.smooth.pre"),
+        value: pre ? this.$t("oobe.smooth.preOn") : this.$t("oobe.smooth.preOff"),
+        level: preLevel,
+        badgeClass: preLevel,
+        levelText: pre ? this.$t("oobe.smooth.levelOk") : this.$t("oobe.smooth.preSuggest"),
+      },
+    ];
+
+    // 总评：开了预解码 → 稳妥；未开则看尺寸
+    if (pre) {
+      this.smoothBadgeClass = "ok";
+      this.smoothSummary = this.$t("oobe.smooth.summaryOk");
+      this.smoothTip = this.$t("oobe.smooth.tipOk");
+    } else if (sizeLevel === "danger") {
+      this.smoothBadgeClass = "danger";
+      this.smoothSummary = this.$t("oobe.smooth.summaryDanger");
+      this.smoothTip = this.$t("oobe.smooth.tipDanger");
+    } else if (sizeLevel === "warn") {
+      this.smoothBadgeClass = "warn";
+      this.smoothSummary = this.$t("oobe.smooth.summaryWarn");
+      this.smoothTip = this.$t("oobe.smooth.tipWarn");
+    } else {
+      // 未开预解码但尺寸不大：仍提示可开，更稳
+      this.smoothBadgeClass = "warn";
+      this.smoothSummary = this.$t("oobe.smooth.summaryWarn");
+      this.smoothTip = this.$t("oobe.smooth.tipWarn");
+    }
+  },
+
+  refreshDevice() {
+    const level = global.getDeviceSupportLevel();
+    this.deviceLevel = level;
+    this.deviceProduct = global.deviceProduct || "";
+    this.isBand10Pro = !!global.isXiaomiSmartBand10Pro();
+    const map = {
+      ok: { t: "oobe.device.ok", d: "oobe.device.okDesc" },
+      needBridge: { t: "oobe.device.needBridge", d: "oobe.device.needBridgeDesc" },
+      unsupported: { t: "oobe.device.unsupported", d: "oobe.device.unsupportedDesc" },
+      notRecommended: { t: "oobe.device.notRecommended", d: "oobe.device.notRecommendedDesc" },
+      unknown: { t: "oobe.device.unknown", d: "oobe.device.unknownDesc" },
+    };
+    const item = map[level] || map.unknown;
+    this.deviceLevelText = this.$t(item.t);
+    this.deviceDesc = this.$t(item.d);
+    if (level === "ok") {
+      this.deviceBadgeClass = "ok";
+    } else if (level === "unsupported" || level === "notRecommended") {
+      this.deviceBadgeClass = "danger";
+    } else if (level === "needBridge") {
+      this.deviceBadgeClass = "warn";
+    } else {
+      this.deviceBadgeClass = "muted";
+    }
+  },
+
+  refreshBridge() {
+    this.preferBridge = !!global.APP_SETTING.preferBridge;
+    this.isBand10Pro = !!global.isXiaomiSmartBand10Pro();
+    this.bridgeVisible = this.isBand10Pro || this.preferBridge || this.deviceLevel === "needBridge";
+    this.bridgeOk = this.isBand10Pro || this.preferBridge;
+  },
+
+  canEnableBridge() {
+    return !this.isBand10Pro && !this.preferBridge;
+  },
+
+  buildSourceList() {
+    const keys = Object.keys(global.API_SETTING).filter((key) => key !== "using");
+    const canBridge = this.canEnableBridge();
+    this.sourceList = keys.map((key) => {
+      const source = global.API_SETTING[key];
+      const meta = sourceStatusMeta("pending", null, this.$t.bind(this), canBridge);
+      return {
+        key: key,
+        name: (source && source.name) || key,
+        apiUrl: (source && source.apiUrl) || "",
+        buildin: !!global.buildin && global.buildin.indexOf(key) !== -1,
+        status: "pending",
+        badgeClass: meta.badgeClass,
+        statusText: meta.statusText,
+        hint: meta.hint,
+        failed: meta.failed,
+        needBridge: meta.needBridge,
+      };
+    });
+    this.updateSourceBadge();
+  },
+
+  applySourceResult(index, result) {
+    const item = this.sourceList[index];
+    if (!item) return;
+    const meta = sourceStatusMeta(result.status, result.code, this.$t.bind(this), this.canEnableBridge());
+    this.sourceList.splice(index, 1, {
+      key: item.key,
+      name: item.name,
+      apiUrl: result.apiUrl || item.apiUrl,
+      buildin: item.buildin,
+      status: result.status,
+      badgeClass: meta.badgeClass,
+      statusText: meta.statusText,
+      hint: meta.hint,
+      failed: meta.failed,
+      needBridge: meta.needBridge,
+    });
+    this.updateSourceBadge();
+  },
+
+  updateSourceBadge() {
+    if (this.sourceTesting) {
+      this.sourceBadgeClass = "muted";
+      this.sourceBadgeText = this.$t("oobe.testing");
+      return;
+    }
+    let ok = 0;
+    let fail = 0;
+    for (let i = 0; i < this.sourceList.length; i++) {
+      if (this.sourceList[i].status === "ok") ok++;
+      else if (this.sourceList[i].failed) fail++;
+    }
+    if (fail > 0) {
+      this.sourceBadgeClass = "warn";
+      this.sourceBadgeText = this.$t("oobe.source.summary", { ok: ok, fail: fail });
+    } else if (ok > 0) {
+      this.sourceBadgeClass = "ok";
+      this.sourceBadgeText = this.$t("oobe.source.ok");
+    } else {
+      this.sourceBadgeClass = "muted";
+      this.sourceBadgeText = this.$t("oobe.source.untested");
+    }
+  },
+
+  startSourceTest() {
+    if (this.sourceTesting) return;
+    this.sourceStop = false;
+    this.sourceTesting = true;
+    this.buildSourceList();
+    this.testFrom(0);
+  },
+
+  retestSources() {
+    this.startSourceTest();
+  },
+
+  testFrom(index) {
+    if (this.destroyed || this.sourceStop) {
+      this.sourceTesting = false;
+      return;
+    }
+    if (index >= this.sourceList.length) {
+      this.sourceTesting = false;
+      this.updateSourceBadge();
+      return;
+    }
+    const key = this.sourceList[index].key;
+    this.applySourceResult(index, { status: "testing" });
+    checkSourceHealth(key).then((result) => {
+      if (this.destroyed || this.sourceStop) {
+        this.sourceTesting = false;
+        return;
+      }
+      this.applySourceResult(index, result);
+      this.testFrom(index + 1);
+    });
+  },
+
+  enableBridge() {
+    if (this.isBand10Pro) {
+      prompt.showToast({ message: this.$t("oobe.bridge.forced"), duration: 2000 });
+      return;
+    }
+    global.APP_SETTING.preferBridge = true;
+    this.preferBridge = true;
+    this.refreshBridge();
+    writeSettings(global.APP_SETTING).then(
+      () => {
+        if (this.destroyed) return;
+        prompt.showToast({ message: this.$t("oobe.bridge.enabled"), duration: 2000 });
+        // 开桥后重测，验证 SSL/网络类失败是否恢复
+        this.retestSources();
+      },
+      () => {
+        if (this.destroyed) return;
+        prompt.showToast({ message: this.$t("settings.saveFailed", { code: "" }), duration: 2000 });
+      }
+    );
+  },
+
+  removeSource(key) {
+    if (!key) return;
+    const item = this.sourceList.filter((s) => s.key === key)[0];
+    if (item && item.buildin) return;
+    if (!confirmRemoveSource(key, this.$t("oobe.source.removeConfirm"), { duration: 2000 })) {
+      return;
+    }
+    updateJsonFile(SOURCES_URI, [], (datas) => {
+      const list = Array.isArray(datas) ? datas : [];
+      return list.filter((item) => Object.keys(item)[0] !== key);
+    }).then(
+      () => {
+        if (this.destroyed) return;
+        delete global.API_SETTING[key];
+        ensureUsingSourceValid();
+        prompt.showToast({ message: this.$t("oobe.source.removed"), duration: 2000 });
+        this.buildSourceList();
+      },
+      () => {
+        if (this.destroyed) return;
+        prompt.showToast({ message: this.$t("edit.unknownDelError"), duration: 2000 });
+      }
+    );
+  },
+
+  toggleFaq(id) {
+    this.expandedFaq = this.expandedFaq === id ? "" : id;
+  },
+
+  noop() {},
+
+  routeEdit() {
+    router.push({ uri: "/pages/edit" });
+  },
+
+  finish() {
+    this.sourceStop = true;
+    if (this.mode === "firstRun") {
+      global.APP_SETTING.oobeDone = true;
+      global.display = true;
+      writeSettings(global.APP_SETTING).catch(() => {});
+      router.replace({ uri: "/pages/index" });
+      return;
+    }
+    router.back();
+  },
+
+  routeBack() {
+    if (this.mode === "firstRun") {
+      this.finish();
+      return;
+    }
+    this.sourceStop = true;
+    router.back();
+  },
+};
+</script>
+
+<style>
+@import "../../common/base.css";
+
+.container {
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.subtitle {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: bold;
+  margin-top: 2px;
+}
+
+.box {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* align-items: flex-start —— column 交叉轴（水平）贴左，文案不被拉满宽 */
+.card {
+  width: 324px;
+  margin-top: 10px;
+  padding: 14px 20px;
+  border-radius: 36px;
+  background-color: #262626;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.card-head {
+  width: 100%;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.card-title {
+  font-size: 28px;
+  color: #fff;
+  font-weight: bold;
+  flex-shrink: 1;
+}
+
+.badge {
+  font-size: 20px;
+  font-weight: bold;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.badge.ok {
+  color: #4caf50;
+}
+
+.badge.warn {
+  color: #ffa726;
+}
+
+.badge.danger {
+  color: #ef5350;
+}
+
+.badge.muted {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.check-row {
+  width: 100%;
+  margin-top: 8px;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.check-label {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.75);
+  font-weight: bold;
+  flex-shrink: 1;
+}
+
+.check-value {
+  font-size: 22px;
+  color: #fff;
+  font-weight: bold;
+  margin-left: 8px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.card-desc {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: bold;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.bridge-step {
+  width: 100%;
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: bold;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.card-info {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: bold;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.source-item {
+  width: 100%;
+  margin-top: 4px;
+  flex-direction: column;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+/* 源之间用空 div 上下隔开（Vela 不稳的 border 不用） */
+.source-sep {
+  width: 100%;
+  height: 12px;
+  margin-bottom: 8px;
+  flex-shrink: 0;
+}
+
+.source-name {
+  font-size: 24px;
+  color: #fff;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.source-status {
+  font-size: 22px;
+  font-weight: bold;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.source-status.ok {
+  color: #4caf50;
+}
+
+.source-status.warn {
+  color: #ffa726;
+}
+
+.source-status.danger {
+  color: #ef5350;
+}
+
+.source-status.muted {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.source-url {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: bold;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+/* 上下通栏操作行，不用左右并排的描边按钮 */
+.source-actions {
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.row-action {
+  width: 100%;
+  height: 52px;
+  margin-top: 6px;
+  border-radius: 24px;
+  background-color: #1a1a1a;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.row-action-text {
+  font-size: 22px;
+  color: #fff;
+  font-weight: bold;
+}
+
+.danger-text {
+  color: #ef5350;
+}
+
+.actions {
+  width: 100%;
+  flex-direction: row;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  margin-right: 10px;
+  margin-bottom: 6px;
+  padding: 8px 16px;
+  border-radius: 100%;
+  background-color: #1a1a1a;
+  border: 3px solid rgba(255, 255, 255, 0.24);
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.action-text {
+  font-size: 22px;
+  color: #fff;
+  font-weight: bold;
+}
+
+.faq-item {
+  width: 100%;
+  margin-top: 8px;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.faq-q {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.faq-a {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: bold;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.padding {
+  height: 20px;
+}
+
+/* 看看是不是小米手表 */
+@media (device-type: watch) and (shape: circle) {
+  .card {
+    width: 332px;
+  }
+
+  .padding {
+    height: 50px;
+  }
+}
+
+/* 看看是不是红米手表 */
+@media (device-type: watch) and (shape: rect) {
+  .card {
+    width: 332px;
+  }
+}
+</style>

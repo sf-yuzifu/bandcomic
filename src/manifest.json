@@ -42,8 +42,11 @@
     "designWidth": "device-width"
   },
   "router": {
-    "entry": "pages/index",
+    "entry": "pages/boot",
     "pages": {
+      "pages/boot": {
+        "component": "boot"
+      },
       "pages/index": {
         "component": "index"
       },
@@ -73,6 +76,9 @@
       },
       "pages/update": {
         "component": "update"
+      },
+      "pages/oobe": {
+        "component": "oobe"
       }
     }
   },
