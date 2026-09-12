@@ -50,10 +50,6 @@ export default {
   background-color: #000;
 }
 
-.logo {
-  width: 76px;
-}
-
 .appName {
   margin-top: 16px;
   font-size: 28px;
