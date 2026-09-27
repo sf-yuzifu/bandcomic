@@ -1,4 +1,5 @@
 // 设备兼容分级（与 README 适配表对齐，供快速检查页使用）
+// 键名 = 真机 deviceRet.product 实测值（精确查表，两表键名必须一致，P0-14）
 const FULL_SUPPORT_PRODUCTS = [
   "Xiaomi Smart Band 9 Pro",
   "Xiaomi Watch S3",
@@ -8,7 +9,7 @@ const FULL_SUPPORT_PRODUCTS = [
   "Xiaomi Watch S4 Sport",
   "Xiaomi Watch S4 41mm",
   "Xiaomi Watch S5 46mm",
-  "Xiaomi Watch S5 eSIM",
+  "Xiaomi Watch S5 eSIM 46mm",
   "REDMI Watch 5",
   "REDMI Watch 6",
   "marconi_o62m_watch",
