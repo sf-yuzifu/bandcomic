@@ -294,33 +294,38 @@ export default {
   },
 
   onScroll(scrollLeft, index) {
-    if (scrollLeft === 0) return;
-    this.comicsList[index].scrollLeft = scrollLeft;
+    // 滑回关闭同样要复位（P2-30）：否则 openedComicsIndex 残留，下次滑别的
+    // 卡片会对已关闭卡片多余 scrollBy(-100)
+    if (scrollLeft === 0) {
+      if (openedComicsIndex === index) openedComicsIndex = -1;
+      return;
+    }
     // 如果有其他已滑出的卡片，回滚它
     if (openedComicsIndex !== -1 && openedComicsIndex !== index) {
       const scrollEl = this.$element('scroll_' + openedComicsIndex);
       if (scrollEl) {
         scrollEl.scrollBy({ left: -100 });
       }
-      this.comicsList[openedComicsIndex].scrollLeft = 0;
     }
     // 更新当前滑出的卡片索引
-    openedComicsIndex = scrollLeft > 0 ? index : -1;
+    openedComicsIndex = index;
   },
 
   onHistoryScroll(scrollLeft, index) {
-    if (scrollLeft === 0) return;
-    this.historyList[index].scrollLeft = scrollLeft;
+    // 同上（P2-30）：滑回关闭复位，避免误滚已关闭卡片
+    if (scrollLeft === 0) {
+      if (openedHistoryIndex === index) openedHistoryIndex = -1;
+      return;
+    }
     // 如果有其他已滑出的历史记录卡片，回滚它
     if (openedHistoryIndex !== -1 && openedHistoryIndex !== index) {
       const scrollEl = this.$element('history_scroll_' + openedHistoryIndex);
       if (scrollEl) {
         scrollEl.scrollBy({ left: -100 });
       }
-      this.historyList[openedHistoryIndex].scrollLeft = 0;
     }
     // 更新当前滑出的卡片索引
-    openedHistoryIndex = scrollLeft > 0 ? index : -1;
+    openedHistoryIndex = index;
   },
 
   loadHistory() {

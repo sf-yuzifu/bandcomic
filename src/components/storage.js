@@ -23,6 +23,17 @@ export const SOURCES_URI = "internal://files/sources.json";
 export const COOKIE_URI = "internal://files/cookie.json";
 export const SEARCH_HISTORY_URI = "internal://files/search_history.json";
 
+// 持久化文件基名清单（cleanTempFiles 引用）：新增持久化文件必须登记，否则启动
+// 清理会把它当临时文件删除（P2-36）
+export const PERSISTENT_FILES = [
+  COMICS_URI,
+  SETTINGS_URI,
+  HISTORY_URI,
+  SOURCES_URI,
+  COOKIE_URI,
+  SEARCH_HISTORY_URI,
+].map((uri) => uri.split("/").pop());
+
 // ---- 损坏 JSON 自愈（P0-15）----
 // 通知回调由页面注入（confirmGuard"页面传入 $t 译文"同款）：storage 层无页面 $t
 let recoveryNotifier = null;

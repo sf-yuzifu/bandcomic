@@ -48,6 +48,7 @@
             style="{{ `width:${size.width}px;height:${size.height}px;object-fit:${loading ? 'contain' : 'cover'};` }}"
           ></image>
         </div>
+        <text static class="tap-read">{{ $t("detail.tapRead") }}</text>
         <text static class="title1">{{ name }}</text>
         <div class="detail">
           <div class="column" if.static="{{ gid }}">
@@ -239,6 +240,16 @@ text {
 
 .grey {
   color: #aaaaaa;
+}
+
+/* 封面点击阅读的可见提示（P2-29）：整块封面即热区，补一行轻提示 */
+.tap-read {
+  font-size: 20px;
+  color: rgba(255, 255, 255, 0.55);
+  font-weight: bold;
+  text-align: center;
+  margin-top: 10px;
+  flex-shrink: 0;
 }
 
 .title1 {

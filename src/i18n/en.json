@@ -1,6 +1,7 @@
 {
     "appName": "BandComic",
     "elsePlaceholder": "ID/Keyword",
+    "homeTip": "Try a keyword, or run Quick check on the About page",
     "tip": "Enter ID or keyword",
     "loading": "Loading...",
     "currentSourceName": "Source: ",
@@ -58,6 +59,7 @@
     },
     "detail": {
         "detail": "Details",
+        "tapRead": "Tap cover to read",
         "page_count": "Pages",
         "total_chapters": "Chapters",
         "views": "Views",

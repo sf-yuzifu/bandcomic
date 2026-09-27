@@ -1,6 +1,7 @@
 {
     "appName": "腕上漫画",
     "elsePlaceholder": "输入漫画ID/关键词",
+    "homeTip": "试试搜索关键词；到「关于」页可运行快速检查",
     "tip": "请输入漫画ID或关键词",
     "loading": "正在请求漫画信息...",
     "currentSourceName": "当前源: ",
@@ -58,6 +59,7 @@
     },
     "detail": {
         "detail": "详情",
+        "tapRead": "点击封面开始阅读",
         "page_count": "页数",
         "total_chapters": "章节数",
         "views": "浏览",
