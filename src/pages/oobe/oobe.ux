@@ -160,6 +160,47 @@ const { getTime } = global;
 
 const confirmRemoveSource = createConfirmGuard();
 
+// 源检测代际与看门狗（P1-21）：startSourceTest 每次递增 seq 作废旧链（开桥重测
+// 不再被 sourceTesting 门禁吞掉）；单源 20s 无回调按超时继续，兜底原生 fetch
+// 无 timeout 参数、回调可能挂起（与网桥 REQUEST_TIMEOUT 对齐）。旧结果晚到由
+// seq 丢弃，旧看门狗计时器不会误清新探测的计时器（timer 身份校验）
+const SOURCE_TEST_TIMEOUT_MS = 20000;
+let sourceTestSeq = 0;
+let sourceTestTimer = 0;
+
+function clearSourceTestTimer() {
+  if (sourceTestTimer) {
+    clearTimeout(sourceTestTimer);
+    sourceTestTimer = 0;
+  }
+}
+
+function probeSource(key) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (sourceTestTimer === timer) sourceTestTimer = 0;
+      if (settled) return;
+      settled = true;
+      resolve({ status: "timeout", key: key });
+    }, SOURCE_TEST_TIMEOUT_MS);
+    sourceTestTimer = timer;
+    const done = (result) => {
+      if (sourceTestTimer === timer) {
+        clearTimeout(timer);
+        sourceTestTimer = 0;
+      }
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    checkSourceHealth(key).then(
+      (result) => done(result),
+      () => done({ status: "unknown", key: key })
+    );
+  });
+}
+
 function sourceStatusMeta(status, code, $t, canUseBridge) {
   if (status === "ok") {
     return {
@@ -234,6 +275,7 @@ export default {
     smoothTip: "",
     sourceList: [],
     sourceTesting: false,
+    testKeys: [],
     sourceBadgeClass: "muted",
     sourceBadgeText: "",
     expandedFaq: "",
@@ -276,6 +318,7 @@ export default {
   onDestroy() {
     this.destroyed = true;
     this.sourceStop = true;
+    clearSourceTestTimer();
   },
 
   onBackPress() {
@@ -427,9 +470,12 @@ export default {
     this.updateSourceBadge();
   },
 
-  applySourceResult(index, result) {
+  // 按 key 定位（P1-21②）：检测中移除源会收缩/重建列表，旧 index 不再可信；
+  // 快照里已不存在的 key 直接跳过，结果只落到当前仍存在的行
+  applySourceResult(key, result) {
+    const index = this.sourceList.findIndex((item) => item.key === key);
+    if (index === -1) return;
     const item = this.sourceList[index];
-    if (!item) return;
     const meta = sourceStatusMeta(result.status, result.code, this.$t.bind(this), this.canEnableBridge());
     this.sourceList.splice(index, 1, {
       key: item.key,
@@ -470,38 +516,52 @@ export default {
     }
   },
 
+  // 每次调用都开启新代际（P1-21③）：即使首轮检测在途也强制重启，旧链自然作废
   startSourceTest() {
-    if (this.sourceTesting) return;
+    clearSourceTestTimer();
+    sourceTestSeq += 1;
     this.sourceStop = false;
     this.sourceTesting = true;
     this.buildSourceList();
-    this.testFrom(0);
+    this.testKeys = this.sourceList.map((item) => item.key);
+    this.testFrom(0, sourceTestSeq);
   },
 
   retestSources() {
     this.startSourceTest();
   },
 
-  testFrom(index) {
-    if (this.destroyed || this.sourceStop) {
-      this.sourceTesting = false;
+  testFrom(index, seq) {
+    if (this.destroyed || this.sourceStop || seq !== sourceTestSeq) {
+      // 本代际被停止/替换时不能夺回 sourceTesting（新链还持有它）；仅在真正
+      // 停止（页面销毁/离开）时收尾
+      if (this.destroyed || this.sourceStop) this.sourceTesting = false;
       return;
     }
-    if (index >= this.sourceList.length) {
+    if (index >= this.testKeys.length) {
       this.sourceTesting = false;
       this.updateSourceBadge();
       return;
     }
-    const key = this.sourceList[index].key;
-    this.applySourceResult(index, { status: "testing" });
-    checkSourceHealth(key).then((result) => {
-      if (this.destroyed || this.sourceStop) {
-        this.sourceTesting = false;
-        return;
-      }
-      this.applySourceResult(index, result);
-      this.testFrom(index + 1);
+    const key = this.testKeys[index];
+    this.applySourceResult(key, { status: "testing" });
+    probeSource(key).then((result) => {
+      this.handleSourceTestResult(key, result, index + 1, seq);
     });
+  },
+
+  // 单源结果落地（P1-21①）：apply 抛错也不能断链；旧代际/已停止/已销毁直接丢弃
+  handleSourceTestResult(key, result, nextIndex, seq) {
+    if (this.destroyed || this.sourceStop || seq !== sourceTestSeq) {
+      if (this.destroyed || this.sourceStop) this.sourceTesting = false;
+      return;
+    }
+    try {
+      this.applySourceResult(key, result);
+    } catch (e) {
+      console.error("applySourceResult failed: " + (e && e.message));
+    }
+    this.testFrom(nextIndex, seq);
   },
 
   enableBridge() {
