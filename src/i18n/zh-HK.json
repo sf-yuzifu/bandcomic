@@ -39,7 +39,8 @@
         "noComicFound": "未找到相關漫畫，請檢查輸入是否正確",
         "networkError": "網絡錯誤，請稍後重試",
         "unknownError": "發生未知錯誤，錯誤：",
-        "invalidResponse": "漫畫來源回傳資料格式錯誤"
+        "invalidResponse": "漫畫來源回傳資料格式錯誤",
+        "sourceDeleted": "源已刪除"
     },
     "search": {
         "search": "搜尋: ",

@@ -107,7 +107,7 @@ const {
   clearSearchHistory,
 } = global.$storage;
 const { safeJsonParse } = global.$json;
-const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal } = global.$api;
+const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal, getCurrentSourceName } = global.$api;
 
 const { getTime, createConfirmGuard } = global;
 
@@ -118,7 +118,7 @@ export default {
   private: {
     context: "",
     time: "",
-    currentSourceName: global.API_SETTING[global.API_SETTING.using].name,
+    currentSourceName: getCurrentSourceName(),
     API_SETTING: global.API_SETTING,
     // 冷启动先压住捐赠，确认 oobeDone 后再放行（首次进入快速检查）
     display: false,
@@ -144,7 +144,7 @@ export default {
     // global，文件只在 onInit 冷启动读一次；但 global 变更不会触发本页重渲染，
     // 所以每次回首页仍要把 global 同步进 viewModel（纯赋值，零 IO）
     this.API_SETTING = global.API_SETTING;
-    this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
+    this.currentSourceName = getCurrentSourceName();
     if (global.update) {
       this.checkAppUpdate();
     }
@@ -168,7 +168,7 @@ export default {
       .catch(() => {})
       .then(() => {
         this.API_SETTING = global.API_SETTING;
-        this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
+        this.currentSourceName = getCurrentSourceName();
       });
     readSettings()
       .then((datas) => {
@@ -198,7 +198,7 @@ export default {
 
       bridge.onSourceConfigSaved = () => {
         this.API_SETTING = global.API_SETTING;
-        this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
+        this.currentSourceName = getCurrentSourceName();
       };
 
       // onmessage 由 interconnectHub 统一分发，注册数据桥处理器即可
@@ -387,7 +387,7 @@ export default {
       this.toggleSource();
       return;
     }
-    this.currentSourceName = global.API_SETTING[global.API_SETTING.using].name;
+    this.currentSourceName = getCurrentSourceName();
   },
 
   routeBack() {

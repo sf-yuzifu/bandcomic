@@ -130,11 +130,12 @@
                   <image static class="corner-mask" src="/common/coverMask.png"></image>
                 </div>
                 <div class="text-content">
-                  <text class="itemText">{{ $item.title }}</text>
-                  <text class="meta" if="{{ $item.is_serial }}">
+                  <text class="itemText {{ $item.sourceMissing ? 'item-text-disabled' : '' }}">{{ $item.title }}</text>
+                  <text class="meta meta-danger" if="{{ $item.sourceMissing }}">{{ $t("error.sourceDeleted") }}</text>
+                  <text class="meta" if="{{ !$item.sourceMissing && $item.is_serial }}">
                     {{ $t("offline.chapter", { chapter: $item.chapter }) }} {{ formatTime($item.last_read_time) }}
                   </text>
-                  <text class="meta" else>{{ $t("offline.page", { page: $item.page }) }} {{ formatTime($item.last_read_time) }}</text>
+                  <text class="meta" if="{{ !$item.sourceMissing && !$item.is_serial }}">{{ $t("offline.page", { page: $item.page }) }} {{ formatTime($item.last_read_time) }}</text>
                 </div>
               </div>
               <div class="delete-btn" @click="delHistory($item.id)">
@@ -360,7 +361,8 @@ export default {
     // 拷贝一份，封面代理结果只覆盖 coverLocal，不污染待持久化的原始数据
     this.historyList = allHistory
       .slice(start, start + getSearchPageSize())
-      .map((item) => ({ ...item }));
+      // sourceMissing 为纯展示字段（P0-11）：源被删的记录灰显+拦截，重加源后自动恢复
+      .map((item) => ({ ...item, sourceMissing: !global.API_SETTING[item.source] }));
     this.loadHistoryCovers();
     openedHistoryIndex = -1;
     this.scrollListToTop("historyScroll");
@@ -443,6 +445,11 @@ export default {
   },
 
   toHistoryPhoto(item) {
+    // 源已删除的记录点击拦截（P0-11）：在线阅读无源必失败，留在列表提示即可
+    if (!global.API_SETTING[item.source]) {
+      prompt.showToast({ message: this.$t("error.sourceDeleted"), duration: 2000 });
+      return;
+    }
     router.push({
       uri: "/pages/photo",
       params: {
@@ -1169,9 +1176,17 @@ export default {
   font-weight: bold;
 }
 
+.item-text-disabled {
+  color: rgba(255, 255, 255, 0.35);
+}
+
 .meta {
   font-size: 20px;
   color: rgba(255, 255, 255, 0.6);
+}
+
+.meta-danger {
+  color: #ef5350;
 }
 
 /* 圆形手表适配 */

@@ -213,7 +213,8 @@ function crc32Num(bytes) {
     for (let t = 1; t < 8; t++) {
       CRC_TABLES[t] = new Uint32Array(256);
       for (let n = 0; n < 256; n++) {
-        CRC_TABLES[t][n] = (CRC_TABLES[t - 1][n] >>> 8) ^ CRC_TABLES[0][CRC_TABLES[t - 1][n] & 0xff];
+        CRC_TABLES[t][n] =
+          (CRC_TABLES[t - 1][n] >>> 8) ^ CRC_TABLES[0][CRC_TABLES[t - 1][n] & 0xff];
       }
     }
   }
@@ -224,7 +225,8 @@ function crc32Num(bytes) {
   while (i + 8 <= len) {
     const lo =
       (crc ^ (bytes[i] | (bytes[i + 1] << 8) | (bytes[i + 2] << 16) | (bytes[i + 3] << 24))) >>> 0;
-    const hi = (bytes[i + 4] | (bytes[i + 5] << 8) | (bytes[i + 6] << 16) | (bytes[i + 7] << 24)) >>> 0;
+    const hi =
+      (bytes[i + 4] | (bytes[i + 5] << 8) | (bytes[i + 6] << 16) | (bytes[i + 7] << 24)) >>> 0;
     crc =
       T[7][lo & 0xff] ^
       T[6][(lo >>> 8) & 0xff] ^

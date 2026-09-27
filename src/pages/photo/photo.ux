@@ -237,6 +237,7 @@
 import router from "@system.router";
 import file from "@system.file";
 import brightness from "@system.brightness";
+import prompt from "@system.prompt";
 
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addImageParams, appendLvglSuffix } = global.$img;
@@ -255,6 +256,8 @@ let originalName;
 let listReady = false;
 // 列表拉取在途标记：翻页触发的自愈重拉去重，防连点灌并发请求（P0-8）
 let listFetching = false;
+// 路由传入的 source 已被删除（P0-11）：不切换 using 防毒化全局，阅读链路一律落失败态
+let sourceMissing = false;
 
 // 以下状态与 UI 无关（不参与模板绑定），放模块级减少 viewModel 的 observer/数据
 // 代理开销；模块级变量跨页面实例共享，需 onInit 重置（onDestroy 清缓存；
@@ -392,6 +395,7 @@ export default {
     shownPage = 0;
     listReady = false;
     listFetching = false;
+    sourceMissing = false;
     origBrightness = null;
     brightManual = false;
     pendingBright = -1;
@@ -400,9 +404,14 @@ export default {
       brightTimer = 0;
     }
 
-    // 如果有传入的 source 参数，切换到对应的漫画源
+    // 如果有传入的 source 参数，切换到对应的漫画源；源已删除则不切换（P0-11）——
+    // 直接赋值会把悬空 key 写进 using，返回首页后取名解引用即崩溃
     if (this.source) {
-      global.API_SETTING.using = this.source;
+      if (global.API_SETTING[this.source]) {
+        global.API_SETTING.using = this.source;
+      } else {
+        sourceMissing = true;
+      }
     }
 
     // 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
@@ -449,6 +458,12 @@ export default {
   },
 
   processData() {
+    // 源已删除（P0-11）：在线阅读无源必失败，落失败态（含返回出口）并提示
+    if (sourceMissing) {
+      this.enterErrorState();
+      prompt.showToast({ message: this.$t("error.sourceDeleted"), duration: 2000 });
+      return;
+    }
     if (this.local) {
       this.getImageForPage();
     } else {
@@ -457,6 +472,11 @@ export default {
   },
 
   fetchAllImageUrls() {
+    if (sourceMissing) {
+      this.enterErrorState();
+      prompt.showToast({ message: this.$t("error.sourceDeleted"), duration: 2000 });
+      return;
+    }
     this.loading = "loading";
     this.images = "";
     this.scale = 0;
@@ -512,6 +532,11 @@ export default {
   },
 
   getImageForPage(keepScale) {
+    if (sourceMissing) {
+      this.enterErrorState();
+      prompt.showToast({ message: this.$t("error.sourceDeleted"), duration: 2000 });
+      return;
+    }
     this.loading = "loading";
     // 离开当前页前把已显示的图片放回预加载缓存，回翻时优先使用本地
     if (

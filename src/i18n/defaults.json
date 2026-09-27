@@ -39,7 +39,8 @@
         "noComicFound": "No comics found",
         "networkError": "Network error",
         "unknownError": "Error: ",
-        "invalidResponse": "Invalid response from comic source"
+        "invalidResponse": "Invalid response from comic source",
+        "sourceDeleted": "Source deleted"
     },
     "search": {
         "search": "Search: ",

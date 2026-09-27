@@ -79,6 +79,12 @@ export function getCurrentSource() {
   return global.API_SETTING[global.API_SETTING.using];
 }
 
+// 当前源显示名：using 悬空（源被删等）时回退空串（P0-11 防御），不再解引用崩溃
+export function getCurrentSourceName() {
+  const source = getCurrentSource();
+  return (source && source.name) || "";
+}
+
 // 删除漫画源后校正当前使用的源：
 // using 指向已删除的源时回退到第一个可用源；
 // 若所有源都被删除（手机端可删内置源），恢复内置默认源兜底
