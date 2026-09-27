@@ -277,8 +277,8 @@ let pendingBright = -1; // 待生效的亮度值（0..255）
 // 翻多少页才把阅读历史落盘一次
 const HISTORY_FLUSH_INTERVAL = 5;
 
-// 圆屏 arc-container 四周内缩，滚动视口实际为 screenSize.height - 12（见模板 arc-container），
-// atBottom 判定须用真实视口高度而非整屏高（P2-34）；scrollY === 0 严格相等已实机验证勿改
+// 圆屏 arc-container 四周内缩 12px（见模板 arc-container 内联 style），滚动视口真实宽高随之 -12。
+// 横向触边守卫必须按真实视口宽算（见 onScroll）；触底判定则刻意不减（见 atBottom 注释）
 const ARC_VIEWPORT_INSET = 12;
 
 // 生成数字轮盘每一位的可选范围：以 total 的位数为准，结合当前值 current 钳制
@@ -1009,13 +1009,20 @@ export default {
     this.$element("scrollId").getScrollRect({
       success: ({ width, height }) => {
         if (this.destroyed) return;
-        // 横向 overscroll 回弹期间不触发翻页
-        if (val.scrollX + global.screenSize.width > width) return;
-        const viewportH =
+        // 横向 overscroll 回弹期间不触发翻页。阈值必须用真实视口宽（圆屏为整屏宽 - 12）：
+        // 用整屏宽比较会把阈值左移 12px，圆屏内容宽 ≤ 视口宽时 `scrollX + 整屏宽 > 内容宽`
+        // 恒成立，onScroll 事件全被丢弃、滚边翻页全灭（2026-09-27 实机，P0-16）
+        const viewportW =
           global.screenShape === "circle"
-            ? global.screenSize.height - ARC_VIEWPORT_INSET
-            : global.screenSize.height;
-        const atBottom = val.scrollY + viewportH === height;
+            ? global.screenSize.width - ARC_VIEWPORT_INSET
+            : global.screenSize.width;
+        if (val.scrollX + viewportW > width) return;
+        // 触底判定刻意用整屏高（圆屏比真实视口高 12px，即真实底部前 12px 命中）：
+        // 该点会被 bounces 过冲-回弹往复穿过两次，恰好满足下方"到达边缘两次才翻页"；
+        // 改判真实底部严格相等后过冲回弹常跳过精确值，双次命中凑不齐，滚边翻页失效
+        // （2026-09-27 实机回归，P2-34 回退，勿再"修正"触底判定的 12px 提前量）。
+        // scrollY === 0 同理勿动
+        const atBottom = val.scrollY + global.screenSize.height - ARC_VIEWPORT_INSET === height;
         const atTop = val.scrollY === 0;
         if (!atBottom && !atTop) return;
         const edge = atBottom ? "bottom" : "top";
