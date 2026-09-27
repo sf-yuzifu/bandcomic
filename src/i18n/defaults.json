@@ -264,6 +264,9 @@
             "a5": "Low-end devices may OOM on large files; prefer online reading"
         }
     },
+    "storage": {
+        "fileRecovered": "File corrupted, backed up and reset: {name}"
+    },
     "boot": {
         "loading": "Loading...",
         "loadPartial": "Data not fully loaded"

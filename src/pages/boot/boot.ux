@@ -12,6 +12,7 @@ import prompt from "@system.prompt";
 
 // 共享模块统一挂 global（见 app.ux）
 const { bootstrapAppData } = global.$boot;
+const { setRecoveryNotifier } = global.$storage;
 
 // 启动读盘超时兜底（P0-12）：正常读盘毫秒级完成，超时说明固件回调挂起
 const BOOT_TIMEOUT_MS = 10000;
@@ -31,6 +32,14 @@ export default {
   onInit() {
     this.destroyed = false;
     bootSettled = false;
+    // 损坏 JSON 自愈通知器（P0-15）：页面注入 $t 译文（confirmGuard 同款），
+    // 先于 bootstrap 注册——启动期 settings/sources/cookie 损坏即提示
+    setRecoveryNotifier((name) => {
+      prompt.showToast({
+        message: this.$t("storage.fileRecovered", { name }),
+        duration: 3000,
+      });
+    });
     if (bootTimer) {
       clearTimeout(bootTimer);
       bootTimer = 0;

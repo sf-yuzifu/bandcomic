@@ -23,6 +23,45 @@ export const SOURCES_URI = "internal://files/sources.json";
 export const COOKIE_URI = "internal://files/cookie.json";
 export const SEARCH_HISTORY_URI = "internal://files/search_history.json";
 
+// ---- 损坏 JSON 自愈（P0-15）----
+// 通知回调由页面注入（confirmGuard"页面传入 $t 译文"同款）：storage 层无页面 $t
+let recoveryNotifier = null;
+
+export function setRecoveryNotifier(fn) {
+  recoveryNotifier = fn;
+}
+
+// 提示一次损坏自愈：文件名交给注入的 $t 文案（storage.fileRecovered）
+function notifyCorrupt(uri) {
+  const name = uri.split("/").pop();
+  console.error("JSON 损坏已备份重建: " + name);
+  if (recoveryNotifier) {
+    recoveryNotifier(name);
+  }
+}
+
+// 坏文件挪到 uri+".bad" 单代备份（先删旧 .bad 再 move）。
+// 必须先备份再重建——否则 updateJsonFile 的原子写会直接覆盖坏文件、现场全毁；
+// 备份失败不阻塞读写链（仍按默认继续），.bad 由 cleanTempFiles 白名单保留
+function backupCorruptFile(uri) {
+  const badUri = uri + ".bad";
+  return new Promise((resolve) => {
+    const doMove = () => {
+      file.move({
+        srcUri: uri,
+        dstUri: badUri,
+        success: () => resolve(),
+        fail: () => resolve(),
+      });
+    };
+    file.delete({
+      uri: badUri,
+      success: doMove,
+      fail: doMove,
+    });
+  });
+}
+
 // ---- 文件级串行队列：同一 URI 的读-改-写操作排队执行，杜绝并发丢更新 ----
 // 纯内存排队，不增加任何 IO；前序失败不阻塞后续操作。
 const fileQueues = {};
@@ -52,11 +91,17 @@ export function readJsonFile(uri, defaultValue, strict) {
           const parsed = data.text ? JSON.parse(data.text) : defaultValue;
           resolve(parsed == null ? defaultValue : parsed);
         } catch (e) {
-          if (strict) {
-            reject({ parseError: e });
-          } else {
-            resolve(defaultValue);
-          }
+          // 解析失败自愈（P0-15）：坏文件先备份为 .bad（单代）保住现场再重建——
+          // 否则原子写会覆盖坏文件；备份后按原语义返回：strict reject 交调用方
+          // 决定是否重建，非 strict 直接按默认继续（不再静默吞掉损坏事实）
+          backupCorruptFile(uri).then(function () {
+            notifyCorrupt(uri);
+            if (strict) {
+              reject({ parseError: e });
+            } else {
+              resolve(defaultValue);
+            }
+          });
         }
       },
       fail: (data, code) => {
@@ -113,7 +158,8 @@ export function writeJsonFile(uri, value, space) {
 }
 
 // 串行化的"读-改-写"：整个周期在文件队列内完成。
-// 文件不存在时用 defaultValue 新建；解析失败等异常时 reject 而不写回，避免清空数据。
+// 文件不存在时用 defaultValue 新建；解析失败时坏文件已由 readJsonFile 备份为 .bad、
+// 按默认重建解锁写路径（P0-15，不再永久失败）；其余异常 reject 不写回。
 // updater 返回新数据（返回 undefined 则沿用读到的数据）。
 export function updateJsonFile(uri, defaultValue, updater) {
   return enqueueFileOp(uri, async () => {
@@ -122,6 +168,9 @@ export function updateJsonFile(uri, defaultValue, updater) {
       data = await readJsonFile(uri, defaultValue, true);
     } catch (e) {
       if (e && e.code === FILE_ERROR.NOT_FOUND) {
+        data = defaultValue;
+      } else if (e && e.parseError) {
+        // 坏文件已备份为 .bad（现场不丢）；按默认重建，后续写入生成新文件
         data = defaultValue;
       } else {
         throw e;

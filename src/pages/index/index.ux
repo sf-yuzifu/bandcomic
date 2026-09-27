@@ -105,6 +105,7 @@ const {
   readSearchHistory,
   addSearchHistory,
   clearSearchHistory,
+  setRecoveryNotifier,
 } = global.$storage;
 const { safeJsonParse } = global.$json;
 const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal, getCurrentSourceName } = global.$api;
@@ -151,6 +152,14 @@ export default {
   },
 
   onInit() {
+    // 损坏 JSON 自愈通知器重新注入（P0-15）：刷新页面绑定，dataBridge 同步等
+    // 中后段损坏也能即时提示（boot.ux 启动期已注册过一次）
+    setRecoveryNotifier((name) => {
+      prompt.showToast({
+        message: this.$t("storage.fileRecovered", { name }),
+        duration: 3000,
+      });
+    });
     // 仅冷启动静默清理一次临时文件（onShow 每次回首页都触发太频繁且弹 toast）；
     // 进程刚启动时不可能有下载在进行，天然避开在途下载的临时文件
     this.cleanTempFiles();
@@ -227,7 +236,8 @@ export default {
 
         const filesToDelete = files.filter(function (item) {
           const fileName = item.uri.split("/").pop();
-          return !keepFiles.includes(fileName) && item.type !== "dir";
+          // .bad 为损坏 JSON 自愈备份（P0-15），单代保留供恢复，不当临时文件清
+          return !keepFiles.includes(fileName) && !fileName.endsWith(".bad") && item.type !== "dir";
         });
 
         if (filesToDelete.length > 0) {
