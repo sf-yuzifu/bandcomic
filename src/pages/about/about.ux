@@ -379,9 +379,9 @@ export default {
   },
 
   routeOobe() {
-    global.__oobeMode = "check";
     router.push({
       uri: "/pages/oobe",
+      params: { mode: "check" },
     });
   },
 

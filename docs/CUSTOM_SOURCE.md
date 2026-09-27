@@ -336,7 +336,7 @@ width = request.args.get("width") or request.args.get("w")
 
 | 参数 | 类型 | 说明 |
 | --- | --- | --- |
-| `width` | number | 目标宽度。正文图片默认可按 600 处理，封面会传 80。 |
+| `width` | number | 目标宽度。正文图片默认 480（用户可在设置中调整），封面固定传 80。 |
 | `quality` | number | 图片质量，范围建议 1-100。JPEG 可直接映射质量；PNG 可用于颜色量化。 |
 | `ifPNG` | truthy | 为 `1`、`true`、`True`、`yes`、`on` 时返回 PNG。 |
 | `ifLVGL` | truthy | 为 `1`、`true`、`True`、`yes`、`on` 时返回 LVGL 预解码二进制。 |

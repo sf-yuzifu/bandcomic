@@ -127,7 +127,7 @@ global.getTime = function () {
 global.APP_SETTING = {
   searchPageSize: "10",
   imageQuality: "50",
-  imageSize: "600",
+  imageSize: "480",
   showCoverInSearch: true,
   keepDefaultZoom: false,
   imageUsePng: false,

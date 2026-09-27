@@ -168,8 +168,9 @@
         "later": "Later"
     },
     "oobe": {
-        "title": "Quick check",
+        "title": "Welcome",
         "subtitle": "Recommended for first-time setup",
+        "finish": "Get started",
         "quickCheck": "Quick check",
         "quickCheckInfo": "Device, network & source health",
         "testing": "Testing...",
@@ -206,6 +207,8 @@
             "pre": "Pre-decode",
             "preOn": "On",
             "preOff": "Off",
+            "enablePre": "Enable pre-decode",
+            "preEnabled": "Pre-decode enabled",
             "levelOk": "OK",
             "levelWarn": "High",
             "levelDanger": "Risk",
@@ -215,6 +218,7 @@
             "tipOk": "Pre-decode is on; lag is unlikely",
             "tipWarn": "Pre-decode off; large images may lag — enable it or shrink size",
             "tipDanger": "Pre-decode off and size too large; white screens likely",
+            "tipOkPng": "PNG decoding on; lag is unlikely",
             "clarityOk": "Clear",
             "clarityMid": "Fair",
             "clarityLow": "Blurry",

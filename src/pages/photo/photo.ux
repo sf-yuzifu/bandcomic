@@ -612,7 +612,7 @@ export default {
       imageUrl = ImageCache[this.page - 1];
       imageUrl = addImageParams(
         imageUrl,
-        parseInt(global.APP_SETTING.imageSize, 10) || 600,
+        parseInt(global.APP_SETTING.imageSize, 10) || 480,
         parseInt(global.APP_SETTING.imageQuality, 10) || 50
       );
     } else {
@@ -677,7 +677,7 @@ export default {
       }
       let url = addImageParams(
         ImageCache[p - 1],
-        parseInt(global.APP_SETTING.imageSize, 10) || 600,
+        parseInt(global.APP_SETTING.imageSize, 10) || 480,
         parseInt(global.APP_SETTING.imageQuality, 10) || 50
       );
       url = appendLvglSuffix(url, `${global.API_SETTING.using}_${this.id}_ch${chapter}_p${p}`);

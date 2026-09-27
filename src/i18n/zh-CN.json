@@ -168,8 +168,9 @@
         "later": "稍后再说"
     },
     "oobe": {
-        "title": "快速检查",
+        "title": "欢迎使用",
         "subtitle": "首次使用建议完成下列项目",
+        "finish": "开始使用",
         "quickCheck": "快速检查",
         "quickCheckInfo": "设备、网络与漫画源可用性",
         "testing": "检测中...",
@@ -206,6 +207,8 @@
             "pre": "预解码",
             "preOn": "已开启",
             "preOff": "未开启",
+            "enablePre": "一键开启预解码",
+            "preEnabled": "已开启预解码",
             "levelOk": "稳妥",
             "levelWarn": "偏高",
             "levelDanger": "易卡",
@@ -215,6 +218,7 @@
             "tipOk": "已开启预解码，一般不会卡顿",
             "tipWarn": "未开预解码；大图可能卡顿，建议开启或调小尺寸",
             "tipDanger": "未开预解码且尺寸过大，极易白屏/卡死",
+            "tipOkPng": "已启用 PNG 图片解析，一般不会卡顿",
             "clarityOk": "清晰",
             "clarityMid": "一般",
             "clarityLow": "偏模糊",

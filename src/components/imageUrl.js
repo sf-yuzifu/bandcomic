@@ -30,7 +30,7 @@ export function addUrlParam(url, key, value) {
   }
 }
 
-export function addImageParams(url, width = 600, quality = 50, params = ["width", "quality"]) {
+export function addImageParams(url, width = 480, quality = 50, params = ["width", "quality"]) {
   let result = addUrlParam(url, params[0], width);
   result = addUrlParam(result, params[1], quality);
   if (global.APP_SETTING.imageUsePng) {

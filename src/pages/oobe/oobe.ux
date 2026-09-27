@@ -72,6 +72,11 @@
             <text class="badge {{ row.badgeClass }}">{{ row.levelText }}</text>
           </div>
           <text class="card-desc" if="{{ smoothTip }}">{{ smoothTip }}</text>
+          <div class="source-actions" if="{{ smoothBadgeClass != 'ok' && !isBand10Pro }}">
+            <div class="row-action" @click="enablePreTranscode">
+              <text static class="row-action-text">{{ $t("oobe.smooth.enablePre") }}</text>
+            </div>
+          </div>
         </div>
 
         <!-- 漫画源：进入本页自动串行检测全部源 -->
@@ -127,6 +132,12 @@
           <div class="faq-item" for="{{ item in faqList }}" @click="toggleFaq(item.id)">
             <text class="faq-q">{{ item.q }}</text>
             <text class="faq-a" if="{{ expandedFaq == item.id }}">{{ item.a }}</text>
+          </div>
+        </div>
+
+        <div class="source-actions finish-actions" if="{{ mode == 'firstRun' }}">
+          <div class="row-action finish-action" @click="finish">
+            <text static class="row-action-text">{{ $t("oobe.finish") }}</text>
           </div>
         </div>
 
@@ -202,9 +213,12 @@ function sourceStatusMeta(status, code, $t, canUseBridge) {
 }
 
 export default {
+  protected: {
+    mode: "check",
+  },
+
   private: {
     time: "",
-    mode: "check",
     deviceLevel: "unknown",
     deviceBadgeClass: "muted",
     deviceLevelText: "",
@@ -231,8 +245,9 @@ export default {
   onInit() {
     this.destroyed = false;
     this.sourceStop = false;
-    // 启动页已用 bootstrapAppData 判定；此处 firstRun / 关于页 check
-    this.mode = global.__oobeMode === "check" ? "check" : "firstRun";
+    // mode 显式路由传参（boot firstRun / 关于页 check）；缺省安全落 check，
+    // 不进 firstRun 分支（防 check 实例重建退化后误写 oobeDone/劫持导航）
+    this.mode = this.mode === "firstRun" ? "firstRun" : "check";
     this.enterChecklist();
   },
 
@@ -261,7 +276,6 @@ export default {
   onDestroy() {
     this.destroyed = true;
     this.sourceStop = true;
-    global.__oobeMode = null;
   },
 
   onBackPress() {
@@ -279,6 +293,9 @@ export default {
     const size = parseInt(s.imageSize, 10) || 0;
     const quality = parseInt(s.imageQuality, 10) || 0;
     const pre = !!s.imagePreTranscode;
+    // 10 Pro 强制 PNG 图片解析（app.ux applyDeviceRecommendedSettings）——预解码
+    // 与 PNG 不可叠加，PNG 视为该设备等效稳妥路径（不评估尺寸风险、不提示预解码）
+    const pngMode = this.isBand10Pro && !!s.imageUsePng;
 
     function lagText(level, $t) {
       if (level === "ok") return $t("oobe.smooth.levelOk");
@@ -286,9 +303,9 @@ export default {
       return $t("oobe.smooth.levelDanger");
     }
 
-    // 尺寸：仅在未开预解码时评估卡顿风险
+    // 尺寸：仅在未开预解码且非 PNG 等效路径时评估卡顿风险
     let sizeLevel = "ok";
-    if (!pre) {
+    if (!pre && !pngMode) {
       if (size > 560) sizeLevel = "danger";
       else if (size > 480) sizeLevel = "warn";
     }
@@ -304,7 +321,7 @@ export default {
       clarityText = this.$t("oobe.smooth.clarityMid");
     }
 
-    const preLevel = pre ? "ok" : sizeLevel === "ok" ? "warn" : "danger";
+    const preLevel = pre || pngMode ? "ok" : sizeLevel === "ok" ? "warn" : "danger";
 
     this.smoothRows = [
       {
@@ -322,19 +339,19 @@ export default {
         levelText: clarityText,
       },
       {
-        label: this.$t("oobe.smooth.pre"),
-        value: pre ? this.$t("oobe.smooth.preOn") : this.$t("oobe.smooth.preOff"),
+        label: pngMode && !pre ? this.$t("settings.imageUsePng") : this.$t("oobe.smooth.pre"),
+        value: pre || pngMode ? this.$t("oobe.smooth.preOn") : this.$t("oobe.smooth.preOff"),
         level: preLevel,
         badgeClass: preLevel,
-        levelText: pre ? this.$t("oobe.smooth.levelOk") : this.$t("oobe.smooth.preSuggest"),
+        levelText: pre || pngMode ? this.$t("oobe.smooth.levelOk") : this.$t("oobe.smooth.preSuggest"),
       },
     ];
 
-    // 总评：开了预解码 → 稳妥；未开则看尺寸
-    if (pre) {
+    // 总评：开了预解码或 10 Pro PNG 路径 → 稳妥；否则看尺寸
+    if (pre || pngMode) {
       this.smoothBadgeClass = "ok";
       this.smoothSummary = this.$t("oobe.smooth.summaryOk");
-      this.smoothTip = this.$t("oobe.smooth.tipOk");
+      this.smoothTip = pngMode && !pre ? this.$t("oobe.smooth.tipOkPng") : this.$t("oobe.smooth.tipOk");
     } else if (sizeLevel === "danger") {
       this.smoothBadgeClass = "danger";
       this.smoothSummary = this.$t("oobe.smooth.summaryDanger");
@@ -505,6 +522,25 @@ export default {
       () => {
         if (this.destroyed) return;
         prompt.showToast({ message: this.$t("settings.saveFailed", { code: "" }), duration: 2000 });
+      }
+    );
+  },
+
+  // 流畅卡一键开启预解码（P1-20③）：10 Pro 走 PNG 等效路径，按钮已隐藏不可达
+  enablePreTranscode() {
+    global.APP_SETTING.imagePreTranscode = true;
+    writeSettings(global.APP_SETTING).then(
+      () => {
+        if (this.destroyed) return;
+        this.refreshDisplay();
+        prompt.showToast({ message: this.$t("oobe.smooth.preEnabled"), duration: 2000 });
+      },
+      () => {
+        if (this.destroyed) return;
+        prompt.showToast({
+          message: this.$t("settings.saveFailed", { code: "" }),
+          duration: 2000,
+        });
       }
     );
   },
@@ -776,6 +812,15 @@ export default {
   font-size: 22px;
   color: #fff;
   font-weight: bold;
+}
+
+/* 完成 CTA：沿用暗色行，仅加高与上间距拉开与帮助卡的距离 */
+.finish-actions {
+  margin-top: 18px;
+}
+
+.finish-action {
+  height: 60px;
 }
 
 .danger-text {

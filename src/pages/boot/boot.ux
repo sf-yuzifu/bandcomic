@@ -80,8 +80,7 @@ export default {
       router.replace({ uri: "/pages/index" });
       return;
     }
-    global.__oobeMode = "firstRun";
-    router.replace({ uri: "/pages/oobe" });
+    router.replace({ uri: "/pages/oobe", params: { mode: "firstRun" } });
   },
 
   onDestroy() {
