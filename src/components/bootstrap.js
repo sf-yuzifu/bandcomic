@@ -1,7 +1,7 @@
 // 冷启动数据引导：读 settings/sources/cookie，判断是否跳过 OOBE
 // entry 为启动页时由它调用；OOBE/首页不再各自抢跑读盘
 import { readSettings, readSources, readCookie, writeSettings } from "./storage";
-import { mergeSourcesToGlobal } from "./api";
+import { mergeSourcesToGlobal, ensureUsingSourceValid } from "./api";
 
 export function bootstrapAppData() {
   return Promise.all([
@@ -37,6 +37,9 @@ export function bootstrapAppData() {
         global.applyDeviceRecommendedSettings();
       }
       mergeSourcesToGlobal(Array.isArray(sources) ? sources : []);
+      // 合并后校正 using 指向（P2-35①）：脏条目可能把指针覆盖致悬空，
+      // 不再全靠 app.ux 内置源硬编码兜底
+      ensureUsingSourceValid();
     } catch (e) {
       // 合并异常不阻断启动（P0-12）：按上面的路由降级继续，failed 供启动页提示
       failed = true;

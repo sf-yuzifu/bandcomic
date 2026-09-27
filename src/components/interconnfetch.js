@@ -335,6 +335,17 @@ class InterconnFetchClient {
         req.nextAck = 0;
         req.chunkPromises = [];
         req.resetTimer();
+        // chunkCount 0/缺失：头部即完成（P2-35④）——否则没有分片来推进到齐判定，
+        // 干等 20s 超时还误关会话；body 形态与 finish() 的零分片拼接结果一致
+        if (!(req.chunkCount > 0)) {
+          req.settled = true;
+          this.requests.delete(id);
+          const emptyEnc = resp.bodyEncoding || "base64";
+          req.resolve({
+            ...req.header,
+            body: req.onChunk ? null : emptyEnc === "text" ? "" : new Uint8Array(0),
+          });
+        }
       } else {
         req.settled = true;
         this.requests.delete(id);
@@ -368,9 +379,15 @@ class InterconnFetchClient {
         req.chunkBuffer[seq] = req.onChunk ? true : chunkData;
       } else {
         decoded = decodeBody(chunkData, encoding);
-        if (decoded instanceof Uint8Array) {
-          req.chunkBuffer[seq] = req.onChunk ? true : decoded;
+        if (!(decoded instanceof Uint8Array)) {
+          // 未知/坏 bodyEncoding：分片不落位会挂死到齐判定（P2-35④），快速失败；
+          // 仅协议失配不杀会话（open 不动），后续请求可正常工作
+          req.settled = true;
+          this.requests.delete(id);
+          req.reject(new Error("bad bodyEncoding: " + encoding));
+          return;
         }
+        req.chunkBuffer[seq] = req.onChunk ? true : decoded;
       }
 
       // 如果用了 onChunk，记录其 Promise 以便后续等待。

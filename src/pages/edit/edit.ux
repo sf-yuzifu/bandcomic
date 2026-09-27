@@ -98,6 +98,10 @@ export default {
     API_SETTING: global.API_SETTING,
   },
 
+  onInit() {
+    this.destroyed = false;
+  },
+
   onShow() {
     // 写入页面顶部时间
     this.time = getTime();
@@ -114,6 +118,11 @@ export default {
 
   onBackPress() {
     return false;
+  },
+
+  onDestroy() {
+    // 页面销毁后在途网络回调不再写/不再 toast（download.ux 同款，P2-35②）
+    this.destroyed = true;
   },
 
   openIme() {
@@ -143,6 +152,7 @@ export default {
       url: protocol + "://" + this.context + "/config",
       responseType: "text",
       success: (response) => {
+        if (this.destroyed) return;
         const data = safeJsonParse(response.data, null);
         if (data == null) {
           prompt.showToast({
@@ -160,6 +170,7 @@ export default {
           return replaceIfDuplicate(list, data);
         }).then(
           () => {
+            if (this.destroyed) return;
             // HTTPS 降级 HTTP 成功时延长 toast 并明示安全风险，避免用户忽略
             prompt.showToast({
               message: this.$t(protocol === "http" ? "edit.completeHttp" : "edit.complete"),
@@ -169,6 +180,7 @@ export default {
             this.API_SETTING = global.API_SETTING;
           },
           ({ data: errData, code }) => {
+            if (this.destroyed) return;
             if (code === FILE_ERROR.IO_ERROR) {
               prompt.showToast({ message: this.$t("edit.storageError") });
             } else {
@@ -180,6 +192,7 @@ export default {
         );
       },
       fail: (data, code) => {
+        if (this.destroyed) return;
         const errorType = getFetchErrorType(code);
         if (protocol === "https" && (errorType === "ssl" || errorType === "connection")) {
           this.fetchSourceConfig("http");

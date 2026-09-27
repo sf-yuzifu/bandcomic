@@ -85,8 +85,10 @@ export function createWindowedSender(options) {
           return;
         }
         pump();
-      } else if (next > base && retxBase !== base) {
-        // 停滞：对端在等 base 处的洞，go-back-N 整窗重发（同点一次）
+      } else if (ack === base && next > base && retxBase !== base) {
+        // 严格重复 ACK 才算停滞（P2-35⑤）：过期 ACK（ack < base，QAIC 乱序迟到）整段
+        // 忽略，否则被当停滞触发整窗重传白耗带宽；对端在等 base 处的洞时
+        // go-back-N 整窗重发（retxBase 同点一次）
         retxBase = base;
         next = base;
         pump();

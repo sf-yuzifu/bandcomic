@@ -90,7 +90,8 @@ export function getCurrentSourceName() {
 // 若所有源都被删除（手机端可删内置源），恢复内置默认源兜底
 export function ensureUsingSourceValid() {
   const setting = global.API_SETTING;
-  if (setting[setting.using]) return;
+  // using === "using" 自指时 setting[setting.using] 恒真，必须显式排除（P2-35①）
+  if (setting.using !== "using" && setting[setting.using]) return;
   const keys = Object.keys(setting).filter((key) => key !== "using");
   if (keys.length > 0) {
     setting.using = keys[0];
@@ -140,6 +141,9 @@ export function mergeSourcesToGlobal(sourceArray) {
     if (!newSourceConfig || typeof newSourceConfig !== "object") return;
     const newKey = Object.keys(newSourceConfig)[0];
     if (!newKey) return;
+    // "using" 是指针槽位的保留键（API_SETTING 内与源同级，各列表页均已过滤），
+    // 脏条目合并会覆盖指针致悬空（P2-35①）
+    if (newKey === "using") return;
     const value = newSourceConfig[newKey];
     if (!value || typeof value !== "object") return;
     global.API_SETTING[newKey] = value;
