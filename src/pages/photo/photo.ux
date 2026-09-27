@@ -51,6 +51,7 @@
               if (images != '') {
                 loading = '';
                 images = '';
+                showit = true;
               }
             }
           "
@@ -66,7 +67,8 @@
       </scroll>
     </div>
 
-    <div if="{{ !images }}" class="state-wrap" @click="showButton">
+    <!-- 状态图点击仅 error 态响应（纯重试），loading/end 无操作；工具栏切换只在图片态（P1-19） -->
+    <div if="{{ !images }}" class="state-wrap" @click="onStateClick">
       <image
         class="state-img"
         src="{{ loading == 'end' ? '/common/end.png' : loading ? '/common/loading.png' : '/common/error.png' }}"
@@ -275,6 +277,10 @@ let pendingBright = -1; // 待生效的亮度值（0..255）
 // 翻多少页才把阅读历史落盘一次
 const HISTORY_FLUSH_INTERVAL = 5;
 
+// 圆屏 arc-container 四周内缩，滚动视口实际为 screenSize.height - 12（见模板 arc-container），
+// atBottom 判定须用真实视口高度而非整屏高（P2-34）；scrollY === 0 严格相等已实机验证勿改
+const ARC_VIEWPORT_INSET = 12;
+
 // 生成数字轮盘每一位的可选范围：以 total 的位数为准，结合当前值 current 钳制
 // 每一位的最大可选数字，保证拼出来的值不超出 total（章节/页码两个 picker 共用）
 function buildDigitRanges(total, current) {
@@ -475,8 +481,7 @@ export default {
             ? body.images.filter((img) => img && img.url).map((img) => img.url)
             : null;
         if (!urls) {
-          this.loading = "";
-          this.images = "";
+          this.enterErrorState();
           // 清掉 page_count 残留值，防止后续翻页基于脏值越走越远（P0-8）
           this.page_count = 0;
           console.debug("handling fail, invalid response data");
@@ -497,8 +502,7 @@ export default {
           return;
         }
         listFetching = false;
-        this.loading = "";
-        this.images = "";
+        this.enterErrorState();
         // 同上：失败后 page_count 归零，翻页判断不再依赖路由残留值（P0-8）
         this.page_count = 0;
         console.debug(`handling fail, errMsg = ${data}`);
@@ -533,7 +537,7 @@ export default {
       localChapterEntry = this.downloadChapter[this.chapter - 1];
       if (!localChapterEntry) {
         // 章节号越界（历史记录章数 > 本地登记章数）：显示加载失败而非卡死
-        this.loading = "";
+        this.enterErrorState();
         return;
       }
       this.title = localChapterEntry[0];
@@ -554,6 +558,9 @@ export default {
 
     if (this.page > this.page_count) {
       this.loading = "end";
+      // 自动弹工具栏兜底：end 图点击无操作（P1-19 交互），滚边翻到章末时
+      // 工具栏若处于隐藏态将无出口（系统返回被吞）
+      this.showit = true;
       return;
     }
 
@@ -585,7 +592,7 @@ export default {
       );
     } else {
       // listReady 门禁下理论不可达；防御性落失败态，任何残余路径都不许卡 loading（P0-8）
-      this.loading = "";
+      this.enterErrorState();
       return;
     }
 
@@ -628,8 +635,7 @@ export default {
         if (page != this.page) {
           return;
         }
-        this.loading = "";
-        this.images = "";
+        this.enterErrorState();
         shownPage = 0;
       },
     });
@@ -679,8 +685,7 @@ export default {
           }
           delete PreloadInflight[p];
           if (p == this.page && !this.images) {
-            this.loading = "";
-            this.images = "";
+            this.enterErrorState();
             shownPage = 0;
           }
         },
@@ -842,6 +847,25 @@ export default {
     this.showit = !this.showit;
   },
 
+  // 落失败态（error 图）并自动弹工具栏兜底：error 图点击只做纯重试、不切工具栏（P1-19），
+  // 无此兜底则工具栏不可达（系统返回被吞）会困住用户
+  enterErrorState() {
+    this.loading = "";
+    this.images = "";
+    this.showit = true;
+  },
+
+  // 状态图点击：仅 error 态响应（纯重试）；loading/end 无操作。
+  // 工具栏切换只走图片加载成功后的默认点击（showButton），用户定案交互（P1-19）
+  onStateClick() {
+    if (this.loading) return;
+    if (this.local || listReady) {
+      this.getImageForPage(global.APP_SETTING.keepDefaultZoom);
+    } else {
+      this.fetchAllImageUrls();
+    }
+  },
+
   onPickerChange(pickerIndex, e) {
     const chapterStr = this.chapter.toString().padStart(this.pickerValues.length, "0");
     const newDigits = [...chapterStr];
@@ -987,7 +1011,11 @@ export default {
         if (this.destroyed) return;
         // 横向 overscroll 回弹期间不触发翻页
         if (val.scrollX + global.screenSize.width > width) return;
-        const atBottom = val.scrollY + global.screenSize.height === height;
+        const viewportH =
+          global.screenShape === "circle"
+            ? global.screenSize.height - ARC_VIEWPORT_INSET
+            : global.screenSize.height;
+        const atBottom = val.scrollY + viewportH === height;
         const atTop = val.scrollY === 0;
         if (!atBottom && !atTop) return;
         const edge = atBottom ? "bottom" : "top";
