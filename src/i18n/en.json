@@ -263,6 +263,7 @@
         }
     },
     "boot": {
-        "loading": "Loading..."
+        "loading": "Loading...",
+        "loadPartial": "Data not fully loaded"
     }
 }

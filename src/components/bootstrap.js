@@ -27,20 +27,26 @@ export function bootstrapAppData() {
       Object.keys(settings).length > 0
     );
     global.APP_SETTING = Object.assign(global.APP_SETTING, settings);
-    if (global.applyDeviceRecommendedSettings) {
-      global.applyDeviceRecommendedSettings();
-    }
-    mergeSourcesToGlobal(Array.isArray(sources) ? sources : []);
+    // 路由判定先于合并操作算好（P0-12）：合并失败降级时与正常路径同一规则——
+    // 有数据（oobeDone || hadExisting）进首页，真什么都没设置才进 OOBE
+    const skipOobe = !!(global.APP_SETTING.oobeDone || hadExisting);
     global.cookie = cookie || {};
-    if (global.APP_SETTING.oobeDone) {
-      return { skipOobe: true };
+    let failed = false;
+    try {
+      if (global.applyDeviceRecommendedSettings) {
+        global.applyDeviceRecommendedSettings();
+      }
+      mergeSourcesToGlobal(Array.isArray(sources) ? sources : []);
+    } catch (e) {
+      // 合并异常不阻断启动（P0-12）：按上面的路由降级继续，failed 供启动页提示
+      failed = true;
+      console.error("bootstrapAppData merge failed: " + e);
     }
-    // 存量用户升级：已有 settings 则静默补写，不打断
-    if (hadExisting) {
+    if (skipOobe && hadExisting && !global.APP_SETTING.oobeDone) {
+      // 存量用户升级：已有 settings 则静默补写，不打断
       global.APP_SETTING.oobeDone = true;
       writeSettings(global.APP_SETTING).catch(function () {});
-      return { skipOobe: true };
     }
-    return { skipOobe: false };
+    return { skipOobe: skipOobe, failed: failed };
   });
 }

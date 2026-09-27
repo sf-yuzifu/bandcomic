@@ -263,6 +263,7 @@
         }
     },
     "boot": {
-        "loading": "載入中..."
+        "loading": "載入中...",
+        "loadPartial": "資料未完整載入"
     }
 }

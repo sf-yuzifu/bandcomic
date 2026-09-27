@@ -8,9 +8,16 @@
 
 <script>
 import router from "@system.router";
+import prompt from "@system.prompt";
 
 // 共享模块统一挂 global（见 app.ux）
 const { bootstrapAppData } = global.$boot;
+
+// 启动读盘超时兜底（P0-12）：正常读盘毫秒级完成，超时说明固件回调挂起
+const BOOT_TIMEOUT_MS = 10000;
+// 定时器句柄与完成标志放模块级（photo.ux brightTimer 同款，不进响应式）
+let bootTimer = 0;
+let bootSettled = false;
 
 export default {
   private: {
@@ -23,19 +30,57 @@ export default {
 
   onInit() {
     this.destroyed = false;
-    bootstrapAppData().then((result) => {
-      if (this.destroyed) return;
-      if (result && result.skipOobe) {
-        router.replace({ uri: "/pages/index" });
-        return;
+    bootSettled = false;
+    if (bootTimer) {
+      clearTimeout(bootTimer);
+      bootTimer = 0;
+    }
+    bootTimer = setTimeout(() => {
+      bootTimer = 0;
+      // 超时兜底（P0-12）：读盘未归无法确认"什么都没设置"→进首页 + 提示
+      this.finishBoot(true, true);
+    }, BOOT_TIMEOUT_MS);
+    bootstrapAppData().then(
+      (result) => {
+        if (bootSettled || this.destroyed) return;
+        this.finishBoot(!!(result && result.failed), !!(result && result.skipOobe));
+      },
+      () => {
+        // bootstrap 内部已 try/catch 不拒载；万一仍拒按"有数据进首页"降级（P0-12）——
+        // 无法确认"真什么都没设置"时不进 OOBE
+        if (bootSettled || this.destroyed) return;
+        this.finishBoot(true, true);
       }
-      global.__oobeMode = "firstRun";
-      router.replace({ uri: "/pages/oobe" });
-    });
+    );
+  },
+
+  // 路由收口（P0-12）：partial=数据未完整加载需提示；skipOobe=进首页，否则进引导
+  finishBoot(partial, skipOobe) {
+    bootSettled = true;
+    if (bootTimer) {
+      clearTimeout(bootTimer);
+      bootTimer = 0;
+    }
+    if (partial) {
+      prompt.showToast({
+        message: this.$t("boot.loadPartial"),
+        duration: 2000,
+      });
+    }
+    if (skipOobe) {
+      router.replace({ uri: "/pages/index" });
+      return;
+    }
+    global.__oobeMode = "firstRun";
+    router.replace({ uri: "/pages/oobe" });
   },
 
   onDestroy() {
     this.destroyed = true;
+    if (bootTimer) {
+      clearTimeout(bootTimer);
+      bootTimer = 0;
+    }
   },
 };
 </script>

@@ -126,10 +126,17 @@ export function replaceIfDuplicate(configArray, newConfigObject) {
 }
 
 // 源配置数组（单键对象列表）合并进 global.API_SETTING，同步内存真相
+// 脏数据防御（P0-12）：非对象元素/空对象/值非对象一律跳过——sources.json 被写坏
+// （如 [null, {...}]）时 Object.keys(null) 抛 TypeError 会让 bootstrap 链中断、
+// 启动页永久"加载中"，故逐元素校验
 export function mergeSourcesToGlobal(sourceArray) {
   sourceArray.forEach((newSourceConfig) => {
+    if (!newSourceConfig || typeof newSourceConfig !== "object") return;
     const newKey = Object.keys(newSourceConfig)[0];
-    global.API_SETTING[newKey] = newSourceConfig[newKey];
+    if (!newKey) return;
+    const value = newSourceConfig[newKey];
+    if (!value || typeof value !== "object") return;
+    global.API_SETTING[newKey] = value;
   });
 }
 
