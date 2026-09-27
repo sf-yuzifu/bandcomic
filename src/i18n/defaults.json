@@ -268,7 +268,7 @@
         "fileRecovered": "File corrupted, backed up and reset: {name}"
     },
     "boot": {
-        "loading": "Loading...",
+        "loading": "Loading",
         "loadPartial": "Data not fully loaded"
     }
 }

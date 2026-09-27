@@ -268,7 +268,7 @@
         "fileRecovered": "文件损坏，已备份并重置：{name}"
     },
     "boot": {
-        "loading": "加载中...",
+        "loading": "加载中",
         "loadPartial": "数据未完整加载"
     }
 }
