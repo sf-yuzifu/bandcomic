@@ -26,6 +26,8 @@ const COVER_PACING_MS = 20;
 // 滑窗传输（与插件 transfer.rs 对偶）：方向 A 接收窗口随 hs_pong caps 声明给插件；
 // 方向 B 发送窗口以插件 hs_ping caps 为准（clamp [1,16]）
 const IMPORT_WINDOW = 4;
+// 单文件分片数上限（P1-18①）：防异常 total 撑爆 new Array；远大于任何合法页图所需
+const IMPORT_MAX_CHUNKS = 65536;
 const SYNC_ACK_TIMEOUT = 3000;
 const SYNC_MAX_RETRY = 5;
 
@@ -840,6 +842,20 @@ export function createDataBridge(interConnect) {
       return;
     }
 
+    // index/total 越界防御（P1-18①）：异常 total 会撑大 new Array，越界/重复的
+    // index 会灌水 received 提前凑满、join("") 把空洞拼进 base64 静默写坏文件
+    if (
+      !Number.isInteger(index) ||
+      !Number.isInteger(total) ||
+      total <= 0 ||
+      total > IMPORT_MAX_CHUNKS ||
+      index < 0 ||
+      index >= total
+    ) {
+      console.debug("异常分片参数: index=" + index + ", total=" + total);
+      return;
+    }
+
     if (!state.buffers[fileKey]) {
       state.buffers[fileKey] = {
         chunks: new Array(total),
@@ -849,7 +865,14 @@ export function createDataBridge(interConnect) {
     }
 
     const buf = state.buffers[fileKey];
-    if (buf.chunks[index]) {
+    // total 须与首片一致，防止中途换参数把计数搅浑
+    if (buf.total !== total) {
+      console.debug("分片 total 不一致: " + total + " != " + buf.total);
+      return;
+    }
+    // 判重用 !== undefined（P1-18①）：空字符串分片 truthy 判不了重复，
+    // 重复到达会重复 received++（interconnfetch.js 同款正确写法）
+    if (buf.chunks[index] !== undefined) {
       // 重复分片：数据忽略（ACK 由调用方按协议形态回复）
       return;
     }
@@ -1147,8 +1170,18 @@ export function createDataBridge(interConnect) {
       });
     }).then(
       function () {
-        if (global.API_SETTING[sourceName]) {
-          delete global.API_SETTING[sourceName];
+        // 内存清理按 key 与显示名双向查找（P1-18②）：手机端可按显示名删除，
+        // 原直查 key 会漏删使内存与文件不一致直到重启；"using" 是指针槽位排除
+        const victims = Object.keys(global.API_SETTING).filter(function (k) {
+          if (k === "using") return false;
+          if (k === sourceName) return true;
+          const info = global.API_SETTING[k];
+          return !!(info && info.name === sourceName);
+        });
+        if (victims.length > 0) {
+          victims.forEach(function (k) {
+            delete global.API_SETTING[k];
+          });
           ensureUsingSourceValid();
           bridge.onSourceConfigSaved();
         }
