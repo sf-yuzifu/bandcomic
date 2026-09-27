@@ -45,6 +45,7 @@
     "search": {
         "search": "搜尋: ",
         "searching": "搜尋中...",
+        "opening": "開啟中...",
         "noFound": "未找到相關漫畫",
         "fail": "搜尋失敗: ",
         "networkError": "網絡連線失敗",

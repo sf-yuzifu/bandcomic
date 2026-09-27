@@ -45,6 +45,7 @@
     "search": {
         "search": "Search: ",
         "searching": "Searching...",
+        "opening": "Opening...",
         "noFound": "No results",
         "fail": "Failed: ",
         "networkError": "Network failed",
