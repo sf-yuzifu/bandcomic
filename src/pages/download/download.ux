@@ -177,6 +177,7 @@ let ImageCache = [];
 // （同 this.destroyed 既有用法），移出 private 后只是失去响应式，均不参与渲染，安全
 let failedChapters = []; // 下载失败的章节号列表
 let coverDone = false; // 连载封面是否已下载成功
+let retryNotified = false; // 本次下载运行是否已提示过重试（P1-17①，防 toast 风暴）
 let currentChapterIndex = 0; // 下载队列当前章节下标
 let loadingMore = false; // 章节网格翻页窗口切换中（防重复触发）
 let scrollTopTriggered = false; // 触顶已预触发一次（二次触发才翻页）
@@ -517,6 +518,7 @@ export default {
       this.processing = false;
       this.page = 0;
       this.downloadError = "";
+      retryNotified = false;
 
       let folderUri;
       let coverUri;
@@ -538,18 +540,18 @@ export default {
       }
       await this.createFolder(folderUri);
 
-      if (this.is_serial) {
-        // 封面失败不应中断队列，下一章会重试
-        if (!coverDone) {
-          try {
-            await this.downloadCover(coverUri);
-            coverDone = true;
-          } catch (e) {
-            console.debug(`封面下载失败，将在下一章重试: ${e}`);
+      // 封面失败不判整本失败（P1-17②）：与连载对称降级——单本 toast 警告后继续
+      // 下正文（书架封面 empty.png 兜底），连载静默吞、下一章还会重试
+      if (!coverDone) {
+        try {
+          await this.downloadCover(coverUri);
+          coverDone = true;
+        } catch (e) {
+          console.debug(`封面下载失败: ${e}`);
+          if (!this.is_serial) {
+            prompt.showToast({ message: String(e), duration: 2000 });
           }
         }
-      } else {
-        await this.downloadCover(coverUri);
       }
 
       await this.downloadPages(folderUri);
@@ -609,7 +611,9 @@ export default {
       duration: 2000,
     });
     for (const item of failedPages) {
-      await this.downloadPage(item.page, folderUri);
+      // 补拉沿用已耗尽的重试配额（P1-17③）：只再试一次，仍失败才抛出——
+      // 不再从 0 重计又获得 3 次重试，与"串行补一次"注释语义一致
+      await this.downloadPage(item.page, folderUri, MAX_RETRY);
       this.page = ++completed;
     }
   },
@@ -762,12 +766,17 @@ export default {
           ? `网络超时，正在重试第 ${retryCount + 1} 次...`
           : `网络错误，正在重试第 ${retryCount + 1} 次...`
       );
-      prompt.showToast({
-        message: this.$t(isTimeout ? "download.downloadTimeout" : "download.networkErrorRetry", {
-          count: retryCount + 1,
-        }),
-        duration: 1500,
-      });
+      // 重试 toast 每次下载运行只发一条（P1-17①）：弱网逐页重试连发成风暴、
+      // 多章排队互相顶掉；最终失败另有 downloadError 展示出口
+      if (!retryNotified) {
+        retryNotified = true;
+        prompt.showToast({
+          message: this.$t(isTimeout ? "download.downloadTimeout" : "download.networkErrorRetry", {
+            count: retryCount + 1,
+          }),
+          duration: 1500,
+        });
+      }
       return sleep(1000).then(() => options.retry(retryCount + 1));
     }
 
