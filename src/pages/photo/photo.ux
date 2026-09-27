@@ -248,6 +248,11 @@ let ImageCache = [];
 let PreloadCache = {};
 let PreloadInflight = {};
 let originalName;
+// 在线章节列表是否已成功加载：区分"空章节 → end"与"拉取失败 → 可重拉"，
+// 防 page_count 路由残留值把失败误判成读到末尾（P0-8），onInit 需重置
+let listReady = false;
+// 列表拉取在途标记：翻页触发的自愈重拉去重，防连点灌并发请求（P0-8）
+let listFetching = false;
 
 // 以下状态与 UI 无关（不参与模板绑定），放模块级减少 viewModel 的 observer/数据
 // 代理开销；模块级变量跨页面实例共享，需 onInit 重置（onDestroy 已有清缓存模式）。
@@ -368,6 +373,8 @@ export default {
     reachedEdge = null;
     posX = 0;
     posY = 0;
+    listReady = false;
+    listFetching = false;
     origBrightness = null;
     brightManual = false;
     pendingBright = -1;
@@ -437,6 +444,8 @@ export default {
     const chapter = this.chapter;
     PreloadCache = {};
     PreloadInflight = {};
+    listReady = false;
+    listFetching = true;
 
     apiFetch({
       url: buildPhotoUrl(this.id, Math.floor(this.chapter)),
@@ -445,6 +454,7 @@ export default {
         if (chapter != this.chapter) {
           return;
         }
+        listFetching = false;
         const body = response.data;
         const urls =
           body && Array.isArray(body.images)
@@ -453,12 +463,16 @@ export default {
         if (!urls) {
           this.loading = "";
           this.images = "";
+          // 清掉 page_count 残留值，防止后续翻页基于脏值越走越远（P0-8）
+          this.page_count = 0;
           console.debug("handling fail, invalid response data");
           return;
         }
         ImageCache = urls;
         this.title = body.title;
         this.page_count = ImageCache.length;
+        // 必须先置 listReady 再 getImageForPage，否则列表就绪门禁会再次触发重拉
+        listReady = true;
         // 页码轮盘范围随章节总页数重建
         this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
         this.getImageForPage();
@@ -467,8 +481,11 @@ export default {
         if (chapter != this.chapter) {
           return;
         }
+        listFetching = false;
         this.loading = "";
         this.images = "";
+        // 同上：失败后 page_count 归零，翻页判断不再依赖路由残留值（P0-8）
+        this.page_count = 0;
         console.debug(`handling fail, errMsg = ${data}`);
         console.debug(`handling fail, errCode = ${code}`);
       },
@@ -510,6 +527,16 @@ export default {
       this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
     }
 
+    // 在线列表尚未成功加载：不判 end（page_count 为 0/路由残留不可信）。
+    // 在途拉取等其回调落地；否则主动重拉列表自愈——给翻页一个出口，
+    // 避免 ImageCache 为空时静默 return 永久卡 loading（P0-8）
+    if (!this.local && !listReady) {
+      if (!listFetching) {
+        this.fetchAllImageUrls();
+      }
+      return;
+    }
+
     if (this.page > this.page_count) {
       this.loading = "end";
       return;
@@ -542,6 +569,8 @@ export default {
         parseInt(global.APP_SETTING.imageQuality, 10) || 50
       );
     } else {
+      // listReady 门禁下理论不可达；防御性落失败态，任何残余路径都不许卡 loading（P0-8）
+      this.loading = "";
       return;
     }
 
