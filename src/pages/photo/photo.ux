@@ -255,7 +255,8 @@ let listReady = false;
 let listFetching = false;
 
 // 以下状态与 UI 无关（不参与模板绑定），放模块级减少 viewModel 的 observer/数据
-// 代理开销；模块级变量跨页面实例共享，需 onInit 重置（onDestroy 已有清缓存模式）。
+// 代理开销；模块级变量跨页面实例共享，需 onInit 重置（onDestroy 清缓存；
+// 异步回调一律 this.destroyed 守卫后才许写，防旧实例在途响应串台，P0-9）。
 // downloadChapter 为路由参数，未声明也可经 this.downloadChapter 收到（同 this.source），
 // 移出 private 后只是失去响应式，其不参与渲染，安全
 let reachedEdge = null; // 滚边翻页戒备状态：记录已到达过的边缘（top/bottom）
@@ -350,6 +351,9 @@ export default {
   },
 
   onDestroy() {
+    // 页面销毁后中止异步链：各异步回调检查该标志，旧实例在途响应不再写
+    // 模块级缓存/实例字段（download.ux 同款模式，P0-9）
+    this.destroyed = true;
     this.flushHistory();
     // 恢复进入阅读页前的亮度（临时调节语义）；只动过亮度（origBrightness 非 null）才恢复
     if (brightTimer) {
@@ -364,15 +368,22 @@ export default {
     ImageCache = [];
     PreloadCache = {};
     PreloadInflight = {};
+    shownPage = 0;
     // 整章图片缓存刚释放，主动收一次 GC（官方内存优化建议，勿高频调用）
     if (typeof global !== "undefined" && global.runGC) global.runGC();
   },
 
   onInit() {
-    // 模块级状态跨页面实例共享，进页重置
+    this.destroyed = false;
+    // 模块级状态跨页面实例共享，进页重置（图片缓存三件套 + shownPage 一并重置，
+    // 配合 destroyed 守卫杜绝上一本漫画的图串台，P0-9）
     reachedEdge = null;
     posX = 0;
     posY = 0;
+    ImageCache = [];
+    PreloadCache = {};
+    PreloadInflight = {};
+    shownPage = 0;
     listReady = false;
     listFetching = false;
     origBrightness = null;
@@ -401,10 +412,12 @@ export default {
     };
     readHistory().then(
       (historyList) => {
+        if (this.destroyed) return;
         restorePosition(historyList);
         this.initData();
       },
       () => {
+        if (this.destroyed) return;
         // 没有历史记录，正常初始化
         this.initData();
       }
@@ -451,6 +464,7 @@ export default {
       url: buildPhotoUrl(this.id, Math.floor(this.chapter)),
       responseType: "json",
       success: (response) => {
+        if (this.destroyed) return;
         if (chapter != this.chapter) {
           return;
         }
@@ -478,6 +492,7 @@ export default {
         this.getImageForPage();
       },
       fail: (data, code) => {
+        if (this.destroyed) return;
         if (chapter != this.chapter) {
           return;
         }
@@ -598,6 +613,7 @@ export default {
       url: imageUrl,
       responseType: "file",
       success: (response) => {
+        if (this.destroyed) return;
         if (page != this.page) {
           return;
         }
@@ -608,6 +624,7 @@ export default {
         this.preloadAdjacentPages();
       },
       fail: () => {
+        if (this.destroyed) return;
         if (page != this.page) {
           return;
         }
@@ -639,10 +656,13 @@ export default {
         responseType: "file",
         priority: 1,
         success: (response) => {
-          delete PreloadInflight[p];
+          if (this.destroyed) return;
           if (chapter != this.chapter) {
+            // 换章时 PreloadInflight 已在 fetchAllImageUrls 整体重置，
+            // 此处再 delete 会误删新章同页的在途标记
             return;
           }
+          delete PreloadInflight[p];
           if (p == this.page && !this.images) {
             this.images = response.data;
             shownPage = p;
@@ -653,10 +673,11 @@ export default {
           PreloadCache[p] = response.data;
         },
         fail: () => {
-          delete PreloadInflight[p];
+          if (this.destroyed) return;
           if (chapter != this.chapter) {
             return;
           }
+          delete PreloadInflight[p];
           if (p == this.page && !this.images) {
             this.loading = "";
             this.images = "";
@@ -675,9 +696,11 @@ export default {
     file.access({
       uri: binUri,
       success() {
+        if (self.destroyed) return;
         self.images = binUri;
       },
       fail() {
+        if (self.destroyed) return;
         self.images = baseUri;
       },
     });
@@ -861,6 +884,7 @@ export default {
       const self = this;
       brightness.getValue({
         success: (data) => {
+          if (self.destroyed) return;
           if (self.showSlider) {
             self.brightVal = Math.round(((data.value || 0) / 255) * 100);
           }
@@ -878,11 +902,14 @@ export default {
       origBrightness = { mode: 0, value: 128 }; // 占位默认值 + 防回调返回前重复捕获
       brightness.getMode({
         success: (data) => {
+          // destroyed 后 origBrightness 已被置空，直接写会解引用崩溃（P0-9）
+          if (this.destroyed || !origBrightness) return;
           origBrightness.mode = data.mode || 0;
         },
       });
       brightness.getValue({
         success: (data) => {
+          if (this.destroyed || !origBrightness) return;
           origBrightness.value = data.value || 0;
         },
       });
@@ -954,6 +981,7 @@ export default {
 
     this.$element("scrollId").getScrollRect({
       success: ({ width, height }) => {
+        if (this.destroyed) return;
         // 横向 overscroll 回弹期间不触发翻页
         if (val.scrollX + global.screenSize.width > width) return;
         const atBottom = val.scrollY + global.screenSize.height === height;
