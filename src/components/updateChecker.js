@@ -33,7 +33,9 @@ function normalizeUpdateInfo(data) {
     data.forceUpdate === true ||
     (minSupportedVersionCode > 0 && currentVersionCode < minSupportedVersionCode);
 
-  if (!needUpdate) return null;
+  // 强更先于 needUpdate 放行（P1-14）：服务端 force:true 但版本号未递增（同版本强更/
+  // 字段配错）或 minSupported 越界时，不再被 needUpdate 门禁吞掉
+  if (!needUpdate && !forceUpdate) return null;
 
   return {
     currentVersionCode: currentVersionCode,
@@ -74,14 +76,14 @@ export function checkUpdate(force) {
       success: (response) => {
         lastCheckOk = true;
         const info = normalizeUpdateInfo(response.data);
-        if (info) {
-          global.pendingUpdateInfo = info;
-        }
+        // 无更新（含服务端撤回）时写 null 同步清空（P1-14：不再只置不清驱动旧信息）
+        global.pendingUpdateInfo = info;
         resolve(info);
       },
       fail: () => {
         lastCheckOk = false;
-        resolve(null);
+        // 与"无更新"区分（P1-15 重试出口需要）：调用方按 failed 静默/提示处理
+        resolve({ failed: true });
       },
     });
   });

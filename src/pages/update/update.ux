@@ -1,7 +1,7 @@
 <template>
   <div class="container">
     <img
-      if.static="{{ global.screenShape != 'circle' && !forceUpdate }}"
+      if="{{ global.screenShape != 'circle' && !forceUpdate }}"
       class="leftButton top"
       src="/common/back.png"
       @click="routeBack"
@@ -17,7 +17,7 @@
         }
       "
     >
-      <span class="iconfont" if.static="{{ global.screenShape == 'circle' && !forceUpdate }}">
+      <span class="iconfont" if="{{ global.screenShape == 'circle' && !forceUpdate }}">
         &#xe685;
       </span>
       <span static>{{ $t("update.title") }}</span>
@@ -34,9 +34,12 @@
           <text static class="version">
             {{ $t("update.latestVersion") }}{{ latestVersionName }}({{ latestVersionCode }})
           </text>
-          <text class="force" if.static="{{ forceUpdate }}">
+          <text class="force" if="{{ forceUpdate }}">
             {{ $t("update.force") }}
           </text>
+          <div class="retry-btn" if="{{ forceUpdate }}" @click="retryCheck">
+            <text class="retry-text">{{ retrying ? $t("update.checking") : $t("update.retry") }}</text>
+          </div>
           <text class="message" if.static="{{ message }}">{{ message }}</text>
         </div>
 
@@ -65,8 +68,13 @@
 
 <script>
 import router from "@system.router";
+import prompt from "@system.prompt";
 
-const { getTime } = global;
+const { getTime, checkUpdate } = global;
+
+// pendingUpdateInfo 消费即清（P1-14）后的实例重建兜底：模块级状态跨实例存活
+//（photo.ux 模块级缓存同款语义），重建时重读快照不再依赖已被清空的 global
+let lastUpdateInfo = null;
 
 export default {
   private: {
@@ -80,14 +88,34 @@ export default {
     message: "",
     changelogList: [],
     downloadUrl: "",
+    retrying: false,
+    destroyed: false,
   },
 
   onInit() {
-    this.applyUpdateInfo(global.pendingUpdateInfo || {});
+    this.destroyed = false;
+    // 消费即清（P1-14）：pendingUpdateInfo 不再只置不清、被后续页面驱动旧信息
+    if (global.pendingUpdateInfo) {
+      lastUpdateInfo = global.pendingUpdateInfo;
+      global.pendingUpdateInfo = null;
+    }
+    this.applyUpdateInfo(lastUpdateInfo || {});
   },
 
   onShow() {
     this.time = getTime();
+  },
+
+  onDestroy() {
+    this.destroyed = true;
+  },
+
+  onBackPress() {
+    // 系统返回与 UI 返回同路径（P1-15）：不复位 updatePageShowing 会让本次会话
+    // checkAppUpdate 全部早退、更新提示不再出现；强更下 routeBack 空操作 + 吞返回，
+    // 与隐藏的返回键语义一致
+    this.routeBack();
+    return true;
   },
 
   applyUpdateInfo(info) {
@@ -109,6 +137,30 @@ export default {
     } else {
       this.changelogList = [];
     }
+  },
+
+  // 强更专设出口（P1-15）：服务端撤回强更/更新后放行回首页；解除强更则恢复返回键。
+  // 原设计强更只能杀进程，服务端误配 force:true 即准变砖
+  retryCheck() {
+    if (this.retrying) return;
+    this.retrying = true;
+    checkUpdate(true).then((info) => {
+      this.retrying = false;
+      if (this.destroyed) return;
+      if (info && info.failed) {
+        prompt.showToast({ message: this.$t("error.networkError"), duration: 2000 });
+        return;
+      }
+      if (!info) {
+        // 服务端已撤回更新：放行回首页（不走 routeBack——它在 forceUpdate 下空操作）
+        global.updatePageShowing = false;
+        router.back();
+        return;
+      }
+      lastUpdateInfo = info;
+      global.pendingUpdateInfo = null;
+      this.applyUpdateInfo(info);
+    });
   },
 
   routeBack() {
@@ -198,6 +250,22 @@ export default {
   font-weight: bold;
   color: #ff6b6b;
   margin-top: 10px;
+}
+
+.retry-btn {
+  width: 100%;
+  height: 52px;
+  margin-top: 12px;
+  border-radius: 24px;
+  background-color: #1a1a1a;
+  justify-content: center;
+  align-items: center;
+}
+
+.retry-text {
+  font-size: 22px;
+  color: #fff;
+  font-weight: bold;
 }
 
 .section-title {

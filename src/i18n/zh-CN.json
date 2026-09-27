@@ -162,6 +162,7 @@
         "download": "下载地址",
         "scanTip": "请使用手机扫码打开下载地址",
         "retry": "重新检查",
+        "checking": "检测中...",
         "later": "稍后再说"
     },
     "oobe": {

@@ -162,6 +162,7 @@
         "download": "下載地址",
         "scanTip": "請使用手機掃碼開啟下載地址",
         "retry": "重新檢查",
+        "checking": "檢測中...",
         "later": "稍後再說"
     },
     "oobe": {

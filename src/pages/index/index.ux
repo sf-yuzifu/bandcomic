@@ -254,18 +254,15 @@ export default {
     global.updateChecking = true;
     checkUpdate().then((info) => {
       global.updateChecking = false;
-      if (!info || global.updatePageShowing) return;
+      // 网络失败 {failed:true} 与"无更新"区分（P2-35③ 随 P1-15 落地）：不弹更新页
+      if (!info || info.failed || global.updatePageShowing) return;
       global.updatePageShowing = true;
       global.update = false;
-      if (info.forceUpdate) {
-        router.replace({
-          uri: "/pages/update",
-        });
-      } else {
-        router.push({
-          uri: "/pages/update",
-        });
-      }
+      // 强更/非强更统一 push（P1-15）：强更由隐藏返回键 + onBackPress 吞返把守；
+      // 保留首页在栈内，update 页「重新检查」撤回强更后才能正常 router.back() 返回
+      router.push({
+        uri: "/pages/update",
+      });
     });
   },
 

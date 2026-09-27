@@ -162,6 +162,7 @@
         "download": "Download",
         "scanTip": "Scan with your phone to open the download link",
         "retry": "Check again",
+        "checking": "Checking...",
         "later": "Later"
     },
     "oobe": {
