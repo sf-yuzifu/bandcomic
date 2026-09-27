@@ -264,6 +264,14 @@ export default {
     global.__oobeMode = null;
   },
 
+  onBackPress() {
+    // 系统返回与 UI 返回同路径（P0-13）：firstRun 时页面栈只有 [oobe]（boot 用
+    // replace），框架默认 pop 会直接退出应用、不走 routeBack→finish()，oobeDone
+    // 不落盘 → 每次冷启动重见 OOBE；统一收口后与左上角返回箭头语义一致（返回=完成）
+    this.routeBack();
+    return true;
+  },
+
   // 流畅自检：开预解码后基本不会卡；卡顿只在「未开预解码 + 尺寸过大」。
   // 质量只反映清晰度，不计入卡顿。
   refreshDisplay() {
@@ -541,7 +549,14 @@ export default {
     if (this.mode === "firstRun") {
       global.APP_SETTING.oobeDone = true;
       global.display = true;
-      writeSettings(global.APP_SETTING).catch(() => {});
+      // 落盘失败不再静默（P0-13）：磁盘满等场景 oobeDone 不落盘、下次冷启动重见
+      // OOBE 形成循环，必须让用户知情（toast 为系统级，路由切换后仍会显示）
+      writeSettings(global.APP_SETTING).catch(({ code }) => {
+        prompt.showToast({
+          message: this.$t("settings.saveFailed", { code }),
+          duration: 2000,
+        });
+      });
       router.replace({ uri: "/pages/index" });
       return;
     }
