@@ -693,14 +693,17 @@ export default {
   resolveLocalImage(baseUri) {
     const binUri = baseUri + ".bin";
     const self = this;
+    // 页码快照：快速连翻时旧页的 file.access 迟到回调不许覆盖新页（P0-10，
+    // 与在线路径 page != this.page 守卫对齐）
+    const page = this.page;
     file.access({
       uri: binUri,
       success() {
-        if (self.destroyed) return;
+        if (self.destroyed || page != self.page) return;
         self.images = binUri;
       },
       fail() {
-        if (self.destroyed) return;
+        if (self.destroyed || page != self.page) return;
         self.images = baseUri;
       },
     });
