@@ -47,7 +47,7 @@
       <list-item
         for="{{ searchResults }}"
         type="result-item"
-        class="result-item {{ $item.gid === openingGid ? 'result-item-opening' : '' }}"
+        class="result-item {{ $item.opening ? 'result-item-opening' : '' }}"
         @click="selectResult($item)"
       >
         <div class="result-content">
@@ -64,8 +64,8 @@
           </div>
           <div class="result-text-content">
             <text class="result-title">{{ $item.title }}</text>
-            <text if="{{ $item.gid === openingGid }}" class="result-meta">{{ $t("search.opening") }}</text>
-            <text if="{{ $item.gid !== openingGid && $item.pages }}" class="result-meta">
+            <text if="{{ $item.opening }}" class="result-meta">{{ $t("search.opening") }}</text>
+            <text if="{{ !$item.opening && $item.pages }}" class="result-meta">
               {{ $t("search.totalPage", { page: $item.pages }) }}
             </text>
           </div>
@@ -145,7 +145,6 @@ export default {
     loading: true,
     loadingMore: false,
     loadingDetail: false, // 详情拉取在途：防双击重入（P1-16③）
-    openingGid: "", // 详情在途的条目 gid：行灰显 + meta「打开中…」（P1-16③）
     searched: false,
     error: false,
     errorMsg: "",
@@ -166,8 +165,9 @@ export default {
   },
 
   onShow() {
-    // 从 album 返回时清掉行级"打开中"反馈（P1-16③）
-    this.openingGid = "";
+    // 从 album 返回时清掉行级"打开中"反馈（P1-16③ 返修）：页级变量绑定 for 行
+    // 不触发重绘、push 前清又与导航同帧竞争——改行数据字段 + splice 清除
+    this.clearOpening();
     this.loadingDetail = false;
   },
 
@@ -447,20 +447,37 @@ export default {
     return apiDroppedCount + apiResults.length > nextNeededIndex || apiHasNext;
   },
 
+  // 行级"打开中"清除（P1-16③ 返修）：splice 原地替换触发该行重绘——
+  // coverLoader/oobe applySourceResult 同款、真机已验证的 for 行刷新方式
+  clearOpening() {
+    const index = this.searchResults.findIndex((row) => row.opening);
+    if (index === -1) return;
+    this.searchResults.splice(index, 1, { ...this.searchResults[index], opening: false });
+  },
+
   selectResult(result) {
     // 防重入 + 行级反馈（P1-16③）：双击只发一次；requestSeq 与 fetchMore 链绑定
     // 不能共用（并发会互相作废），详情链用 loadingDetail + destroyed 双守卫
     if (this.loadingDetail) return;
     this.loadingDetail = true;
-    this.openingGid = result.gid;
+    // 行状态走行数据字段 + splice（P1-16③ 返修），页级绑定不触发 for 行重绘
+    const openIndex = this.searchResults.findIndex((row) => row.gid === result.gid);
+    if (openIndex !== -1) {
+      this.searchResults.splice(openIndex, 1, {
+        ...this.searchResults[openIndex],
+        opening: true,
+      });
+    }
     apiFetch({
       url: buildDetailUrl(result.gid),
       responseType: "json",
       success: (response) => {
         if (this.destroyed) return;
         this.loadingDetail = false;
-        this.openingGid = "";
+        // 不在此清行状态（P1-16③ 返修）：与 router.push 同帧竞争会留下永久灰显；
+        // 行在跳转期间保持灰显，返回瞬间由 onShow 的 clearOpening 清掉
         if (!response.data || typeof response.data !== "object") {
+          this.clearOpening();
           prompt.showToast({
             message: this.$t("error.invalidResponse"),
             duration: 3000,
@@ -475,7 +492,7 @@ export default {
       fail: (data, code) => {
         if (this.destroyed) return;
         this.loadingDetail = false;
-        this.openingGid = "";
+        this.clearOpening();
         console.debug(data, code);
         // 超时是网络问题不是"未找到"（P1-16①，与 index getAlbum 对齐）
         if (getFetchErrorType(code) === "timeout") {
