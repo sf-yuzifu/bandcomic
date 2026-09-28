@@ -72,6 +72,7 @@
         "pageJump": "Go to page",
         "photoSizeChange": "Resize",
         "brightness": "Brightness",
+        "brightnessAuto": "Auto brightness on; dragging will temporarily switch to manual",
         "chapter": "Ch"
     },
     "offline": {

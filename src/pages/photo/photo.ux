@@ -189,6 +189,7 @@
             value="{{ brightVal }}"
             onchange="onBrightnessChange"
           ></slider>
+          <text class="bright-hint" if="{{ brightAuto }}">{{ $t("photo.brightnessAuto") }}</text>
           <div static style="height: 10px"></div>
         </scroll>
       </div>
@@ -276,6 +277,13 @@ let origBrightness = null;
 let brightManual = false; // 是否已切过手动模式
 let brightTimer = 0; // 节流定时器句柄（0=无在途）
 let pendingBright = -1; // 待生效的亮度值（0..255）
+// 亮度写入下限（0..255，≈滑杆 6）：拖到 0 也不黑屏假死（P0-17）；
+// 钳制只发生在 setValue 之前，滑杆行程保持 0..100 不变
+const BRIGHT_MIN = 16;
+// 程序性回写/滑杆重建产生的 change 回显基准（滑杆域 0..100，-1=无）：
+// 自动模式下部分固件 getValue 读 0，回写滑杆会连锁 setMode(0)+setValue(0)
+// 黑屏"假闪退"（P0-17），同值回显守卫兜底固件不带 isFromUser 的程序性事件
+let brightSyncVal = -1;
 
 // 翻多少页才把阅读历史落盘一次
 const HISTORY_FLUSH_INTERVAL = 5;
@@ -344,6 +352,7 @@ export default {
     // 命名避开上方 import 的 brightness 模块：模板表达式作用域内同名字段
     // 可能与模块冲突，slider value 绑到模块对象会卡死
     brightVal: 50,
+    brightAuto: false,
   },
 
   onShow() {
@@ -370,9 +379,16 @@ export default {
       brightTimer = 0;
     }
     if (origBrightness) {
-      brightness.setMode({ mode: origBrightness.mode });
-      brightness.setValue({ value: origBrightness.value });
+      // 只恢复读到的部分（P0-17）：自动模式下 getValue 可能读 0、getMode 可能
+      // 未回，null 哨兵一律不动，避免把设备强写成手动 0/手动 128
+      const orig = origBrightness;
       origBrightness = null;
+      if (typeof orig.mode === "number") {
+        brightness.setMode({ mode: orig.mode });
+      }
+      if (orig.value > 0) {
+        brightness.setValue({ value: orig.value });
+      }
     }
     ImageCache = [];
     PreloadCache = {};
@@ -399,6 +415,7 @@ export default {
     origBrightness = null;
     brightManual = false;
     pendingBright = -1;
+    brightSyncVal = -1;
     if (brightTimer) {
       clearTimeout(brightTimer);
       brightTimer = 0;
@@ -931,15 +948,27 @@ export default {
       if (this.page_count > 0) {
         this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
       }
-      // getValue 返回当前实际生效亮度（自动模式下同样是当前值，0..255），
-      // 每次打开弹层刷新一次滑杆位置，跟住系统自动亮度的变化
+      // 程序性回写/滑杆重建的 change 回显守卫基准（P0-17）：滑杆以 brightVal
+      // 初值重建，任何非用户 change 都会与该值同值
+      brightSyncVal = this.brightVal;
       const self = this;
+      // getValue 标称返回当前实际亮度（0..255），但自动模式下部分固件读 0/无值
+      // （P0-17 真机实锤）——读 0 一律不动滑杆，否则默认最暗并连锁黑屏"假闪退"
       brightness.getValue({
         success: (data) => {
           if (self.destroyed) return;
-          if (self.showSlider) {
-            self.brightVal = Math.round(((data.value || 0) / 255) * 100);
+          if (self.showSlider && data.value > 0) {
+            const newVal = Math.round((data.value / 255) * 100);
+            brightSyncVal = newVal;
+            self.brightVal = newVal;
           }
+        },
+      });
+      // 自动模式提示行（P0-17）：mode 1=自动，提示拖动将临时切换为手动
+      brightness.getMode({
+        success: (data) => {
+          if (self.destroyed) return;
+          if (self.showSlider) self.brightAuto = data.mode === 1;
         },
       });
     }
@@ -949,20 +978,33 @@ export default {
   // 拖动事件高频连发：setMode(0) 只切一次，setValue 经 100ms 节流只生效最新值；
   // 不回写 this.brightVal（slider 已自显示），防数据回写再次触发 onchange
   onBrightnessChange(e) {
+    // change 事件双保险（P0-17）：程序性回写/滑杆重建不算拖动——官方 isFromUser
+    // 显式 false 直接丢；同值回显兜底固件不带该字段的程序性事件（打开弹层即
+    // setMode(0)+setValue(0) 黑屏"假闪退"的根因）。真拖动只有极小概率恰落回显
+    // 值，被吞一次即恢复
+    if (e.isFromUser === false) return;
+    const fromUser = e.isFromUser === true;
+    if (!fromUser && brightSyncVal >= 0 && Math.round(e.progress) === brightSyncVal) {
+      brightSyncVal = -1;
+      return;
+    }
+    brightSyncVal = -1;
     pendingBright = Math.round((e.progress / 100) * 255);
     if (!origBrightness) {
-      origBrightness = { mode: 0, value: 128 }; // 占位默认值 + 防回调返回前重复捕获
+      // null 哨兵=未读到（P0-17）：onDestroy 只恢复读到的部分，防自动模式读 0
+      // 把恢复值毒化成 0
+      origBrightness = { mode: null, value: null };
       brightness.getMode({
         success: (data) => {
           // destroyed 后 origBrightness 已被置空，直接写会解引用崩溃（P0-9）
           if (this.destroyed || !origBrightness) return;
-          origBrightness.mode = data.mode || 0;
+          if (typeof data.mode === "number") origBrightness.mode = data.mode;
         },
       });
       brightness.getValue({
         success: (data) => {
           if (this.destroyed || !origBrightness) return;
-          origBrightness.value = data.value || 0;
+          if (data.value > 0) origBrightness.value = data.value;
         },
       });
     }
@@ -974,10 +1016,12 @@ export default {
       if (pendingBright < 0) {
         return;
       }
-      const value = pendingBright;
+      // 写入侧下限钳制（P0-17）：真拖到 0 也不黑屏假死
+      const value = Math.max(BRIGHT_MIN, pendingBright);
       pendingBright = -1;
       if (!brightManual) {
         brightManual = true;
+        this.brightAuto = false;
         brightness.setMode({ mode: 0 });
       }
       brightness.setValue({ value });
@@ -1200,6 +1244,16 @@ text {
   text-align: center;
   font-weight: bold;
   color: rgba(255, 255, 255, 1);
+}
+
+/* 自动亮度提示行（P0-17）：说明拖动即临时转手动，随 brightAuto 显隐 */
+.bright-hint {
+  width: 75%;
+  font-size: 18px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.55);
+  margin-top: 4px;
+  flex-shrink: 0;
 }
 
 /* 看看是不是小米手表 */

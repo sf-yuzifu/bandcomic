@@ -72,6 +72,7 @@
         "pageJump": "頁碼跳轉",
         "photoSizeChange": "圖片大小調整",
         "brightness": "亮度調節",
+        "brightnessAuto": "自動亮度中，拖動將臨時切換為手動",
         "chapter": "章節"
     },
     "offline": {
