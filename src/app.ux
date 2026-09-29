@@ -63,6 +63,8 @@ global.UPDATE_CHECK_URL = "https://example.invalid/update.json";
 global.updateChecking = false;
 global.updatePageShowing = false;
 global.pendingUpdateInfo = null;
+// Per-file cold-start readiness; null means index must load data for a direct entry.
+global.bootstrapDataStatus = null;
 
 global.deviceReservedSpace = DEVICE_RESERVED_SPACE;
 

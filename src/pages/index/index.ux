@@ -108,6 +108,7 @@ const {
   clearSearchHistory,
   setRecoveryNotifier,
   PERSISTENT_FILES,
+  FILE_ERROR,
 } = global.$storage;
 const { safeJsonParse } = global.$json;
 const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal, getCurrentSourceName } = global.$api;
@@ -116,6 +117,10 @@ const { getTime, createConfirmGuard } = global;
 
 // 清空搜索历史的二次确认守卫（与 offline/edit 删除确认同一组件）
 const confirmClearHistory = createConfirmGuard();
+
+function isMissingStorageFile(error) {
+  return !!(error && error.code === FILE_ERROR.NOT_FOUND);
+}
 
 export default {
   private: {
@@ -170,32 +175,62 @@ export default {
       global.display = true;
       this.display = true;
     }
-    // sources/settings 文件由启动页 bootstrap 冷启动读入 global；此处再读一次兜底
-    // （index 非经 boot 进入时），并刷新 viewModel 绑定
-    readSources()
-      .then((datas) => {
-        mergeSourcesToGlobal(datas);
-      })
-      .catch(() => {})
-      .then(() => {
-        this.API_SETTING = global.API_SETTING;
-        this.currentSourceName = getCurrentSourceName();
-      });
-    readSettings()
-      .then((datas) => {
-        global.APP_SETTING = Object.assign(global.APP_SETTING, datas);
-        global.applyDeviceRecommendedSettings();
-      })
-      .catch(() => {
-        global.applyDeviceRecommendedSettings();
-      });
-    readCookie()
-      .then((cookie) => {
-        global.cookie = cookie;
-      })
-      .catch(() => {
-        global.cookie = {};
-      });
+    // Boot records readiness per file so a timeout or partial failure only rereads
+    // unfinished data. Direct index entry starts with all three fields not ready.
+    const dataStatus =
+      global.bootstrapDataStatus ||
+      (global.bootstrapDataStatus = { settings: false, sources: false, cookie: false });
+    if (typeof dataStatus.sources !== "boolean") dataStatus.sources = false;
+    if (typeof dataStatus.settings !== "boolean") dataStatus.settings = false;
+    if (typeof dataStatus.cookie !== "boolean") dataStatus.cookie = false;
+
+    const syncSourceView = () => {
+      this.API_SETTING = global.API_SETTING;
+      this.currentSourceName = getCurrentSourceName();
+    };
+    if (dataStatus.sources) {
+      syncSourceView();
+    } else {
+      readSources()
+        .then((datas) => {
+          mergeSourcesToGlobal(Array.isArray(datas) ? datas : []);
+          dataStatus.sources = true;
+        })
+        .catch((error) => {
+          if (isMissingStorageFile(error)) dataStatus.sources = true;
+        })
+        .then(syncSourceView);
+    }
+
+    if (dataStatus.settings) {
+      global.applyDeviceRecommendedSettings();
+    } else {
+      readSettings()
+        .then((datas) => {
+          global.APP_SETTING = Object.assign(global.APP_SETTING, datas || {});
+          dataStatus.settings = true;
+        })
+        .catch((error) => {
+          if (isMissingStorageFile(error)) dataStatus.settings = true;
+        })
+        .then(() => {
+          global.applyDeviceRecommendedSettings();
+        });
+    }
+
+    if (dataStatus.cookie) {
+      global.cookie = global.cookie || {};
+    } else {
+      readCookie()
+        .then((cookie) => {
+          global.cookie = cookie || {};
+          dataStatus.cookie = true;
+        })
+        .catch((error) => {
+          global.cookie = {};
+          if (isMissingStorageFile(error)) dataStatus.cookie = true;
+        });
+    }
     // 搜索历史仅本页读写，冷启动读一次后内存即真相
     readSearchHistory()
       .then((list) => {
