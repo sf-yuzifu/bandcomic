@@ -280,6 +280,10 @@ export default {
 
   onDestroy() {
     // 中止在途加载回调（防写回模块级全量数据），并释放引用避免驻留内存
+    if (this._cancelHistoryCovers) {
+      this._cancelHistoryCovers();
+      this._cancelHistoryCovers = null;
+    }
     this.destroyed = true;
     allComics = [];
     allHistory = [];
@@ -375,7 +379,8 @@ export default {
 
   // 不支持直接加载远程图片的设备，通过插件把封面拉为本地文件后替换显示
   loadHistoryCovers() {
-    loadCoverProxies(this.historyList, {
+    if (this._cancelHistoryCovers) this._cancelHistoryCovers();
+    this._cancelHistoryCovers = loadCoverProxies(this.historyList, {
       getUrl: (item) => (item.cover ? addCoverParams(item.cover) : ""),
       getName: (item) => `${item.source}_${item.originalId}_cover`,
       match: (row, item) => row.id === item.id,

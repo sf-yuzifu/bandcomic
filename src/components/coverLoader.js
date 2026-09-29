@@ -1,3 +1,4 @@
+import file from "@system.file";
 import { proxyImage } from "./api";
 
 // 列表封面代理加载：不支持直接加载远程图片的设备，经插件把封面拉为本地文件后，
@@ -10,50 +11,119 @@ import { proxyImage } from "./api";
 //   skipSame                为 true 时代理返回原地址（直连设备）不替换
 //   onLocal(item, updated)  替换成功后的额外回调（如同步更新缓存列表）
 
-// 并发上限（P2-32）：网桥设备上一次性灌满请求队列会让先入队的封面占满通道，
-// 分批补位（3 个一档）即可，封面是后台低优先级请求
-const COVER_CONCURRENCY = 3;
+// Share one in-flight cover proxy across search and history pages; watch network
+// work is serialized even when a stale batch is still completing.
+const waitingBatches = [];
+let activeProxy = null;
 
-export function loadCoverProxies(list, options) {
-  let next = 0;
-  let active = 0;
+function deleteProxyTemp(uri) {
+  if (typeof uri !== "string" || uri.indexOf("internal://files/_icf_") !== 0) return;
+  try {
+    file.delete({ uri: uri, fail: function () {} });
+  } catch (e) {}
+}
 
-  function settle(item, index, url, uri) {
-    active--;
-    if (uri && !(options.skipSame && uri === url)) {
-      const updated = options.merge(item, uri);
-      // 索引快照优先（splice 原位替换不改下标）；列表被外部重建时退回 match 重定位
-      let target = index;
-      if (!list[target] || !options.match(list[target], item)) {
-        target = list.findIndex((row) => options.match(row, item));
+function nextCover(batch) {
+  while (batch.list && batch.next < batch.list.length) {
+    const index = batch.next++;
+    const item = batch.list[index];
+    const url = batch.options.getUrl(item);
+    if (!url || url.indexOf("http") !== 0) continue;
+    return { index: index, item: item, url: url };
+  }
+  batch.completed = true;
+  batch.list = null;
+  batch.options = null;
+  return null;
+}
+
+function scheduleBatch(batch) {
+  if (batch.cancelled || batch.completed || batch.queued) return;
+  if (activeProxy && activeProxy.batch === batch) return;
+  batch.queued = true;
+  waitingBatches.push(batch);
+  pumpQueue();
+}
+
+function settleCover(batch, cover, uri) {
+  const list = batch.list;
+  const options = batch.options;
+  try {
+    if (uri && !(options.skipSame && uri === cover.url)) {
+      const updated = options.merge(cover.item, uri);
+      // Prefer the captured index; fall back to matching after list replacement.
+      let target = cover.index;
+      if (!list[target] || !options.match(list[target], cover.item)) {
+        target = list.findIndex((row) => options.match(row, cover.item));
       }
       if (target !== -1) {
         list.splice(target, 1, updated);
-        if (options.onLocal) {
-          options.onLocal(item, updated);
-        }
+        if (options.onLocal) options.onLocal(cover.item, updated);
       }
     }
-    pump();
+  } finally {
+    scheduleBatch(batch);
   }
+}
 
-  function pump() {
-    while (active < COVER_CONCURRENCY && next < list.length) {
-      const index = next++;
-      const item = list[index];
-      const url = options.getUrl(item);
-      if (!url || url.indexOf("http") !== 0) continue;
-      active++;
-      proxyImage(
-        url,
-        options.getName(item),
-        (uri) => {
-          settle(item, index, url, uri);
-        },
-        1
-      );
+function pumpQueue() {
+  if (activeProxy) return;
+
+  while (waitingBatches.length > 0) {
+    const batch = waitingBatches.shift();
+    batch.queued = false;
+    if (batch.cancelled || batch.completed) continue;
+
+    const cover = nextCover(batch);
+    if (!cover) continue;
+
+    const request = { batch: batch, cover: cover };
+    activeProxy = request;
+    let settled = false;
+    const finish = (uri) => {
+      if (settled) return;
+      settled = true;
+      if (activeProxy === request) activeProxy = null;
+
+      if (batch.cancelled) {
+        deleteProxyTemp(uri);
+      } else {
+        settleCover(batch, cover, uri);
+      }
+      pumpQueue();
+    };
+
+    try {
+      proxyImage(cover.url, batch.options.getName(cover.item), finish, 1);
+    } catch (e) {
+      finish("");
     }
+    return;
   }
+}
 
-  pump();
+export function loadCoverProxies(list, options) {
+  const batch = {
+    list: list,
+    options: options,
+    next: 0,
+    queued: false,
+    cancelled: false,
+    completed: false,
+  };
+
+  scheduleBatch(batch);
+
+  return function cancel() {
+    if (batch.cancelled || batch.completed) return;
+    batch.cancelled = true;
+    batch.completed = true;
+    batch.list = null;
+    batch.options = null;
+    if (batch.queued) {
+      const index = waitingBatches.indexOf(batch);
+      if (index !== -1) waitingBatches.splice(index, 1);
+      batch.queued = false;
+    }
+  };
 }

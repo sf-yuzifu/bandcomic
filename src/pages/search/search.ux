@@ -174,6 +174,10 @@ export default {
   onDestroy() {
     // 作废旧实例全部在途回调（requestSeq 单调递增，新实例请求会继续 +1 不受影响），
     // 并释放结果仓库引用，避免页面销毁后带封面数据驻留内存
+    if (this._cancelResultCovers) {
+      this._cancelResultCovers();
+      this._cancelResultCovers = null;
+    }
     requestSeq++;
     this.destroyed = true;
     apiResults = [];
@@ -423,7 +427,8 @@ export default {
 
   // 不支持直接加载远程图片的设备，通过插件把封面拉为本地文件后替换显示
   loadResultCovers() {
-    loadCoverProxies(this.searchResults, {
+    if (this._cancelResultCovers) this._cancelResultCovers();
+    this._cancelResultCovers = loadCoverProxies(this.searchResults, {
       getUrl: (item) => item.thumb,
       getName: (item) => `${global.API_SETTING.using}_${item.gid}_cover`,
       match: (row, item) => row.gid === item.gid && row.thumb === item.thumb,
