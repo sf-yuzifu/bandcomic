@@ -292,6 +292,20 @@ const HISTORY_FLUSH_INTERVAL = 5;
 // 横向触边守卫必须按真实视口宽算（见 onScroll）；触底判定则刻意不减（见 atBottom 注释）
 const ARC_VIEWPORT_INSET = 12;
 
+// Only remove transient files created by interconnfetch; local comic pages are persistent.
+function deleteFetchTemp(uri) {
+  if (typeof uri !== "string" || uri.indexOf("internal://files/_icf_") !== 0) return;
+  file.delete({
+    uri: uri,
+    fail: function () {},
+  });
+}
+
+function clearPreloadCache() {
+  Object.keys(PreloadCache).forEach((page) => deleteFetchTemp(PreloadCache[page]));
+  PreloadCache = {};
+}
+
 // 生成数字轮盘每一位的可选范围：以 total 的位数为准，结合当前值 current 钳制
 // 每一位的最大可选数字，保证拼出来的值不超出 total（章节/页码两个 picker 共用）
 function buildDigitRanges(total, current) {
@@ -372,6 +386,8 @@ export default {
     // 页面销毁后中止异步链：各异步回调检查该标志，旧实例在途响应不再写
     // 模块级缓存/实例字段（download.ux 同款模式，P0-9）
     this.destroyed = true;
+    this._photoReadGeneration++;
+    this._photoImageSeq++;
     this.flushHistory();
     // 恢复进入阅读页前的亮度（临时调节语义）；只动过亮度（origBrightness 非 null）才恢复
     if (brightTimer) {
@@ -390,8 +406,10 @@ export default {
         brightness.setValue({ value: orig.value });
       }
     }
+    deleteFetchTemp(this.images);
+    this.images = "";
     ImageCache = [];
-    PreloadCache = {};
+    clearPreloadCache();
     PreloadInflight = {};
     shownPage = 0;
     // 整章图片缓存刚释放，主动收一次 GC（官方内存优化建议，勿高频调用）
@@ -400,6 +418,9 @@ export default {
 
   onInit() {
     this.destroyed = false;
+    // Request state is intentionally non-reactive; only image/list callbacks use it.
+    this._photoReadGeneration = 0;
+    this._photoImageSeq = 0;
     // 模块级状态跨页面实例共享，进页重置（图片缓存三件套 + shownPage 一并重置，
     // 配合 destroyed 守卫杜绝上一本漫画的图串台，P0-9）
     reachedEdge = null;
@@ -488,29 +509,53 @@ export default {
     }
   },
 
+  isChapterRequestCurrent(generation, chapter) {
+    return (
+      !this.destroyed &&
+      generation === this._photoReadGeneration &&
+      chapter === this.chapter
+    );
+  },
+
+  isImageRequestCurrent(request) {
+    return (
+      this.isChapterRequestCurrent(request.generation, request.chapter) &&
+      request.imageSeq === this._photoImageSeq &&
+      request.page === this.page
+    );
+  },
+
+  resetPhotoGeneration() {
+    this._photoReadGeneration++;
+    this._photoImageSeq++;
+    deleteFetchTemp(this.images);
+    this.images = "";
+    clearPreloadCache();
+    PreloadInflight = {};
+    ImageCache = [];
+    shownPage = 0;
+    listReady = false;
+    listFetching = false;
+  },
+
   fetchAllImageUrls() {
     if (sourceMissing) {
       this.enterErrorState();
       prompt.showToast({ message: this.$t("error.sourceDeleted"), duration: 2000 });
       return;
     }
+    this.resetPhotoGeneration();
     this.loading = "loading";
-    this.images = "";
     this.scale = 0;
     const chapter = this.chapter;
-    PreloadCache = {};
-    PreloadInflight = {};
-    listReady = false;
+    const generation = this._photoReadGeneration;
     listFetching = true;
 
     apiFetch({
       url: buildPhotoUrl(this.id, Math.floor(this.chapter)),
       responseType: "json",
       success: (response) => {
-        if (this.destroyed) return;
-        if (chapter != this.chapter) {
-          return;
-        }
+        if (!this.isChapterRequestCurrent(generation, chapter)) return;
         listFetching = false;
         const body = response.data;
         const urls =
@@ -534,10 +579,7 @@ export default {
         this.getImageForPage();
       },
       fail: (data, code) => {
-        if (this.destroyed) return;
-        if (chapter != this.chapter) {
-          return;
-        }
+        if (!this.isChapterRequestCurrent(generation, chapter)) return;
         listFetching = false;
         this.enterErrorState();
         // 同上：失败后 page_count 归零，翻页判断不再依赖路由残留值（P0-8）
@@ -554,6 +596,12 @@ export default {
       prompt.showToast({ message: this.$t("error.sourceDeleted"), duration: 2000 });
       return;
     }
+    const request = {
+      generation: this._photoReadGeneration,
+      imageSeq: ++this._photoImageSeq,
+      chapter: this.chapter,
+      page: this.page,
+    };
     this.loading = "loading";
     // 离开当前页前把已显示的图片放回预加载缓存，回翻时优先使用本地
     if (
@@ -615,10 +663,10 @@ export default {
         const chapterNum = localChapterEntry[2];
         const chapterName = localChapterEntry[0];
         const baseUri = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
-        this.resolveLocalImage(baseUri);
+        this.resolveLocalImage(baseUri, request);
       } else {
         const baseUri = `internal://files/${this.id}/${this.page}`;
-        this.resolveLocalImage(baseUri);
+        this.resolveLocalImage(baseUri, request);
       }
       return;
     }
@@ -645,7 +693,7 @@ export default {
       shownPage = this.page;
       reachedEdge = null;
       posX = posY = 0;
-      this.preloadAdjacentPages();
+      this.preloadAdjacentPages(request);
       return;
     }
 
@@ -662,32 +710,34 @@ export default {
       url: imageUrl,
       responseType: "file",
       success: (response) => {
-        if (this.destroyed) return;
-        if (page != this.page) {
+        if (!this.isImageRequestCurrent(request)) {
+          deleteFetchTemp(response.data);
           return;
         }
         this.images = response.data;
         shownPage = page;
         reachedEdge = null;
         posX = posY = 0;
-        this.preloadAdjacentPages();
+        this.preloadAdjacentPages(request);
       },
       fail: () => {
-        if (this.destroyed) return;
-        if (page != this.page) {
-          return;
-        }
+        if (!this.isImageRequestCurrent(request)) return;
         this.enterErrorState();
         shownPage = 0;
       },
     });
   },
 
-  preloadAdjacentPages() {
-    if (this.local || !global.APP_SETTING.imagePreload) {
+  preloadAdjacentPages(request) {
+    if (
+      this.local ||
+      !global.APP_SETTING.imagePreload ||
+      !this.isChapterRequestCurrent(request.generation, request.chapter)
+    ) {
       return;
     }
-    const chapter = this.chapter;
+    const chapter = request.chapter;
+    const generation = request.generation;
     const preloadPage = (p) => {
       if (p < 1 || p > ImageCache.length || PreloadCache[p] || PreloadInflight[p]) {
         return;
@@ -698,16 +748,19 @@ export default {
         parseInt(global.APP_SETTING.imageQuality, 10) || 50
       );
       url = appendLvglSuffix(url, `${global.API_SETTING.using}_${this.id}_ch${chapter}_p${p}`);
-      PreloadInflight[p] = true;
+      const token = {};
+      PreloadInflight[p] = token;
       apiFetch({
         url: url,
         responseType: "file",
         priority: 1,
         success: (response) => {
-          if (this.destroyed) return;
-          if (chapter != this.chapter) {
-            // 换章时 PreloadInflight 已在 fetchAllImageUrls 整体重置，
-            // 此处再 delete 会误删新章同页的在途标记
+          if (
+            !this.isChapterRequestCurrent(generation, chapter) ||
+            PreloadInflight[p] !== token
+          ) {
+            if (PreloadInflight[p] === token) delete PreloadInflight[p];
+            deleteFetchTemp(response.data);
             return;
           }
           delete PreloadInflight[p];
@@ -718,14 +771,15 @@ export default {
             posX = posY = 0;
             return;
           }
-          PreloadCache[p] = response.data;
+          if (Math.abs(p - this.page) === 1) {
+            PreloadCache[p] = response.data;
+          } else {
+            deleteFetchTemp(response.data);
+          }
         },
         fail: () => {
-          if (this.destroyed) return;
-          if (chapter != this.chapter) {
-            return;
-          }
-          delete PreloadInflight[p];
+          if (PreloadInflight[p] === token) delete PreloadInflight[p];
+          if (!this.isChapterRequestCurrent(generation, chapter)) return;
           if (p == this.page && !this.images) {
             this.enterErrorState();
             shownPage = 0;
@@ -737,21 +791,17 @@ export default {
     preloadPage(this.page - 1);
   },
 
-  resolveLocalImage(baseUri) {
+  resolveLocalImage(baseUri, request) {
     const binUri = baseUri + ".bin";
-    const self = this;
-    // 页码快照：快速连翻时旧页的 file.access 迟到回调不许覆盖新页（P0-10，
-    // 与在线路径 page != this.page 守卫对齐）
-    const page = this.page;
     file.access({
       uri: binUri,
-      success() {
-        if (self.destroyed || page != self.page) return;
-        self.images = binUri;
+      success: () => {
+        if (!this.isImageRequestCurrent(request)) return;
+        this.images = binUri;
       },
-      fail() {
-        if (self.destroyed || page != self.page) return;
-        self.images = baseUri;
+      fail: () => {
+        if (!this.isImageRequestCurrent(request)) return;
+        this.images = baseUri;
       },
     });
   },
@@ -761,6 +811,7 @@ export default {
   },
 
   toChapter(value) {
+    const previousChapter = this.chapter;
     switch (value) {
       case "+":
         if (this.chapter < this.total_chapters) {
@@ -772,6 +823,9 @@ export default {
           this.chapter -= 1;
         }
         break;
+    }
+    if (this.local && previousChapter !== this.chapter) {
+      this.resetPhotoGeneration();
     }
     this.$element("scrollId").scrollTo({
       top: 1,
@@ -909,6 +963,7 @@ export default {
   },
 
   onPickerChange(pickerIndex, e) {
+    const previousChapter = this.chapter;
     const chapterStr = this.chapter.toString().padStart(this.pickerValues.length, "0");
     const newDigits = [...chapterStr];
     newDigits[pickerIndex] = e.newValue;
@@ -922,6 +977,9 @@ export default {
       newChapter = 1;
     }
     this.chapter = newChapter;
+    if (this.local && previousChapter !== this.chapter) {
+      this.resetPhotoGeneration();
+    }
 
     this.pickerValues = buildDigitRanges(this.total_chapters, this.chapter);
 
