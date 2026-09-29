@@ -291,6 +291,9 @@ const HISTORY_FLUSH_INTERVAL = 5;
 // 圆屏 arc-container 四周内缩 12px（见模板 arc-container 内联 style），滚动视口真实宽高随之 -12。
 // 横向触边守卫必须按真实视口宽算（见 onScroll）；触底判定则刻意不减（见 atBottom 注释）
 const ARC_VIEWPORT_INSET = 12;
+// Keep a short back/forward cache around the current page; the displayed image
+// remains in `this.images` and is not counted here.
+const PHOTO_CACHE_RADIUS = 2;
 
 // Only remove transient files created by interconnfetch; local comic pages are persistent.
 function deleteFetchTemp(uri) {
@@ -304,6 +307,26 @@ function deleteFetchTemp(uri) {
 function clearPreloadCache() {
   Object.keys(PreloadCache).forEach((page) => deleteFetchTemp(PreloadCache[page]));
   PreloadCache = {};
+}
+
+function trimPhotoCache(centerPage) {
+  const center = parseInt(centerPage, 10);
+  if (isNaN(center)) return;
+
+  Object.keys(PreloadCache).forEach((pageKey) => {
+    const page = parseInt(pageKey, 10);
+    if (isNaN(page) || Math.abs(page - center) > PHOTO_CACHE_RADIUS) {
+      deleteFetchTemp(PreloadCache[pageKey]);
+      delete PreloadCache[pageKey];
+    }
+  });
+
+  Object.keys(PreloadInflight).forEach((pageKey) => {
+    const page = parseInt(pageKey, 10);
+    if (isNaN(page) || Math.abs(page - center) > PHOTO_CACHE_RADIUS) {
+      delete PreloadInflight[pageKey];
+    }
+  });
 }
 
 // 生成数字轮盘每一位的可选范围：以 total 的位数为准，结合当前值 current 钳制
@@ -613,6 +636,7 @@ export default {
     ) {
       PreloadCache[shownPage] = this.images;
     }
+    trimPhotoCache(this.page);
     this.images = "";
     if (!keepScale) {
       this.scale = 0;
@@ -773,6 +797,7 @@ export default {
           }
           if (Math.abs(p - this.page) === 1) {
             PreloadCache[p] = response.data;
+            trimPhotoCache(this.page);
           } else {
             deleteFetchTemp(response.data);
           }
