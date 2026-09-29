@@ -158,10 +158,17 @@ export default {
     }
   },
 
+  onDestroy() {
+    if (this._unregisterRecoveryNotifier) {
+      this._unregisterRecoveryNotifier();
+      this._unregisterRecoveryNotifier = null;
+    }
+  },
+
   onInit() {
     // 损坏 JSON 自愈通知器重新注入（P0-15）：刷新页面绑定，dataBridge 同步等
     // 中后段损坏也能即时提示（boot.ux 启动期已注册过一次）
-    setRecoveryNotifier((name) => {
+    this._unregisterRecoveryNotifier = setRecoveryNotifier((name) => {
       prompt.showToast({
         message: this.$t("storage.fileRecovered", { name }),
         duration: 3000,

@@ -34,7 +34,7 @@ export default {
     bootSettled = false;
     // 损坏 JSON 自愈通知器（P0-15）：页面注入 $t 译文（confirmGuard 同款），
     // 先于 bootstrap 注册——启动期 settings/sources/cookie 损坏即提示
-    setRecoveryNotifier((name) => {
+    this._unregisterRecoveryNotifier = setRecoveryNotifier((name) => {
       prompt.showToast({
         message: this.$t("storage.fileRecovered", { name }),
         duration: 3000,
@@ -85,6 +85,10 @@ export default {
 
   onDestroy() {
     this.destroyed = true;
+    if (this._unregisterRecoveryNotifier) {
+      this._unregisterRecoveryNotifier();
+      this._unregisterRecoveryNotifier = null;
+    }
     if (bootTimer) {
       clearTimeout(bootTimer);
       bootTimer = 0;

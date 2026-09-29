@@ -40,6 +40,13 @@ let recoveryNotifier = null;
 
 export function setRecoveryNotifier(fn) {
   recoveryNotifier = fn;
+  // Only the owner of the current callback may unregister it; an older page's
+  // onDestroy must not clear a notifier installed by a newer page instance.
+  return function unregisterRecoveryNotifier() {
+    if (recoveryNotifier === fn) {
+      recoveryNotifier = null;
+    }
+  };
 }
 
 // 提示一次损坏自愈：文件名交给注入的 $t 文案（storage.fileRecovered）
