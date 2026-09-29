@@ -36,12 +36,12 @@
           <image
             class="cover"
             @complete="getPhoto"
-            src="{{ cover || '/common/loading.png' }}"
+            src="{{ coverDisplayUri || '/common/loading.png' }}"
             alt="/common/loading.png"
             @error="
               () => {
-                if (cover) {
-                  cover = '';
+                if (coverDisplayUri) {
+                  coverDisplayUri = '';
                 }
               }
             "
@@ -126,6 +126,7 @@ export default {
     views: "",
     page_count: 0,
     cover: "",
+    coverDisplayUri: "",
     rate: "",
     tags: "",
     total_chapters: 0,
@@ -155,17 +156,15 @@ export default {
     this.size.height = this.size.width * (4 / 3);
     if (this.cover) {
       const coverUrl = addCoverParams(this.cover);
-      this.cover = coverUrl;
+      this.coverDisplayUri = coverUrl;
       // 不支持直接加载远程图片的设备（如 10 Pro 强制网桥）：经插件把封面拉为
-      // 本地文件后替换显示，命名与搜索/历史封面一致；直连设备回调原地址，值不变无感知
+      // 本地文件后只替换展示 URI；this.cover 始终保留源地址，供历史/下载使用
       if (coverUrl.indexOf("http") === 0) {
         proxyImage(
           coverUrl,
           `${global.API_SETTING.using}_${this.item_id}_cover`,
           (uri) => {
-            if (uri && uri !== coverUrl) {
-              this.cover = uri;
-            }
+            if (uri) this.coverDisplayUri = uri;
           },
           1
         );
@@ -176,7 +175,7 @@ export default {
   getPhoto() {
     this.size.width = (screenSize.width * 3) / 4;
     this.size.height = this.size.width * (4 / 3);
-    if (this.cover) {
+    if (this.coverDisplayUri) {
       this.loading = false;
     }
   },

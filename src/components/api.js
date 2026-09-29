@@ -1,5 +1,5 @@
 import fetch from "./interconnfetch";
-import { appendLvglSuffix } from "./imageUrl";
+import { appendCoverSuffix } from "./imageUrl";
 import { safeJsonParse } from "./jsonUtils";
 
 // Vela fetch 底层基于 curl，错误码直接透传 curl errno
@@ -238,7 +238,7 @@ export function checkSourceHealth(sourceKey) {
 
 // 设备不支持直接加载远程图片时，通过插件把图片拉取为本地文件后回调本地 uri；
 // 支持直连的设备直接回调原 url
-// priority 透传给请求队列：0 = 用户可见（默认），1 = 后台（预加载/封面）
+// priority 透传给请求队列：0 = 用户可见（默认），1 = 后台封面
 export function proxyImage(url, name, callback, priority) {
   fetch.isDirectAvailable().then((direct) => {
     if (direct) {
@@ -246,7 +246,7 @@ export function proxyImage(url, name, callback, priority) {
       return;
     }
     apiFetch({
-      url: appendLvglSuffix(url, name),
+      url: appendCoverSuffix(url, name),
       responseType: "file",
       priority: priority || 0,
       success: (response) => {

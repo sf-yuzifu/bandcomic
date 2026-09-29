@@ -43,18 +43,22 @@ export function addCoverParams(url) {
   return addImageParams(url, 80, parseInt(global.APP_SETTING.imageQuality, 10) || 50);
 }
 
-export function appendLvglSuffix(url, suffix) {
+export function appendLvglSuffix(url, suffix, preTranscode = global.APP_SETTING.imagePreTranscode) {
   let result = url;
-  if (global.APP_SETTING.imagePreTranscode) {
+  if (preTranscode) {
     result = addUrlParam(result, "ifLVGL", 1);
   }
   // 通过 "#/文件名" 让固件按斜杠分段取临时文件名时拿到干净的名字，
   // 避免 query 里的 ? & = 等字符进入临时文件名导致系统异常
-  const ext = global.APP_SETTING.imagePreTranscode
+  const ext = preTranscode
     ? ".bin"
     : global.APP_SETTING.imageUsePng
       ? ".png"
       : ".jpg";
   const safeName = String(suffix).replace(/[^\w.-]+/g, "_");
   return result + "#/" + safeName + ext;
+}
+
+export function appendCoverSuffix(url, suffix) {
+  return appendLvglSuffix(url, suffix, false);
 }

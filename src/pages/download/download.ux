@@ -157,7 +157,7 @@ import file from "@system.file";
 import prompt from "@system.prompt";
 
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
-const { addImageParams, addCoverParams, appendLvglSuffix } = global.$img;
+const { addImageParams, addCoverParams, appendCoverSuffix, appendLvglSuffix } = global.$img;
 const { updateComicMeta, isAlreadyExistsError, readComics } = global.$storage;
 const { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } = global.$api;
 
@@ -907,40 +907,52 @@ export default {
 
   downloadCover(folderUri, retryCount = 0) {
     return new Promise((resolve, reject) => {
-      const imageUrl = addCoverParams(this.cover);
-
       const fileUri = `${folderUri}/cover`;
+      if (!this.cover) {
+        resolve();
+        return;
+      }
 
-      apiFetch({
-        url: appendLvglSuffix(imageUrl, `${global.API_SETTING.using}_${this.id}_cover`),
-        responseType: "file",
-        success: (response) => {
-          if (response.data) {
-            file.move({
-              srcUri: response.data,
-              dstUri: fileUri,
-              success: () => {
-                console.debug(`封面保存成功: ${fileUri}`);
-                resolve();
-              },
-              fail: (data, code) => {
-                reject(this.$t("download.moveImageFailed", { code: code }));
-              },
-            });
-          } else {
-            reject(this.$t("download.emptyImageData"));
-          }
-        },
-        fail: (data, code) => {
-          this.retryOnFail(code, retryCount, {
-            label: "下载封面失败",
-            retry: (count) => this.downloadCover(folderUri, count),
-            timeoutMessage: this.$t("download.coverTimeoutFailed"),
-            failMessage: (errCode) => this.$t("download.coverFailed", { code: errCode }),
-          })
-            .then(resolve)
-            .catch(reject);
-        },
+      const downloadFromSource = () => {
+        const imageUrl = addCoverParams(this.cover);
+        apiFetch({
+          url: appendCoverSuffix(imageUrl, `${global.API_SETTING.using}_${this.id}_cover`),
+          responseType: "file",
+          success: (response) => {
+            if (response.data) {
+              file.move({
+                srcUri: response.data,
+                dstUri: fileUri,
+                success: () => {
+                  console.debug(`封面保存成功: ${fileUri}`);
+                  resolve();
+                },
+                fail: (data, code) => {
+                  reject(this.$t("download.moveImageFailed", { code: code }));
+                },
+              });
+            } else {
+              reject(this.$t("download.emptyImageData"));
+            }
+          },
+          fail: (data, code) => {
+            this.retryOnFail(code, retryCount, {
+              label: "下载封面失败",
+              retry: (count) => this.downloadCover(folderUri, count),
+              timeoutMessage: this.$t("download.coverTimeoutFailed"),
+              failMessage: (errCode) => this.$t("download.coverFailed", { code: errCode }),
+            })
+              .then(resolve)
+              .catch(reject);
+          },
+        });
+      };
+
+      // 复用已下载的封面，避免重复请求；路由传入的 cover 始终是源 URL。
+      file.access({
+        uri: fileUri,
+        success: () => resolve(),
+        fail: downloadFromSource,
       });
     });
   },
