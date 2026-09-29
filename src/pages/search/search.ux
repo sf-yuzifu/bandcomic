@@ -53,7 +53,7 @@
         <div class="result-content">
           <div
             class="cover-mask"
-            if="{{ global.APP_SETTING.showCoverInSearch == 'true' || global.APP_SETTING.showCoverInSearch === true }}"
+            if="{{ showCoverInSearch }}"
           >
             <image
               class="result-image"
@@ -121,6 +121,11 @@ const { loadCoverProxies } = global.$cover;
 const { getTime } = global;
 const MAX_CACHE = 50; // 结果缓存上限，超出后丢弃最旧的服务器页
 
+function isCoverSearchEnabled() {
+  const value = global.APP_SETTING && global.APP_SETTING.showCoverInSearch;
+  return value === true || value === "true";
+}
+
 let requestSeq = 0; // 请求序号，过期请求的回调直接忽略
 let lastFillEnd = -1; // 填页进度记录，连续请求无新数据则放弃填充
 let pendingPrevPage = 0; // 翻页在途前的页码快照：中途失败回退指示器（P1-16②）
@@ -149,11 +154,13 @@ export default {
     error: false,
     errorMsg: "",
     time: "",
+    showCoverInSearch: true,
   },
 
   onInit() {
     this.destroyed = false;
     this.time = getTime();
+    this.showCoverInSearch = isCoverSearchEnabled();
     apiResults = [];
     apiDroppedCount = 0;
     apiPageMap = [];
@@ -169,15 +176,21 @@ export default {
     // 不触发重绘、push 前清又与导航同帧竞争——改行数据字段 + splice 清除
     this.clearOpening();
     this.loadingDetail = false;
+    const showCoverInSearch = isCoverSearchEnabled();
+    if (showCoverInSearch !== this.showCoverInSearch) {
+      this.showCoverInSearch = showCoverInSearch;
+      if (showCoverInSearch) {
+        this.loadResultCovers();
+      } else {
+        this.cancelResultCovers();
+      }
+    }
   },
 
   onDestroy() {
     // 作废旧实例全部在途回调（requestSeq 单调递增，新实例请求会继续 +1 不受影响），
     // 并释放结果仓库引用，避免页面销毁后带封面数据驻留内存
-    if (this._cancelResultCovers) {
-      this._cancelResultCovers();
-      this._cancelResultCovers = null;
-    }
+    this.cancelResultCovers();
     requestSeq++;
     this.destroyed = true;
     apiResults = [];
@@ -410,7 +423,11 @@ export default {
     const startIndex = (this.displayPage - 1) * getSearchPageSize() - apiDroppedCount;
     const endIndex = startIndex + getSearchPageSize();
     this.searchResults = apiResults.slice(startIndex, endIndex);
-    this.loadResultCovers();
+    if (this.showCoverInSearch) {
+      this.loadResultCovers();
+    } else {
+      this.cancelResultCovers();
+    }
 
     const scrollToTop = () => {
       const el = this.$element("scrollId");
@@ -427,7 +444,7 @@ export default {
 
   // 不支持直接加载远程图片的设备，通过插件把封面拉为本地文件后替换显示
   loadResultCovers() {
-    if (this._cancelResultCovers) this._cancelResultCovers();
+    this.cancelResultCovers();
     this._cancelResultCovers = loadCoverProxies(this.searchResults, {
       getUrl: (item) => item.thumb,
       getName: (item) => `${global.API_SETTING.using}_${item.gid}_cover`,
@@ -444,6 +461,12 @@ export default {
         }
       },
     });
+  },
+
+  cancelResultCovers() {
+    if (!this._cancelResultCovers) return;
+    this._cancelResultCovers();
+    this._cancelResultCovers = null;
   },
 
   // 判断是否可以点击下一页
