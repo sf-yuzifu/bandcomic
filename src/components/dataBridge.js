@@ -30,6 +30,8 @@ const IMPORT_WINDOW = 4;
 const IMPORT_MAX_CHUNKS = 65536;
 const SYNC_ACK_TIMEOUT = 3000;
 const SYNC_MAX_RETRY = 5;
+const SYNC_BUFFER_FRAMES = 8;
+const COVER_MAX_CHUNKS = 65536;
 
 function detectImageFormat(bytes) {
   if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
@@ -73,9 +75,24 @@ export function createDataBridge(interConnect) {
   let _coverQueue = [];
   let _coverDoneSent = false;
   let _coverFlow = null; // 当前封面停等队列（createStopWaitQueue 实例）
+  let _appDataFlow = null;
   let _coverMime = "image/jpeg";
   let _syncSender = null; // 方向 B 滑窗发送器（createWindowedSender 实例，新协议）
   let _pluginCaps = null; // 插件 hs_ping 携带的能力（syncWindow 等），无则走旧停等协议
+  let _syncSeq = 0;
+  let _syncWireSession = null;
+  let _coverReadBusy = false; // 原生读无法取消：迟到回调返回前不叠加新的封面读
+
+  function stopSync() {
+    _syncSeq++;
+    if (_syncSender) _syncSender.cancel();
+    if (_appDataFlow) _appDataFlow.cancel();
+    if (_coverFlow) _coverFlow.cancel();
+    _syncSender = _appDataFlow = _coverFlow = null;
+    bridge.onAppDataAck = null;
+    _coverQueue = [];
+    _syncWireSession = null;
+  }
 
   // 单张封面的发送动作：file.get 拿大小 → 逐切片连发（片间节流 COVER_PACING_MS），
   // 全部发完 ctx.sent() 进入等 cover_ack；任一环失败 ctx.failed() 跳过本张。
@@ -164,6 +181,8 @@ export function createDataBridge(interConnect) {
   function finishCovers() {
     if (_coverDoneSent) return;
     _coverDoneSent = true;
+    _coverQueue = [];
+    _coverFlow = null;
     interConnect.send({
       data: { type: "cover_done" },
       success: function () {},
@@ -195,7 +214,7 @@ export function createDataBridge(interConnect) {
     });
   }
 
-  function sendAppDataBatched(comics, sourceList) {
+  function sendAppDataBatched(comics, sourceList, seq) {
     // 请求-确认模式：每发一个消息等插件端 ACK 后才发下一个，确保严格顺序
     // 解决安卓端 QAIC 消息乱序问题
     const messages = [];
@@ -245,162 +264,192 @@ export function createDataBridge(interConnect) {
         });
       },
       onAllDone: function () {
+        if (seq !== _syncSeq) return;
+        _appDataFlow = null;
         bridge.onAppDataAck = null;
         // 列表消息全部确认（或兜底跳过）后，安全开始发封面
         setTimeout(function () {
-          sendCoversOneByOne();
+          if (seq === _syncSeq) sendCoversOneByOne();
         }, 100);
       },
     });
 
     // 挂载 ACK 回调，handleMessage 里收到 app_data_ack 时调用
+    _appDataFlow = flow;
     bridge.onAppDataAck = flow.notifyAck;
   }
 
-  // 预读单张封面的全部切片为帧数组；读失败/无封面回调 null（跳过该张，
-  // 与旧停等路径 ctx.failed() 跳过单张语义一致）
-  function readOneCover(c, uri, total, cb) {
-    const totalChunks = Math.ceil(total / COVER_READ_CHUNK_SIZE);
-    if (totalChunks <= 0) {
-      cb(null);
-      return;
-    }
-    const frames = [];
-    let pos = 0;
-    function step() {
-      if (pos >= total) {
-        cb(frames);
-        return;
+  function readCoverFile(method, params) {
+    if (_coverReadBusy) return Promise.reject(new Error("previous cover read still pending"));
+    _coverReadBusy = true;
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        _coverReadBusy = false;
+        resolve(value);
+      };
+      try {
+        file[method]({ ...params, success: finish, fail: () => finish(null) });
+      } catch (e) {
+        finish(null);
       }
-      const len = Math.min(COVER_READ_CHUNK_SIZE, total - pos);
-      const isFirst = pos === 0;
-      const chunkIndex = Math.floor(pos / COVER_READ_CHUNK_SIZE);
-      file.readArrayBuffer({
-        uri: uri,
-        position: pos,
-        length: len,
-        success: function (bufData) {
-          if (!bufData.buffer) {
-            cb(null);
-            return;
+    });
+  }
+
+  // 一次只生产一帧：列表先出，封面逐片读，单张大封面也不整张驻留。
+  function createSyncReader(comics, sourceList, covers, seq) {
+    const comicCount = comics.length;
+    const sourceCount = sourceList.length;
+    let stage = 0;
+    let comicIndex = 0;
+    let sourceIndex = 0;
+    let coverIndex = 0;
+    let current = null;
+    let stopped = false;
+    const stale = () => stopped || seq !== _syncSeq;
+    return {
+      cancel() {
+        stopped = true;
+        comics = sourceList = covers = current = null;
+      },
+      async read() {
+        if (stale()) return null;
+        if (stage === 0) {
+          stage = 1;
+          return { type: "app_data_header", comic_count: comicCount, source_count: sourceCount };
+        }
+        if (stage === 1) {
+          if (comicIndex < comicCount) {
+            const index = comicIndex++;
+            return { type: "app_data_comic", index, comic: comics[index] };
           }
-          const bytes = new Uint8Array(bufData.buffer);
-          const header = isFirst ? "data:" + detectImageFormat(bytes) + ";base64," : "";
-          frames.push({
-            type: "cover_data_chunk",
-            name: c.name || "",
-            index: chunkIndex,
-            total: totalChunks,
-            data: header + base64Encode(bufData.buffer),
-          });
-          pos += len;
-          step();
-        },
-        fail: function () {
-          cb(null);
-        },
-      });
-    }
-    step();
-  }
-
-  // 串行预读全部封面切片（80px 小图，总量仅数百 KB，可一次驻留）
-  function buildCoverFramesSerial(queue, done) {
-    const frames = [];
-    let ci = 0;
-    function nextCover() {
-      if (ci >= queue.length) {
-        done(frames);
-        return;
-      }
-      const c = queue[ci++];
-      const uri = "internal://files/" + c.id + "/cover";
-      file.get({
-        uri: uri,
-        success: function (info) {
-          readOneCover(c, uri, info.length || 0, function (coverFrames) {
-            if (coverFrames) {
-              frames.push.apply(frames, coverFrames);
+          comics = null;
+          stage = 2;
+        }
+        if (stage === 2) {
+          if (sourceIndex < sourceCount) {
+            const index = sourceIndex++;
+            return { type: "app_data_source", index, source: sourceList[index] };
+          }
+          sourceList = null;
+          stage = 3;
+          return { type: "app_data_done" };
+        }
+        while (stage === 3 && !stale()) {
+          if (!current) {
+            if (coverIndex >= covers.length) {
+              covers = null;
+              stage = 4;
+              return { type: "cover_done" };
             }
-            nextCover();
+            const cover = covers[coverIndex++];
+            if (!cover || !cover.name) continue;
+            const uri = "internal://files/" + cover.id + "/cover";
+            const name = cover.name;
+            const info = await readCoverFile("get", { uri });
+            if (stale()) return null;
+            if (
+              !info ||
+              !Number.isSafeInteger(info.length) ||
+              info.length <= 0 ||
+              Math.ceil(info.length / COVER_READ_CHUNK_SIZE) > COVER_MAX_CHUNKS
+            )
+              continue;
+            current = { uri, name, length: info.length, position: 0 };
+          }
+          const cover = current;
+          const len = Math.min(COVER_READ_CHUNK_SIZE, cover.length - cover.position);
+          const bufData = await readCoverFile("readArrayBuffer", {
+            uri: cover.uri,
+            position: cover.position,
+            length: len,
           });
-        },
-        fail: function () {
-          nextCover();
-        },
-      });
-    }
-    nextCover();
+          if (stale()) return null;
+          if (!bufData || !bufData.buffer || new Uint8Array(bufData.buffer).length !== len) {
+            // 删除/短读/读失败：跳过剩余片；插件在cover_done/超时时清理已到的残片。
+            current = null;
+            continue;
+          }
+          const index = Math.floor(cover.position / COVER_READ_CHUNK_SIZE);
+          const header =
+            index === 0
+              ? "data:" + detectImageFormat(new Uint8Array(bufData.buffer)) + ";base64,"
+              : "";
+          const frame = {
+            type: "cover_data_chunk",
+            name: cover.name,
+            index,
+            total: Math.ceil(cover.length / COVER_READ_CHUNK_SIZE),
+            data: header + base64Encode(bufData.buffer),
+          };
+          cover.position += len;
+          if (cover.position === cover.length) current = null;
+          return frame;
+        }
+        return null;
+      },
+    };
   }
 
-  // 滑窗同步会话：列表消息 + 全部封面切片 + cover_done 打平成一条帧流，
-  // 乱序由插件按 gseq 还原，本端只管窗口推进（不再依赖逐条停等保证顺序）
-  function sendAppDataWindowed(comics, sourceList, windowN) {
+  function sendAppDataWindowed(comics, sourceList, windowN, seq) {
     prompt.showToast({
       message: "正在发送数据 (comic=" + comics.length + " source=" + sourceList.length + ")",
     });
 
-    const frames = [];
-    frames.push({
-      type: "app_data_header",
-      comic_count: comics.length,
-      source_count: sourceList.length,
-    });
-    for (let i = 0; i < comics.length; i++) {
-      frames.push({ type: "app_data_comic", index: i, comic: comics[i] });
-    }
-    for (let i = 0; i < sourceList.length; i++) {
-      frames.push({ type: "app_data_source", index: i, source: sourceList[i] });
-    }
-    frames.push({ type: "app_data_done" });
-
-    buildCoverFramesSerial(_coverQueue || [], function (coverFrames) {
-      for (let i = 0; i < coverFrames.length; i++) {
-        frames.push(coverFrames[i]);
-      }
-      frames.push({ type: "cover_done" });
-
-      _syncSender = createWindowedSender({
-        label: "同步",
-        frames: frames,
-        window: windowN,
-        ackTimeout: SYNC_ACK_TIMEOUT,
-        maxRetry: SYNC_MAX_RETRY,
-        sendFrame: function (f) {
-          interConnect.send({
-            data: f,
-            success: function () {},
-            fail: function () {
-              // 发送失败不立即中止：该帧视为丢失，由 ACK 超时整窗重发兜底
-            },
-          });
-        },
-        onAllDone: function () {
-          _syncSender = null;
-          prompt.showToast({ message: "数据发送完成" });
-        },
-        onAbort: function () {
-          _syncSender = null;
-          prompt.showToast({ message: "发送中断，请重试" });
-        },
-      });
+    const reader = createSyncReader(comics, sourceList, _coverQueue, seq);
+    const session = _syncWireSession;
+    _syncSender = createWindowedSender({
+      label: "同步",
+      readFrame: reader.read,
+      onStop: reader.cancel,
+      maxBufferedFrames: Math.max(SYNC_BUFFER_FRAMES, windowN),
+      window: windowN,
+      ackTimeout: SYNC_ACK_TIMEOUT,
+      maxRetry: SYNC_MAX_RETRY,
+      sendFrame: function (f) {
+        if (seq !== _syncSeq) return;
+        if (session !== null) f.session = session;
+        interConnect.send({
+          data: f,
+          success: function () {},
+          fail: function () {
+            // 发送失败不立即中止：该帧视为丢失，由 ACK 超时整窗重发兜底
+          },
+        });
+      },
+      onAllDone: function () {
+        if (seq !== _syncSeq) return;
+        _syncSender = null;
+        _coverQueue = [];
+        prompt.showToast({ message: "数据发送完成" });
+      },
+      onAbort: function () {
+        if (seq !== _syncSeq) return;
+        _syncSender = null;
+        _coverQueue = [];
+        prompt.showToast({ message: "发送中断，请重试" });
+      },
     });
   }
 
   // 按插件握手能力分发：声明了 syncWindow 走滑窗新协议，否则旧停等
-  function dispatchAppData(comics, sourceList) {
+  function dispatchAppData(comics, sourceList, seq) {
+    if (seq !== _syncSeq) return;
     const win =
       _pluginCaps && typeof _pluginCaps.syncWindow === "number" ? _pluginCaps.syncWindow : 0;
     if (win > 0) {
-      sendAppDataWindowed(comics, sourceList, Math.min(Math.max(win, 1), 16));
+      sendAppDataWindowed(comics, sourceList, Math.min(Math.max(Math.floor(win), 1), 16), seq);
       return;
     }
-    sendAppDataBatched(comics, sourceList);
+    sendAppDataBatched(comics, sourceList, seq);
   }
 
-  function readSourcesAndSend(comics) {
+  function readSourcesAndSend(comics, seq) {
     readSources().then(
       function (rawSources) {
+        if (seq !== _syncSeq) return;
         let sourceList = [];
         if (Array.isArray(rawSources)) {
           sourceList = rawSources.map(function (s) {
@@ -413,29 +462,25 @@ export function createDataBridge(interConnect) {
           });
         }
 
-        dispatchAppData(comics, sourceList);
+        dispatchAppData(comics, sourceList, seq);
       },
       function () {
-        dispatchAppData(comics, []);
+        dispatchAppData(comics, [], seq);
       }
     );
   }
 
-  function sendAppData() {
-    _coverQueue = [];
+  function sendAppData(session) {
+    stopSync();
+    const seq = _syncSeq;
+    _syncWireSession =
+      _pluginCaps && _pluginCaps.syncSession === true && typeof session === "string"
+        ? session
+        : null;
     _coverDoneSent = false;
-    // 新一轮同步：取消上一轮可能仍在途的封面队列，其迟到回调全部过期
-    if (_coverFlow) {
-      _coverFlow.cancel();
-      _coverFlow = null;
-    }
-    // 滑窗会话同理：新一轮 request_data 打断在途发送器
-    if (_syncSender) {
-      _syncSender.cancel();
-      _syncSender = null;
-    }
     readComics().then(
       function (comicsList) {
+        if (seq !== _syncSeq) return;
         if (!Array.isArray(comicsList)) {
           comicsList = [];
         }
@@ -443,7 +488,7 @@ export function createDataBridge(interConnect) {
         _coverQueue = comicsList;
 
         if (comicsList.length === 0) {
-          readSourcesAndSend([]);
+          readSourcesAndSend([], seq);
           return;
         }
 
@@ -452,6 +497,7 @@ export function createDataBridge(interConnect) {
 
         comicsList.forEach(function (c) {
           const pushMeta = function (pageCount, chapterCount) {
+            if (seq !== _syncSeq) return;
             comics.push({
               name: c.name || "",
               page_count: pageCount,
@@ -460,7 +506,7 @@ export function createDataBridge(interConnect) {
 
             pending--;
             if (pending === 0) {
-              readSourcesAndSend(comics);
+              readSourcesAndSend(comics, seq);
             }
           };
 
@@ -491,6 +537,7 @@ export function createDataBridge(interConnect) {
             uri: "internal://files/" + c.id,
             recursive: true,
             success: function (fileData) {
+              if (seq !== _syncSeq) return;
               let pageCount = 0;
               let chapterCount = 0;
 
@@ -514,7 +561,7 @@ export function createDataBridge(interConnect) {
         });
       },
       function () {
-        readSourcesAndSend([]);
+        readSourcesAndSend([], seq);
       }
     );
   }
@@ -1204,17 +1251,14 @@ export function createDataBridge(interConnect) {
       _importState = null;
     }
     // 新会话打断可能在途的滑窗同步：旧会话帧序号对新 frontier 无意义
-    if (_syncSender) {
-      _syncSender.cancel();
-      _syncSender = null;
-    }
+    stopSync();
     _pluginCaps = parsed && parsed.caps && typeof parsed.caps === "object" ? parsed.caps : null;
     interConnect.send({
       data: {
         type: "hs_pong",
         session: parsed.session || "",
         settings: global.APP_SETTING || {},
-        caps: { importWindow: IMPORT_WINDOW },
+        caps: { importWindow: IMPORT_WINDOW, syncSession: true },
       },
       success: function () {},
       fail: function () {},
@@ -1247,7 +1291,10 @@ export function createDataBridge(interConnect) {
       }
     } else if (msgType === "sync_ack") {
       // 滑窗会话的累计 ACK：ack = 下一个仍缺失的连续 gseq
-      if (_syncSender) {
+      if (
+        _syncSender &&
+        (_syncWireSession === null ? parsed.session == null : parsed.session === _syncWireSession)
+      ) {
         _syncSender.notifyAck(parsed.ack);
       }
     } else if (msgType === "cover_ack") {
@@ -1260,7 +1307,7 @@ export function createDataBridge(interConnect) {
     } else if (msgType === "cookie") {
       handleCookieMessage(parsed);
     } else if (msgType === "request_data") {
-      sendAppData();
+      sendAppData(parsed.session);
     } else if (msgType === "delete_comic") {
       handleDeleteComic(parsed);
     } else if (msgType === "delete_source") {
