@@ -18,6 +18,18 @@ const REQUEST_TIMEOUT = 20000;
 // 32K 待真机验证——若失败退回 24576）。新版插件协商为对端主导（clamp 到 [256, 64K]），
 // 本声明即实际生效片长；旧版插件按自身 4096 上限钳制，同样兼容
 const MAX_CHUNK_SIZE = 32768;
+const ACK_WINDOW = 4;
+const WRITE_BATCH_SIZE = 65536;
+// 原始待写片（含正在写的片）≤128KiB，合并/补零输出≤128KiB。
+// 分片链路最多256KiB受管二进制缓冲；不含消息的JSON/base64、原生副本及图片解码。
+const FILE_PENDING_LIMIT = MAX_CHUNK_SIZE * ACK_WINDOW;
+const FILE_WRITE_LIMIT = FILE_PENDING_LIMIT;
+const FILE_FRAME_LIMIT = ACK_WINDOW;
+
+let preferredArrayBuffer = false;
+// 原生写无法主动撤回。超时只结束请求，直到原生回调返回前保留此槽，
+// 禁止后续下载叠加永不返回的写入（JSON请求仍可继续）。
+let nativeWrite = null;
 
 let systemFetch = null;
 
@@ -99,76 +111,286 @@ function decodeBody(text, encoding) {
   }
 }
 
-function writeBinaryFile(uri, bytes) {
-  return new Promise((resolve, reject) => {
-    if (!fileModule) {
-      reject(new Error("file module not available"));
-      return;
-    }
-    fileModule.writeArrayBuffer({
-      uri: uri,
-      buffer: bytes,
-      success: () => resolve(uri),
-      fail: (data, code) => {
-        fileModule.writeArrayBuffer({
-          uri: uri,
-          buffer: bytes.buffer,
-          success: () => resolve(uri),
-          fail: (data2, code2) => reject(new Error("write failed: " + code2)),
-        });
-      },
-    });
-  });
+function deletePartialFile(uri) {
+  if (!fileModule) return;
+  try {
+    fileModule.delete({ uri: uri, fail: function () {} });
+  } catch (e) {}
 }
 
-function writeChunkFile(uri, bytes, append) {
+// 一次写最多尝试两种类型；记住上次成功类型，避免部分固件每片都先失败一次。
+// 超时/取消后的迟到回调只释放原生槽并清理半成品，不重试也不启动下一笔写。
+function writeFileBuffer(uri, bytes, options, owner) {
   return new Promise((resolve, reject) => {
     if (!fileModule) {
       reject(new Error("no file"));
       return;
     }
-    fileModule.writeArrayBuffer({
-      uri: uri,
-      buffer: bytes,
-      append: append || false,
-      success: () => resolve(),
-      fail: (_, code) => {
+    if (nativeWrite) {
+      reject(new Error("previous file write still pending"));
+      return;
+    }
+    const token = {};
+    nativeWrite = token;
+    const started = Date.now();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      reject(new Error("file write timeout"));
+    }, REQUEST_TIMEOUT);
+    owner.cancelNative = (err) => {
+      clearTimeout(timer);
+      reject(err || new Error("file write cancelled"));
+    };
+
+    function finish(err) {
+      clearTimeout(timer);
+      if (nativeWrite === token) nativeWrite = null;
+      owner.cancelNative = null;
+      owner.stats.writeMs += Date.now() - started;
+      if (timedOut || owner.cancelled) {
+        deletePartialFile(uri);
+        reject(new Error("file write cancelled"));
+      } else if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    }
+
+    function attempt(arrayBuffer, retry) {
+      let called = false;
+      let buffer = bytes;
+      if (arrayBuffer) {
+        buffer =
+          bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength
+            ? bytes.buffer
+            : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      }
+      owner.stats.writeCalls++;
+      const fail = (_, code) => {
+        if (called) return;
+        called = true;
+        if (!retry && !timedOut && !owner.cancelled) {
+          owner.stats.fallbacks++;
+          attempt(!arrayBuffer, true);
+        } else {
+          finish(new Error("file write failed: " + code));
+        }
+      };
+      try {
         fileModule.writeArrayBuffer({
+          ...options,
           uri: uri,
-          buffer: bytes.buffer,
-          append: append || false,
-          success: () => resolve(),
-          fail: (__, code2) => reject(new Error("chunk write: " + code2)),
+          buffer: buffer,
+          success: () => {
+            if (called) return;
+            called = true;
+            preferredArrayBuffer = arrayBuffer;
+            finish();
+          },
+          fail: fail,
         });
-      },
-    });
+      } catch (e) {
+        fail(e, e.message || e);
+      }
+    }
+    attempt(preferredArrayBuffer, false);
   });
 }
 
-// 定点覆盖写（含双类型回退）。真机固件在 position >= 文件长度时直接失败（202），
-// 调用方必须保证 position 严格小于当前文件长度（水位线引擎的补洞场景天然满足）。
-function writeChunkFileAt(uri, bytes, position) {
-  return new Promise((resolve, reject) => {
-    if (!fileModule) {
-      reject(new Error("no file"));
-      return;
-    }
-    fileModule.writeArrayBuffer({
-      uri: uri,
-      buffer: bytes,
-      position: position,
-      success: () => resolve(),
-      fail: (_, code) => {
-        fileModule.writeArrayBuffer({
-          uri: uri,
-          buffer: bytes.buffer,
-          position: position,
-          success: () => resolve(),
-          fail: (__, code2) => reject(new Error("chunk write@: " + code2)),
-        });
-      },
+function createFileWriter(uri) {
+  const frames = new Map();
+  let pendingBytes = 0;
+  let active = false;
+  let direct = null;
+  let nextSeq = 0;
+  let contiguousEnd = 0;
+  let writePos = 0; // 只在原生写成功后更新：实际文件长度
+  let activePaddingBytes = 0;
+  const writer = {
+    cancelled: false,
+    writtenChunks: 0,
+    stats: { writeCalls: 0, fallbacks: 0, writeMs: 0, zeroBytes: 0, peakBytes: 0 },
+    enqueue,
+    cancel,
+    finish(totalBytes) {
+      if (writer.cancelled) throw new Error("file write cancelled");
+      if (active || frames.size) throw new Error("file writes incomplete");
+      if (typeof totalBytes === "number" && writePos !== totalBytes) {
+        throw new Error("size mismatch: " + writePos + "/" + totalBytes);
+      }
+    },
+    writeWhole(bytes) {
+      return writeFileBuffer(uri, bytes, {}, writer);
+    },
+    report() {
+      // Rspack按构建mode内联此常量，release不构造/保留测速日志文字。
+      // eslint-disable-next-line no-undef
+      if (process.env.NODE_ENV === "production") return;
+      const s = writer.stats;
+      console.debug(
+        `文件写入 calls=${s.writeCalls} fallback=${s.fallbacks} ms=${s.writeMs} zero=${s.zeroBytes} peak=${s.peakBytes}`
+      );
+    },
+  };
+
+  function cancel(err) {
+    if (writer.cancelled) return;
+    writer.cancelled = true;
+    if (writer.cancelNative) writer.cancelNative(err);
+    frames.forEach((frame) => {
+      frame.bytes = null;
+      if (frame.reject) frame.reject(err || new Error("file write cancelled"));
+      frame.resolve = frame.reject = null;
     });
-  });
+    frames.clear();
+    pendingBytes = 0;
+  }
+
+  function enqueue(bytes, seq, offset) {
+    if (writer.cancelled) throw new Error("file write cancelled");
+    if (!(bytes instanceof Uint8Array) || bytes.length > MAX_CHUNK_SIZE) {
+      throw new Error("bad file chunk size/encoding");
+    }
+    if (frames.size >= FILE_FRAME_LIMIT || pendingBytes + bytes.length > FILE_PENDING_LIMIT) {
+      throw new Error("file write backlog limit");
+    }
+    if (direct === null) direct = typeof offset === "number";
+    if (direct) {
+      if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("bad chunk offset");
+      const end = offset + bytes.length;
+      if (!Number.isSafeInteger(end) || offset < contiguousEnd) {
+        throw new Error("bad chunk extent");
+      }
+      if (seq === nextSeq && offset !== contiguousEnd) throw new Error("noncontiguous offset");
+      frames.forEach((frame, otherSeq) => {
+        if ((seq < otherSeq && end > frame.offset) || (seq > otherSeq && offset < frame.end)) {
+          throw new Error("overlapping chunks");
+        }
+      });
+    } else {
+      offset = null; // 旧插件无可靠偏移：必须按序append，Promise也只在该片真正写完时完成
+    }
+    const promise = new Promise((resolve, reject) => {
+      frames.set(seq, {
+        bytes: bytes,
+        offset: offset,
+        end: offset === null ? null : offset + bytes.length,
+        active: false,
+        written: false,
+        resolve: resolve,
+        reject: reject,
+      });
+    });
+    pendingBytes += bytes.length;
+    writer.stats.peakBytes = Math.max(writer.stats.peakBytes, pendingBytes + activePaddingBytes);
+    pump();
+    return promise;
+  }
+
+  async function pump() {
+    if (active || writer.cancelled) return;
+    let first = null;
+    let firstSeq = nextSeq;
+    if (direct) {
+      // 优先已到达、恰接文件末尾的片；没有则按到达顺序直写，不等待缺片。
+      frames.forEach((frame, seq) => {
+        if (frame.bytes && !frame.active && (!first || frame.offset === writePos)) {
+          if (!first || first.offset !== writePos) {
+            first = frame;
+            firstSeq = seq;
+          }
+        }
+      });
+    } else {
+      first = frames.get(nextSeq);
+    }
+    if (!first || !first.bytes) return;
+    active = true;
+    const batch = [first];
+    let length = first.bytes.length;
+    let end = direct ? first.end : null;
+    let lastSeq = firstSeq;
+    try {
+      // 只合并已经到达的相邻片；不等凑满、不跨越原位覆盖/append的边界。
+      while (length < WRITE_BATCH_SIZE) {
+        const next = frames.get(lastSeq + 1);
+        if (
+          !next ||
+          !next.bytes ||
+          next.active ||
+          length + next.bytes.length > WRITE_BATCH_SIZE ||
+          (direct && (next.offset !== end || (first.offset < writePos && next.end > writePos)))
+        )
+          break;
+        batch.push(next);
+        length += next.bytes.length;
+        end = next.end;
+        lastSeq++;
+      }
+      const start = direct ? first.offset : writePos;
+      const padLength = Math.max(0, start - writePos);
+      const outputLength = padLength + length;
+      if (outputLength > FILE_WRITE_LIMIT || (start < writePos && start + length > writePos)) {
+        throw new Error("file write extent limit");
+      }
+      let output = first.bytes;
+      if (batch.length > 1 || padLength) {
+        // 合并与补零共用同一输出，避免先合并再补零产生第三份缓冲。
+        writer.stats.peakBytes = Math.max(writer.stats.peakBytes, pendingBytes + outputLength);
+        output = new Uint8Array(outputLength);
+        let pos = padLength;
+        batch.forEach((frame) => {
+          output.set(frame.bytes, pos);
+          pos += frame.bytes.length;
+        });
+      }
+      batch.forEach((frame) => {
+        frame.active = true;
+        frame.bytes = null;
+      });
+      activePaddingBytes = padLength;
+      const options = start < writePos ? { position: start } : { append: writePos > 0 };
+      // 真机只允许position<文件长度；EOF及补零路径一律append/首次建文件。
+      await writeFileBuffer(uri, output, options, writer);
+      output = null;
+      if (writer.cancelled) return;
+      writePos = Math.max(writePos, start + length);
+      pendingBytes -= length;
+      writer.stats.zeroBytes += padLength;
+      batch.forEach((frame) => {
+        frame.written = true;
+      });
+      // 验证连续字节前沿，再释放已完成的帧记录；乱序已写片只留小标记。
+      while (frames.has(nextSeq) && frames.get(nextSeq).written) {
+        const frame = frames.get(nextSeq);
+        if (direct && frame.offset !== contiguousEnd) throw new Error("noncontiguous offset");
+        contiguousEnd += frame.end === null ? 0 : frame.end - frame.offset;
+        frames.delete(nextSeq++);
+      }
+      writer.writtenChunks += batch.length;
+      batch.forEach((frame) => {
+        const resolve = frame.resolve;
+        frame.resolve = frame.reject = null;
+        resolve();
+      });
+      active = false;
+      activePaddingBytes = 0;
+      pump();
+    } catch (e) {
+      // batch可能已从frames移除；失败时也要结束其Promise，不能让请求漏出管理。
+      batch.forEach((frame) => {
+        if (frame.reject) frame.reject(e);
+        frame.bytes = null;
+        frame.resolve = frame.reject = null;
+      });
+      active = false;
+      activePaddingBytes = 0;
+      cancel(e);
+    }
+  }
+  return writer;
 }
 
 // 是否优先走网桥通道:用户在设置中开启,或设备为小米手环10 Pro(不支持快应用原生 fetch)。
@@ -190,9 +412,8 @@ const LOCAL_CAPS = {
   encodings: ["text", "base64", "hex"],
   compressions: ["none"],
   ack: true,
-  // 在途窗口 6 帧（32K×6≈192KB）：直写落地后手表端无乱序驻留顾虑，更大窗口压缩 ACK 往返占比；
-  // 插件侧 clamp 到 [1,64]。若真机验证窗口非瓶颈可回调 4
-  ackWindow: 4,
+  // 累计ACK按实际落盘推进，窗口4帧保留接收/写盘流水线，并限制未落盘原始字节。
+  ackWindow: ACK_WINDOW,
   stream: true,
 };
 
@@ -314,294 +535,185 @@ class InterconnFetchClient {
       const { resp, id } = payload;
       const req = this.requests.get(id);
       if (!req || req.settled) return;
-      if (resp && resp.stream) {
-        // v4 开放长度流：无 chunkCount，长度未知直到 final 帧
-        req.header = resp;
-        req.stream = true;
-        req.received = 0;
-        req.ack = resp.ack === true;
-        req.chunkBuffer = {};
-        req.nextAck = 0;
-        req.chunkPromises = [];
-        req.finalSeq = -1;
-        req.streamEncoding = resp.bodyEncoding || "base64";
-        req.resetTimer();
-      } else if (resp && resp.chunked) {
-        req.header = resp;
-        req.received = 0;
-        req.ack = resp.ack === true;
-        req.chunkCount = resp.chunkCount || 0;
-        req.chunkBuffer = {};
-        req.nextAck = 0;
-        req.chunkPromises = [];
-        req.resetTimer();
-        // chunkCount 0/缺失：头部即完成（P2-35④）——否则没有分片来推进到齐判定，
-        // 干等 20s 超时还误关会话；body 形态与 finish() 的零分片拼接结果一致
-        if (!(req.chunkCount > 0)) {
-          req.settled = true;
-          this.requests.delete(id);
-          const emptyEnc = resp.bodyEncoding || "base64";
-          req.resolve({
-            ...req.header,
-            body: req.onChunk ? null : emptyEnc === "text" ? "" : new Uint8Array(0),
-          });
+      if (resp && (resp.stream || resp.chunked)) {
+        if (req.header) {
+          req.reject(new Error("duplicate fetch header"));
+          return;
         }
+        req.header = resp;
+        req.stream = resp.stream === true;
+        req.received = 0;
+        req.ack = resp.ack === true;
+        req.chunkCount = req.stream ? null : resp.chunkCount || 0;
+        req.chunkBuffer = Object.create(null);
+        req.nextAck = 0;
+        req.finalSeq = -1;
+        req.maxSeenSeq = -1;
+        req.encoding = resp.bodyEncoding || "base64";
+        if (
+          (!req.stream && (!Number.isSafeInteger(req.chunkCount) || req.chunkCount < 0)) ||
+          (req.stream && !req.ack) ||
+          ["base64", "hex", "text"].indexOf(req.encoding) === -1
+        ) {
+          req.reject(new Error("bad chunk header/encoding"));
+          return;
+        }
+        req.resetTimer();
+        // P2-35④：零分片头部即完成，不干等超时。
+        if (!req.stream && req.chunkCount === 0) this._advance(req, id);
       } else {
-        req.settled = true;
-        this.requests.delete(id);
         req.resolve(resp);
       }
     } else if (tag === FETCH_CHUNK_TAG) {
       const { id, seq, data: chunkData } = payload;
       const req = this.requests.get(id);
-      if (!req || req.settled) return;
-      const encoding = (req.header && req.header.bodyEncoding) || "base64";
-      // 重复分片（go-back-N 重传）：数据忽略，但仍回当前累计 ACK 让发送方推进窗口
-      if (req.chunkBuffer && req.chunkBuffer[seq] !== undefined) {
-        if (req.ack) {
-          this.conn.send({
-            data: {
-              tag: FETCH_ACK_TAG,
-              id: id,
-              ack: req.nextAck,
-            },
-          });
-        }
-        return;
-      }
-      req.received++;
-      req.resetTimer();
-
-      // 乱序缓存：按 seq 落位。有 onChunk（文件下载）时分片字节已交给调用方按序落盘，
-      // chunkBuffer 只用于推进 ACK 连续前沿，存占位标记即可，避免整图字节驻留内存
-      let decoded;
-      if (encoding === "text") {
-        req.chunkBuffer[seq] = req.onChunk ? true : chunkData;
-      } else {
-        decoded = decodeBody(chunkData, encoding);
-        if (!(decoded instanceof Uint8Array)) {
-          // 未知/坏 bodyEncoding：分片不落位会挂死到齐判定（P2-35④），快速失败；
-          // 仅协议失配不杀会话（open 不动），后续请求可正常工作
-          req.settled = true;
-          this.requests.delete(id);
-          req.reject(new Error("bad bodyEncoding: " + encoding));
-          return;
-        }
-        req.chunkBuffer[seq] = req.onChunk ? true : decoded;
-      }
-
-      // 如果用了 onChunk，记录其 Promise 以便后续等待。
-      // offset 供水位线直写：v3 定长分片的偏移 = seq × chunkSize 精确可推算；
-      // 压缩流的分片偏移与文件偏移不对应，禁止直写（协商 compressions:["none"] 不会触发）
-      if (req.onChunk) {
-        const toWrite = encoding === "text" ? chunkData : decoded;
-        if (toWrite !== undefined) {
-          const cs = req.header && req.header.chunkSize;
-          const compressed =
-            req.header && req.header.compression && req.header.compression !== "none";
-          const offset = !compressed && typeof cs === "number" && cs > 0 ? seq * cs : null;
-          req.chunkPromises.push(req.onChunk(toWrite, seq, offset));
-        }
-      }
-
-      // 计算连续前沿：从 nextAck 起最长的连续已收区间
-      while (req.chunkBuffer[req.nextAck] !== undefined) {
-        req.nextAck++;
-      }
-
-      // 发送 fetch-ack（累计确认）
-      if (req.ack) {
-        this.conn.send({
-          data: {
-            tag: FETCH_ACK_TAG,
-            id: id,
-            ack: req.nextAck,
-          },
-        });
-      }
-
-      // 检查是否全部到齐
-      if (req.nextAck >= req.chunkCount) {
-        req.settled = true;
-        this.requests.delete(id);
-
-        // 等待所有 onChunk 写入完成后再 resolve
-        const finish = function () {
-          // 文件下载路径分片已按序落盘，无需拼接，直接返回头部
-          if (req.onChunk) {
-            req.resolve({
-              ...req.header,
-              body: null,
-            });
-            return;
-          }
-          // 按顺序拼接
-          let raw;
-          if (encoding === "text") {
-            const parts = [];
-            for (let i = 0; i < req.chunkCount; i++) {
-              parts.push(req.chunkBuffer[i] || "");
-            }
-            raw = parts.join("");
-          } else {
-            let totalLen = 0;
-            for (let i = 0; i < req.chunkCount; i++) {
-              const buf = req.chunkBuffer[i];
-              if (buf instanceof Uint8Array) {
-                totalLen += buf.length;
-              }
-            }
-            const merged = new Uint8Array(totalLen);
-            let offset = 0;
-            for (let i = 0; i < req.chunkCount; i++) {
-              const buf = req.chunkBuffer[i];
-              if (buf instanceof Uint8Array) {
-                merged.set(buf, offset);
-                offset += buf.length;
-              }
-            }
-            raw = merged;
-          }
-
-          req.resolve({
-            ...req.header,
-            body: raw,
-          });
-        };
-
-        if (req.chunkPromises && req.chunkPromises.length > 0) {
-          Promise.all(req.chunkPromises)
-            .then(finish)
-            .catch(function (e) {
-              req.reject(new Error("chunk write failed: " + e));
-            });
-        } else {
-          finish();
-        }
-      }
+      if (!req || req.settled || !req.header || req.stream) return;
+      const cs = req.header.chunkSize;
+      const compressed = req.header.compression && req.header.compression !== "none";
+      const offset = !compressed && typeof cs === "number" && cs > 0 ? seq * cs : null;
+      this._receiveFrame(req, id, seq, chunkData, offset, undefined, false);
     } else if (tag === FETCH_STREAM_TAG) {
-      // v4 流数据帧/最终帧：先验 CRC 再推进累计 ACK；final 帧也占一个序号。
-      // 新版插件每帧带显式 offset（帧自定位，供 onChunk 水位线直写；旧插件无此字段自动回退有序 append）
       const { id, seq, data: frameData, crc32, final, offset, totalBytes } = payload;
       const req = this.requests.get(id);
       if (!req || req.settled || !req.stream) return;
-      req.resetTimer();
-      const encoding = req.streamEncoding;
-      const sendStreamAck = () => {
-        if (req.ack) {
-          this.conn.send({
-            data: { tag: FETCH_STREAM_ACK_TAG, id: id, ack: req.nextAck },
-          });
-        }
-      };
-      // 重复帧（go-back-N 重传）：忽略数据，回当前累计 ACK 让发送方推进窗口
-      if (req.chunkBuffer[seq] !== undefined) {
-        sendStreamAck();
-        return;
-      }
-      // final 帧 data 为空，跳过解码；数据帧先解码再验 CRC
-      let decoded = true; // 占位标记（onChunk 路径不驻留字节）
-      if (!final) {
-        let bytes;
-        if (encoding === "text") {
-          bytes = frameData;
-        } else {
-          bytes = decodeBody(frameData, encoding);
-        }
-        // CRC 校验失败不得推进 ACK：丢弃本帧并回重复 ACK，
-        // 触发发送方对当前未确认窗口 go-back-N 重传
-        if (typeof crc32 === "string" && bytes instanceof Uint8Array) {
-          if (crc32Num(bytes) !== parseInt(crc32, 16)) {
-            console.debug(`流帧 CRC 校验失败(seq=${seq})，等待重传`);
-            sendStreamAck();
-            return;
-          }
-        }
-        if (!req.onChunk) {
-          decoded = bytes; // 无 onChunk 时驻留字节，EOF 时合并
-        }
-        if (req.onChunk) {
-          req.chunkPromises.push(
-            req.onChunk(bytes, seq, typeof offset === "number" ? offset : null)
-          );
-        }
-      }
-      req.chunkBuffer[seq] = decoded;
-      req.received++;
-      // 推进连续前沿
-      while (req.chunkBuffer[req.nextAck] !== undefined) {
-        req.nextAck++;
-      }
-      sendStreamAck();
-      if (final) {
-        req.finalSeq = seq;
-        // final 帧带流总长：记入头部，供完工时"水位 === totalBytes"完整性校验
-        if (typeof totalBytes === "number") {
-          req.header.totalBytes = totalBytes;
-        }
-      }
-      // EOF 提交：final 帧及其前所有序号连续到齐（含 CRC 全部通过）
-      if (req.finalSeq >= 0 && req.nextAck > req.finalSeq) {
-        req.settled = true;
-        this.requests.delete(id);
-        const finish = () => {
-          if (req.onChunk) {
-            // 分片已按序落盘，无需拼接
-            req.resolve({ ...req.header, body: null });
-            return;
-          }
-          // 无 onChunk 的流（本应用不会走到）：按序合并
-          if (encoding === "text") {
-            const parts = [];
-            for (let i = 0; i < req.finalSeq; i++) {
-              parts.push(req.chunkBuffer[i] || "");
-            }
-            req.resolve({ ...req.header, body: parts.join("") });
-          } else {
-            let totalLen = 0;
-            for (let i = 0; i < req.finalSeq; i++) {
-              const buf = req.chunkBuffer[i];
-              if (buf instanceof Uint8Array) totalLen += buf.length;
-            }
-            const merged = new Uint8Array(totalLen);
-            let offset = 0;
-            for (let i = 0; i < req.finalSeq; i++) {
-              const buf = req.chunkBuffer[i];
-              if (buf instanceof Uint8Array) {
-                merged.set(buf, offset);
-                offset += buf.length;
-              }
-            }
-            req.resolve({ ...req.header, body: merged });
-          }
-        };
-        if (req.chunkPromises.length > 0) {
-          Promise.all(req.chunkPromises)
-            .then(finish)
-            .catch(function (e) {
-              req.reject(new Error("stream write failed: " + e));
-            });
-        } else {
-          finish();
-        }
-      }
+      this._receiveFrame(req, id, seq, frameData, offset, crc32, final === true, totalBytes);
     } else if (tag === FETCH_STREAM_ERROR_TAG) {
-      // 插件读 HTTP 源中途失败：直接 reject 让页面报错
       const { id, message } = payload;
       const req = this.requests.get(id);
       if (!req || req.settled) return;
-      req.settled = true;
-      this.requests.delete(id);
       req.reject(new Error(message || "stream error"));
+    }
+  }
+
+  _sendAck(req, id) {
+    if (!req.ack || req.settled) return;
+    try {
+      this.conn.send({
+        data: { tag: req.stream ? FETCH_STREAM_ACK_TAG : FETCH_ACK_TAG, id, ack: req.nextAck },
+        fail: (err) => req.reject(new Error("ACK send failed: " + err)),
+      });
+    } catch (e) {
+      req.reject(e);
+    }
+  }
+
+  _receiveFrame(req, id, seq, data, offset, crc, final, totalBytes) {
+    try {
+      if (!Number.isSafeInteger(seq) || seq < 0 || (!req.stream && seq >= req.chunkCount)) {
+        throw new Error("bad chunk sequence");
+      }
+      // 已ACK的记录已释放；未ACK的false=正在写，true=已写完。两者都不能重复写。
+      if (seq < req.nextAck || req.chunkBuffer[seq] !== undefined) {
+        this._sendAck(req, id);
+        return;
+      }
+      if (req.finalSeq >= 0 && (seq > req.finalSeq || final)) throw new Error("bad stream EOF");
+      // ACK窗口只限制未落盘片，不再由接收速度无限向前推。越窗帧在解码前丢弃，等重传。
+      if (req.sink && req.ack && seq >= req.nextAck + ACK_WINDOW) {
+        this._sendAck(req, id);
+        return;
+      }
+      let bytes = true;
+      if (final) {
+        if (seq <= req.maxSeenSeq) throw new Error("bad stream EOF");
+        if (totalBytes !== undefined && (!Number.isSafeInteger(totalBytes) || totalBytes < 0)) {
+          throw new Error("bad stream length");
+        }
+        req.finalSeq = seq;
+        if (totalBytes !== undefined) req.header.totalBytes = totalBytes;
+      } else {
+        if (typeof data !== "string") throw new Error("bad chunk data");
+        if (req.sink) {
+          const wireLimit =
+            req.encoding === "hex" ? MAX_CHUNK_SIZE * 2 : Math.ceil(MAX_CHUNK_SIZE / 3) * 4;
+          if (data.length > wireLimit) throw new Error("file chunk too large");
+        }
+        bytes = decodeBody(data, req.encoding);
+        if (crc !== undefined && bytes instanceof Uint8Array) {
+          if (
+            typeof crc !== "string" ||
+            !/^[0-9a-f]{8}$/i.test(crc) ||
+            crc32Num(bytes) !== parseInt(crc, 16)
+          ) {
+            // 坏片不入队、不续超时，只回重复ACK触发go-back-N。
+            this._sendAck(req, id);
+            return;
+          }
+        }
+      }
+      req.received++;
+      req.maxSeenSeq = Math.max(req.maxSeenSeq, seq);
+      req.resetTimer();
+      if (req.sink && !final) {
+        req.chunkBuffer[seq] = false;
+        req.sink.enqueue(bytes, seq, typeof offset === "number" ? offset : null).then(
+          () => {
+            if (req.settled) return;
+            req.chunkBuffer[seq] = true;
+            req.resetTimer(); // 写盘也是进展；EOF之后继续受看门狗管理
+            this._advance(req, id);
+          },
+          (err) => req.reject(err)
+        );
+        // 真正缺片才请求重传；仅等待原生写入时不主动反复回相同ACK。
+        if (seq > req.nextAck && req.chunkBuffer[req.nextAck] === undefined) this._sendAck(req, id);
+      } else {
+        req.chunkBuffer[seq] = bytes;
+        this._advance(req, id);
+      }
+    } catch (e) {
+      req.reject(e);
+    }
+  }
+
+  _advance(req, id) {
+    try {
+      const previousAck = req.nextAck;
+      while (
+        req.sink
+          ? req.chunkBuffer[req.nextAck] === true
+          : req.chunkBuffer[req.nextAck] !== undefined
+      ) {
+        if (req.sink) delete req.chunkBuffer[req.nextAck];
+        req.nextAck++;
+      }
+      const done = req.stream
+        ? req.finalSeq >= 0 && req.nextAck > req.finalSeq
+        : req.nextAck >= req.chunkCount;
+      // 总长/连续性检查在最终ACK之前完成，避免发送端先释放不可重传的数据。
+      if (done && req.sink) req.sink.finish(req.header.totalBytes);
+      if (!req.sink || req.nextAck !== previousAck) this._sendAck(req, id);
+      if (!done || req.settled) return;
+      let body = null;
+      if (!req.sink) {
+        const count = req.stream ? req.finalSeq : req.chunkCount;
+        const parts = [];
+        let length = 0;
+        for (let i = 0; i < count; i++) {
+          const part = req.chunkBuffer[i];
+          parts.push(part);
+          length += part.length;
+        }
+        if (req.encoding === "text") {
+          body = parts.join("");
+        } else {
+          body = new Uint8Array(length);
+          let pos = 0;
+          parts.forEach((part) => {
+            body.set(part, pos);
+            pos += part.length;
+          });
+        }
+      }
+      req.resolve({ ...req.header, body });
+    } catch (e) {
+      req.reject(e);
     }
   }
 
   rejectAll(err) {
     this.requests.forEach((req) => {
-      if (req && !req.settled && req.reject) {
-        req.settled = true;
-        req.reject(err);
-      }
+      if (req && !req.settled) req.reject(err);
     });
     this.requests.clear();
   }
@@ -633,86 +745,84 @@ class InterconnFetchClient {
     return this.promise;
   }
 
-  async _sendFetch(id, url, options, onChunk) {
+  async _sendFetch(id, url, options, sink, control) {
     await this._ensureHandshake();
+    if (control && control.cancelled) throw new Error("fetch cancelled");
     return new Promise((resolve, reject) => {
-      let settled = false;
       // 请求级超时：丢 chunk 且 go-back-N 重传也失败、或插件卡死时，
       // reject 让页面报错而不是永远转圈；同时关闭会话让后续请求重新握手
       const onRequestTimeout = () => {
         const req = this.requests.get(id);
         if (req && !req.settled) {
-          req.settled = true;
-          this.requests.delete(id);
-          // v4 流：主动取消让插件立即删除状态并关闭 HTTP 源，
-          // 否则插件会继续读源灌帧直到 30s 空闲清理，白耗双方资源
-          if (req.stream && this.open) {
-            try {
-              this.conn.send({
-                data: { tag: FETCH_STREAM_CANCEL_TAG, id, reason: "request timeout" },
-              });
-            } catch (e) {}
-          }
-          this.open = false;
           req.reject(new Error("request timeout"));
+          this.open = false;
         }
       };
       const req = {
         resolve: null,
         reject: null,
         settled: false,
-        onChunk: onChunk || null,
+        sink: sink || null,
         timer: null,
-        // BLE 上数 MB 图片分片下载整体耗时可能远超 20s，但只要分片还在持续到达
-        // 就不应判超时；每收到首包/分片都重置计时器，仅"连续 20s 无任何进展"才超时
+        // 仅新有效帧/写盘成功刷新；重复片和CRC坏片不能无限延长失败请求。
         resetTimer: () => {
           clearTimeout(req.timer);
           req.timer = setTimeout(onRequestTimeout, REQUEST_TIMEOUT);
         },
       };
       req.resolve = (value) => {
-        if (!settled) {
-          settled = true;
+        if (!req.settled) {
+          req.settled = true;
           clearTimeout(req.timer);
+          this.requests.delete(id);
+          req.chunkBuffer = null;
+          req.sink = null;
+          if (control) control.abort = null;
           resolve(value);
         }
       };
       req.reject = (err) => {
-        if (!settled) {
-          settled = true;
+        if (!req.settled) {
+          err = err || new Error("interconnect request failed");
+          req.settled = true;
           clearTimeout(req.timer);
+          this.requests.delete(id);
+          if (req.sink) req.sink.cancel(err);
+          req.sink = null;
+          req.chunkBuffer = null;
+          if (control) control.abort = null;
+          if (req.stream && this.conn) {
+            try {
+              this.conn.send({
+                data: { tag: FETCH_STREAM_CANCEL_TAG, id, reason: String(err.message || err) },
+              });
+            } catch (e) {}
+          }
           reject(err);
         }
       };
+      if (control) control.abort = () => req.reject(new Error("fetch cancelled"));
       this.requests.set(id, req);
       req.resetTimer();
-      this.conn.send({
-        data: {
-          tag: FETCH_TAG,
-          id,
-          url,
-          options,
-        },
-        fail: (err) => {
-          const req = this.requests.get(id);
-          if (req && !req.settled) {
-            req.settled = true;
-            this.requests.delete(id);
-            req.reject(err);
-          }
-        },
-      });
+      try {
+        this.conn.send({
+          data: { tag: FETCH_TAG, id, url, options },
+          fail: (err) => req.reject(err),
+        });
+      } catch (e) {
+        req.reject(e);
+      }
     });
   }
 
-  async fetch(url, options, onChunk) {
+  async fetch(url, options, sink, control) {
     if (!this._init()) {
       throw new Error("interconnect not available");
     }
     // 短 id：会话内自增即唯一（插件按 addr+pkg+id 键控，同 id 的 begin 会顶掉陈旧传输）；
     // 完整 URL 不进帧——此前每个分片帧与 ACK 双向都背负一两百字符的 URL
     const id = "r" + ++_reqSeq;
-    const resp = await this._sendFetch(id, url, options, onChunk);
+    const resp = await this._sendFetch(id, url, options, sink, control);
     if (resp.ok === false && !resp.status) {
       throw new Error(resp.statusText || "interconnect fetch failed");
     }
@@ -769,22 +879,42 @@ function pumpQueue() {
   item.run().then(
     (value) => {
       queueRunning = false;
+      item.control.finished = true;
+      item.control.abort = null;
       item.resolve(value);
       pumpQueue();
     },
     (err) => {
       queueRunning = false;
+      item.control.finished = true;
+      item.control.abort = null;
       item.reject(err);
       pumpQueue();
     }
   );
 }
 
-function enqueueFetch(run, priority) {
-  return new Promise((resolve, reject) => {
-    taskQueue.push({ run, priority, resolve, reject });
+function enqueueFetch(run, priority, control) {
+  let item;
+  const task = new Promise((resolve, reject) => {
+    item = { run, priority, resolve, reject, control };
+    taskQueue.push(item);
     pumpQueue();
   });
+  // 可选取消句柄：未启动任务直接移出队列；在途网桥请求走统一失败/清理。
+  task.cancel = () => {
+    if (control.finished || control.cancelled) return;
+    control.cancelled = true;
+    const index = taskQueue.indexOf(item);
+    if (index !== -1) {
+      taskQueue.splice(index, 1);
+      control.finished = true;
+      item.resolve();
+    } else if (control.abort) {
+      control.abort();
+    }
+  };
+  return task;
 }
 
 let _tempId = 0;
@@ -808,6 +938,7 @@ export default {
     return Promise.resolve(!preferBridge() && !!systemFetch);
   },
   fetch(params) {
+    const control = { cancelled: false, finished: false, abort: null };
     const doFetch = async () => {
       if (!preferBridge() && systemFetch) {
         return systemFetch.fetch(params);
@@ -827,96 +958,31 @@ export default {
         // 跟随 3xx 重定向（漫画 CDN 签名跳转常见；插件侧上限 10 跳，旧插件忽略该字段）
         followRedirects: true,
       };
-      // 文件下载落盘：优先"水位线偏移直写"——v3 定长分片偏移 = seq × chunkSize 精确，
-      // 收片不问先后：offset<水位 原位补洞、==水位 append（顺序到达与旧逻辑逐字节等价）、
-      // >水位 间隙补零与数据合并一次 append（零区即未来的洞，等迟到片原位回填）；
-      // 乱序片零内存驻留，全程无 position >= 文件长度 的写（真机固件越界报 202 的坑）。
-      // 头部缺 chunkSize / 压缩流 / 文本分片等异常回退"有序 append"（乱序片暂存内存等洞补齐）。
+      // v3用seq×chunkSize，新v4用显式offset直写；旧v4缺偏移时按序append。
+      // 收片窗口内保留接收/写盘重叠；已到达相邻片最多合并64KiB，写成功才推进ACK。
       const finalUri = responseType === "file" ? getTempUri(url) : null;
-      let chunksWritten = 0;
-      let writePos = 0; // 直写水位线 = 当前文件长度
-      let directWrite = null; // null 首片定型 / true 偏移直写 / false 有序回退
+      const writer = finalUri ? createFileWriter(finalUri) : null;
       try {
-        let onChunk = null;
-        if (responseType === "file") {
-          let nextWriteSeq = 0;
-          const pendingChunks = {};
-          let writeChain = Promise.resolve();
-          onChunk = function (bytes, seq, offset) {
-            if (directWrite === null) {
-              directWrite = typeof offset === "number" && bytes instanceof Uint8Array;
-            }
-            if (directWrite) {
-              // 写链串行执行且判定在入链时完成：分片到达顺序即链执行顺序，水位线演化确定
-              let op;
-              if (offset < writePos) {
-                op = function () {
-                  return writeChunkFileAt(finalUri, bytes, offset).then(function () {
-                    chunksWritten++;
-                  });
-                };
-              } else if (offset === writePos) {
-                writePos += bytes.length;
-                op = function () {
-                  return writeChunkFile(finalUri, bytes, true).then(function () {
-                    chunksWritten++;
-                  });
-                };
-              } else {
-                const pad = new Uint8Array(offset - writePos + bytes.length);
-                pad.set(bytes, offset - writePos);
-                writePos = offset + bytes.length;
-                op = function () {
-                  return writeChunkFile(finalUri, pad, true).then(function () {
-                    chunksWritten++;
-                  });
-                };
-              }
-              writeChain = writeChain.then(op);
-              return writeChain;
-            }
-            pendingChunks[seq] = bytes;
-            while (pendingChunks[nextWriteSeq] !== undefined) {
-              const ordered = pendingChunks[nextWriteSeq];
-              delete pendingChunks[nextWriteSeq];
-              const append = nextWriteSeq > 0;
-              nextWriteSeq++;
-              writeChain = writeChain.then(function () {
-                return writeChunkFile(finalUri, ordered, append).then(function () {
-                  chunksWritten++;
-                });
-              });
-            }
-            // 返回写链尾部，fetch 完成前会等所有落盘结束
-            return writeChain;
-          };
-        }
-        const resp = await interconnClient.fetch(url, options, onChunk);
+        if (writer && nativeWrite) throw new Error("previous file write still pending");
+        const resp = await interconnClient.fetch(url, options, writer, control);
+        if (control.cancelled) throw new Error("fetch cancelled");
+        control.abort = writer ? () => writer.cancel(new Error("fetch cancelled")) : null;
         let data = resp.data;
         if (responseType === "json") {
           data = safeJsonParse(data, data);
         } else if (responseType === "file") {
-          // 直写完整性校验：最终水位应与头部 totalBytes 对齐（v3 无逐帧 CRC 的兜底）
-          if (
-            directWrite === true &&
-            typeof resp.totalBytes === "number" &&
-            writePos !== resp.totalBytes
-          ) {
-            throw new Error("size mismatch: " + writePos + "/" + resp.totalBytes);
+          if (writer.writtenChunks === 0) {
+            // v1单消息或空文件也带原生写超时/类型缓存；流式总长已在最终ACK前检查。
+            const bytes =
+              data instanceof Uint8Array
+                ? data
+                : data === null
+                  ? new Uint8Array(0)
+                  : base64ToBytes(data);
+            await writer.writeWhole(bytes);
           }
-          try {
-            if (chunksWritten > 0) {
-              // 分片已落盘完毕
-              data = finalUri;
-            } else if (data instanceof Uint8Array) {
-              data = await writeBinaryFile(finalUri, data);
-            } else if (data !== null) {
-              const bytes = base64ToBytes(data);
-              data = await writeBinaryFile(finalUri, bytes);
-            }
-          } catch (e) {
-            throw new Error("save file failed: " + (e.message || e));
-          }
+          data = finalUri;
+          writer.report();
         }
         if (success && typeof success === "function") {
           success({
@@ -932,11 +998,10 @@ export default {
           global.runGC();
         }
       } catch (err) {
-        // 下载中断时清掉可能存在的半成品文件，不留垃圾等下次启动清理
-        if (finalUri) {
-          try {
-            fileModule.delete({ uri: finalUri });
-          } catch (e) {}
+        if (writer) {
+          writer.cancel(err);
+          writer.report();
+          deletePartialFile(finalUri);
         }
         if (fail && typeof fail === "function") {
           fail(err.message || err, 0);
@@ -947,6 +1012,6 @@ export default {
       }
     };
     // 直连设备的 systemFetch 是回调式调用，doFetch 立即返回，排队开销可忽略
-    return enqueueFetch(doFetch, params.priority || 0);
+    return enqueueFetch(doFetch, params.priority || 0, control);
   },
 };
