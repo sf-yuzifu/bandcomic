@@ -905,6 +905,37 @@ function deleteLast(t) {
   }
   return "";
 }
+
+// 静态按键矩阵：全键盘/九宫格/符号/圆屏按键布局为不可变常量，
+// 移出 private 并在全层深冻结，彻底避免快应用递归创建响应式 Observer 浪费堆内存
+const KEYS = Object.freeze({
+  full: Object.freeze([
+    Object.freeze(["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"]),
+    Object.freeze(["A", "S", "D", "F", "G", "H", "J", "K", "L"]),
+    Object.freeze(["Z", "X", "C", "V", "B", "N", "M"]),
+  ]),
+  sign: Object.freeze([
+    Object.freeze(["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"]),
+    Object.freeze(["~", "!", "@", "#", "%", "“", "”", "*", "?", "/"]),
+    Object.freeze(["(", ")", "-", "_", ":", ";", "，", "。", "."]),
+  ]),
+  sign62: Object.freeze([
+    Object.freeze(["2", "3", "4", "5", "6", "7", "8", "9"]),
+    Object.freeze(["!", "@", "#", "%", "“", "”", "*"]),
+    Object.freeze([")", "-", "_", ":", ";"]),
+  ]),
+  full62: Object.freeze([
+    Object.freeze(["W", "E", "R", "T", "Y", "U", "I", "O"]),
+    Object.freeze(["S", "D", "F", "G", "H", "J", "K"]),
+    Object.freeze(["X", "C", "V", "B", "N"]),
+  ]),
+  t9: Object.freeze([
+    Object.freeze(["abc", "def"]),
+    Object.freeze(["ghi", "jkl", "mno"]),
+    Object.freeze(["pqrs", "tuv", "wxyz"]),
+  ]),
+});
+
 export default {
   private: {
     // 页面化改造（原自定义组件 InputMethod）：props 改 private/启动参数，
@@ -931,35 +962,9 @@ export default {
     // 针对screenShape为rect的设备，会自动获取screenWidth并绑定到根div
     // 这样便能同时适配n67和o65甚至是后续设备，但实际效果可能受designWidth影响
     screenWidth: 336,
-    keys: {
-      full: [
-        ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
-        ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
-        ["Z", "X", "C", "V", "B", "N", "M"],
-      ],
-      sign: [
-        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-        ["~", "!", "@", "#", "%", "“", "”", "*", "?", "/"],
-        ["(", ")", "-", "_", ":", ";", "，", "。", "."],
-      ],
-      sign62: [
-        ["2", "3", "4", "5", "6", "7", "8", "9"],
-        ["!", "@", "#", "%", "“", "”", "*"],
-        [")", "-", "_", ":", ";"],
-      ],
-      full62: [
-        ["W", "E", "R", "T", "Y", "U", "I", "O"],
-        ["S", "D", "F", "G", "H", "J", "K"],
-        ["X", "C", "V", "B", "N"],
-      ],
-      t9: [
-        ["abc", "def"],
-        ["ghi", "jkl", "mno"],
-        ["pqrs", "tuv", "wxyz"],
-      ],
-    },
   },
   onInit() {
+    this.keys = KEYS;
     // 调用方通过 global 传入初始文本与输入行标题（保持与调用页一致的 UI）
     this.context = global.__imeText || "";
     this.label = global.__imeLabel || "";
@@ -1194,6 +1199,10 @@ export default {
     this.addAllTxt(temp);
   },
   adjustScreenWidth() {
+    if (global.screenSize && global.screenSize.width) {
+      this.screenWidth = global.screenSize.width;
+      return;
+    }
     device.getInfo({
       success: (data) => {
         this.screenWidth = data.screenWidth;
