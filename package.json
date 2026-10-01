@@ -8,7 +8,7 @@
   "scripts": {
     "start": "aiot start --watch",
     "build": "aiot build",
-    "release": "aiot release --enable-jsc",
+    "release": "node tools/build-release.mjs --enable-jsc",
     "lint": "eslint --format codeframe --fix --ext .ux,.js,.mjs src/ quickapp.config.js tools/",
     "format": "prettier --write \"src/**/*.js\" \"*.js\" && node tools/format-ux.mjs",
     "format:ux": "node tools/format-ux.mjs",
