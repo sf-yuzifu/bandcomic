@@ -269,11 +269,15 @@ export default {
     allHistory = [];
     openedComicsIndex = -1;
     openedHistoryIndex = -1;
-    device.getInfo({
-      success: (data) => {
-        this.enableSwipe = data.product !== 'Xiaomi Smart Band 9 Pro';
-      }
-    });
+    if (global.deviceProduct) {
+      this.enableSwipe = global.deviceProduct !== "Xiaomi Smart Band 9 Pro";
+    } else {
+      device.getInfo({
+        success: (data) => {
+          this.enableSwipe = data.product !== "Xiaomi Smart Band 9 Pro";
+        },
+      });
+    }
     this.loadingComic();
     this.loadHistory();
   },
