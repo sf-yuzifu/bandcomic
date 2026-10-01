@@ -239,6 +239,7 @@ import router from "@system.router";
 import file from "@system.file";
 import brightness from "@system.brightness";
 import prompt from "@system.prompt";
+import vibrator from "@system.vibrator";
 
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addImageParams, appendLvglSuffix } = global.$img;
@@ -980,6 +981,9 @@ export default {
   // 工具栏切换只走图片加载成功后的默认点击（showButton），用户定案交互（P1-19）
   onStateClick() {
     if (this.loading) return;
+    try {
+      vibrator.vibrate({ mode: "short" });
+    } catch (_) {}
     if (this.local || listReady) {
       this.getImageForPage(global.APP_SETTING.keepDefaultZoom);
     } else {
