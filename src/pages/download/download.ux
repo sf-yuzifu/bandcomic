@@ -740,7 +740,10 @@ export default {
     this.checkDownloadActive(state);
     const comicId = state.comicId;
     const chapterNum = this.is_serial ? this.chapter : 0;
-    const chapterName = this.is_serial ? this.chapterName || this.name : "";
+    // 章节元数据名与创建物理目录使用同一规范化结果（P1-31），杜绝中断后元数据与磁盘目录不一致
+    const chapterName = this.is_serial
+      ? sanitizeFolderName(this.chapterName || this.name)
+      : "";
     const pageCount = this.page_count;
     return updateComicMeta(comicId, (comic) => {
       this.checkDownloadActive(state);

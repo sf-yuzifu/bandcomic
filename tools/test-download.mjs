@@ -110,7 +110,7 @@ function harness({ cancellable = false, bin = false } = {}) {
   const quiet = { debug: noop, error: noop };
   const storageContext = vm.createContext({ file, console: quiet, Promise });
   vm.runInContext(storageSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
-    "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics };", storageContext);
+    "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics, sanitizeFolderName };", storageContext);
   const appGlobal = {
     API_SETTING: { using: "source", source: { apiUrl: "https://source.test" } },
     APP_SETTING: { imageSize: "480", imageQuality: "50", imagePreTranscode: bin, imageUsePng: bin },
@@ -681,3 +681,113 @@ test("existing valid image with read failure is preserved rather than overwritte
   assert.equal(h.calls.some((call) => call.type === "move"), false);
   assert.equal(h.requests.length, 1);
 });
+
+test("download: special characters in chapter title sanitize metadata name consistently with directory URI (P1-31)", async () => {
+  const h = harness();
+  const root = "internal://files/source_A";
+  const specialTitle = "Chapter 1: Part A/B?*";
+  const expectedSanitized = "Chapter 1_ Part A_B__";
+
+  const page = await h.mount({
+    total_chapters: 2,
+    cover: "https://images.test/cover",
+  });
+  page.selectedChapters = [1];
+  const batch = page.startBatchDownload();
+  await tick();
+
+  // 返回包含特殊字符的章节名
+  h.list(h.requests[0], "C1", 2, specialTitle);
+  await tick();
+
+  // 接收封面与正文并推进到完成
+  h.image(h.requests[1], "COVER");
+  await tick();
+  h.image(h.requests[2], "PAGE_1");
+  await tick();
+  h.image(h.requests[3], "PAGE_2");
+  await tick();
+  await h.advance(1500);
+  await batch;
+
+  // 验证元数据中的章节名已被规范化，且与目录一致
+  const completedBooks = h.books();
+  assert.equal(completedBooks.length, 1);
+  const chapterEntry = completedBooks[0].chapters[0];
+  assert.equal(chapterEntry.num, 1);
+  assert.equal(chapterEntry.name, expectedSanitized, "元数据登记的章节名必须与规范化目录一致");
+
+  // 验证建成的目录名
+  const expectedDir = `${root}/1　${expectedSanitized}`;
+  assert.ok(h.dirs.has(expectedDir), "创建的磁盘物理目录必须为规范化后的名称");
+  assert.deepEqual(h.files.get(`${expectedDir}/1`), imageBytes("PAGE_1"));
+});
+
+test("photo: local serial reading resolves images for special-character chapter even with un-sanitized old metadata (P1-31)", async () => {
+  const photoSource = read("../src/pages/photo/photo.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+  const routeSource = read("../src/components/routerParams.js");
+  const files = new Map();
+  const comicId = "local_comic_special";
+  const expectedSanitized = "Chapter 1_ Part A_B__";
+  const onDiskDir = `internal://files/${comicId}/1　${expectedSanitized}`;
+  files.set(`${onDiskDir}/1`, imageBytes("IMAGE_P1"));
+
+  const fileMock = {
+    access(options) {
+      if (files.has(options.uri)) options.success();
+      else options.fail("not found", 301);
+    },
+  };
+
+  const appGlobal = {
+    $img: { addImageParams: (u) => u, appendLvglSuffix: (u) => u },
+    $route: {},
+    $storage: {
+      readHistory: () => Promise.resolve([]),
+      updateJsonFile: () => Promise.resolve(),
+      HISTORY_URI: "internal://files/history.json",
+      sanitizeFolderName: (name) => name ? name.replace(/[\\/:*?"<>|]/g, "_") : name,
+    },
+    $api: {
+      apiFetch: () => {},
+      buildPhotoUrl: () => "",
+    },
+    screenSize: { width: 480, height: 480 },
+    getTime: () => "12:00",
+    APP_SETTING: { imageSize: "480", imageQuality: "50" },
+  };
+
+  const routeContext = vm.createContext({ global: appGlobal });
+  vm.runInContext(routeSource.replace(/^export /gm, "") + "\nglobal.$route.parseParam = parseParam;", routeContext);
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: { debug: () => {}, error: () => {} },
+    file: fileMock,
+    Promise,
+    URL,
+  });
+
+  vm.runInContext(photoSource.replace(/^import .*;\r?\n/gm, "").replace("export default ", "globalThis.photoDef = "), context);
+
+  const photoInstance = Object.assign({}, context.photoDef, clone(context.photoDef.private), {
+    id: comicId,
+    local: true,
+    is_serial: true,
+    chapter: 1,
+    page: 1,
+    page_count: 2,
+    total_chapters: 1,
+    // 模拟旧版本留下的未规范化元数据名称（包含冒号、斜杠、星号等）
+    downloadChapter: [["Chapter 1: Part A/B?*", 2, 1]],
+    isImageRequestCurrent: () => true,
+    enterErrorState: () => { photoInstance.images = "ERROR"; },
+  });
+
+  // 触发获取当前页图片
+  photoInstance.getImageForPage();
+
+  // 验证：成功命中磁盘上已规范化的实际物理路径！
+  assert.equal(photoInstance.images, `${onDiskDir}/1`, "通过规范化路径自动成功解析图片");
+});
+

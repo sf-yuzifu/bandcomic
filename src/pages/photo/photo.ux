@@ -244,7 +244,7 @@ import vibrator from "@system.vibrator";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addImageParams, appendLvglSuffix } = global.$img;
 const { parseParam } = global.$route;
-const { readHistory, updateJsonFile, HISTORY_URI } = global.$storage;
+const { readHistory, updateJsonFile, HISTORY_URI, sanitizeFolderName } = global.$storage;
 const { apiFetch, buildPhotoUrl } = global.$api;
 
 const { screenSize, getTime } = global;
@@ -687,8 +687,13 @@ export default {
       if (this.is_serial) {
         const chapterNum = localChapterEntry[2];
         const chapterName = localChapterEntry[0];
-        const baseUri = `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`;
-        this.resolveLocalImage(baseUri, request);
+        const sanitized = sanitizeFolderName ? sanitizeFolderName(chapterName) : chapterName;
+        const baseUri = `internal://files/${this.id}/${chapterNum}　${sanitized}/${this.page}`;
+        const fallbackBaseUri =
+          sanitized !== chapterName
+            ? `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`
+            : null;
+        this.resolveLocalImage(baseUri, request, fallbackBaseUri);
       } else {
         const baseUri = `internal://files/${this.id}/${this.page}`;
         this.resolveLocalImage(baseUri, request);
@@ -817,7 +822,7 @@ export default {
     preloadPage(this.page - 1);
   },
 
-  resolveLocalImage(baseUri, request) {
+  resolveLocalImage(baseUri, request, fallbackBaseUri) {
     const binUri = baseUri + ".bin";
     file.access({
       uri: binUri,
@@ -835,6 +840,10 @@ export default {
           },
           fail: () => {
             if (!this.isImageRequestCurrent(request)) return;
+            if (fallbackBaseUri) {
+              this.resolveLocalImage(fallbackBaseUri, request, null);
+              return;
+            }
             this.enterErrorState();
           },
         });

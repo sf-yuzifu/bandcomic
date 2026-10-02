@@ -16,6 +16,13 @@ export function isAlreadyExistsError(code) {
   return code === FILE_ERROR.ALREADY_EXISTS || code === FILE_ERROR.ALREADY_EXISTS_NEW_SDK;
 }
 
+// 统一目录名/章节名特殊字符规范化（P1-31）：防止含 : / ? 等字符导致元数据与磁盘不一致
+export function sanitizeFolderName(name) {
+  if (!name) return name;
+  const invalidChars = /[\\/:*?"<>|]/g;
+  return name.replace(invalidChars, "_");
+}
+
 export const COMICS_URI = "internal://files/comics.json";
 export const SETTINGS_URI = "internal://files/settings.json";
 export const HISTORY_URI = "internal://files/history.json";
