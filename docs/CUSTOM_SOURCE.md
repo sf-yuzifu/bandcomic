@@ -279,11 +279,11 @@ ifPNG=1
 ifLVGL=1
 ```
 
-并且 URL 末尾会追加 fragment，用于本地临时文件识别：
+URL 末尾还会追加 fragment，用于客户端临时文件命名。普通 JPEG/PNG 不要求扩展名，只有 LVGL 临时文件强制 `.bin`：
 
 ```text
-#<chapter>.bin
-#<page>.bin
+#/<独立临时文件名>
+#/<独立临时文件名>.bin
 ```
 
 示例：
@@ -292,7 +292,7 @@ ifLVGL=1
 https://your-api.example.com/image/proxy?url=xxx&width=600&quality=50&ifPNG=1&ifLVGL=1#1.bin
 ```
 
-后端通常不会收到 `#1.bin`，因为 fragment 不会发送到服务器。它只用于客户端本地识别临时文件扩展名。
+后端不会收到 fragment。它不属于漫画源路由，也不改变服务器实际返回的图片格式；最终离线文件名见第 16 节。
 
 ### 8.2 封面图片参数
 
@@ -624,4 +624,13 @@ AstroBox 同步器插件（API Level 4 起）内置了本地 HTTP 漫画源能�
 - 章节图片路径：`/local/photo/<id>/chapter/<chapter>`
 - 搜索路径：`/local/search/<text>/<page>`
 - 支持设备（如小米手环 9 Pro）直接通过原生 fetch 进行章节图片的高速下载与离线落盘，规避蓝牙 Base64 分片传输开销。对于不支持原生 fetch 的设备（如手环 10 Pro），自动回退至传统分片互联通道。
+
+### 下载与命名约定
+
+1. 插件通过 `import_http_task + taskId` 通知一次任务，任务确定漫画 ID、所选章节和图片设置。
+2. 快应用读取绑定服务的 `/config`，按源的 `detailPath` 读取标准详情；书名和封面分别使用详情中的 `name`、`cover`，无封面时 `cover` 为 `""`。任务中的旧 `coverUrl` 不再作为新版下载入口。
+3. 快应用携带本次源配置快照打开原有 `download.ux`，按 `photoPath` 获取 `title + images[].url`；本地临时源不写入 `sources.json`，也不切换当前在线源。
+4. 在线下载和本地 HTTP 下载共用图片参数 helper、串行下载、文件头校验及 `file.move`。网关只适配原生 fetch 与任务回报，不另设 `file.copy` 或图片重命名链路。
+5. 最终目录内的封面固定为 **`cover`**；JPEG/PNG 正文固定为 **`1`、`2`、…**（无扩展名），LVGL 正文为 **`1.bin`、`2.bin`、…**。多章目录仍为 `<真实章号>　<规范化章名>`（全角空格）。临时文件的独立名称不影响最终命名。
+6. 封面参数为 `width=80`、任务质量和可选 `ifPNG=1`，不带 `ifLVGL`；正文按任务固定设置追加参数，遵循第 8、9 节。
 

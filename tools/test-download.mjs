@@ -11,6 +11,7 @@ const storageSource = read("../src/components/storage.js");
 const imageSource = read("../src/components/imageUrl.js");
 const imageFileSource = read("../src/components/imageFile.js");
 const httpSource = read("../src/components/httpResponse.js");
+const apiSource = read("../src/components/api.js");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const noop = () => {};
@@ -107,12 +108,12 @@ function harness({ cancellable = false, bin = false } = {}) {
       if (options.success) options.success();
     },
   };
-  const quiet = { debug: noop, error: noop };
+  const quiet = { debug: noop, info: noop, error: noop };
   const storageContext = vm.createContext({ file, console: quiet, Promise });
   vm.runInContext(storageSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
     "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics, sanitizeFolderName };", storageContext);
   const appGlobal = {
-    API_SETTING: { using: "source", source: { apiUrl: "https://source.test" } },
+    API_SETTING: { using: "source", source: { apiUrl: "https://source.test", photoPath: "/photo/<id>/<chapter>" } },
     APP_SETTING: { imageSize: "480", imageQuality: "50", imagePreTranscode: bin, imageUsePng: bin },
     getTime: () => "12:00",
     $storage: storageContext.storage,
@@ -132,8 +133,10 @@ function harness({ cancellable = false, bin = false } = {}) {
   const imageContext = vm.createContext({ global: appGlobal, URL, file, Promise, ArrayBuffer, Uint8Array });
   vm.runInContext(httpSource.replace(/^export /gm, "") +
     "\nglobal.$api.getHttpStatus = getHttpStatus; global.$api.isHttpSuccess = isHttpSuccess;", imageContext);
+  vm.runInContext(apiSource.replace(/^import .*;\r?\n/gm, "").replace(/^export \{[^\n]*\n/gm, "")
+    .replace(/^export /gm, "") + "\nglobal.$api.buildPhotoUrl = buildPhotoUrl;", imageContext);
   vm.runInContext(imageSource.replace(/^export /gm, "") +
-    "\nglobal.$img = { addImageParams, addCoverParams, appendCoverSuffix, appendLvglSuffix };", imageContext);
+    "\nglobal.$img = { addUrlParam, addImageParams, addCoverParams, appendCoverSuffix, appendLvglSuffix };", imageContext);
   vm.runInContext(imageFileSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
     "\nglobal.$imageFile = { isValidImageFile, deleteImageTemp };", imageContext);
   const context = vm.createContext({
@@ -209,6 +212,141 @@ async function loadList(h, page, id = "A", count = 2) {
   const task = page.fetchImageList();
   h.list(h.requests.at(-1), id, count);
   await task;
+}
+
+test("HTTP task uses download page and preserves sparse chapter metadata before reporting completion", async () => {
+  const h = harness();
+  const ctx = { localId: "local_task_test", endpoint: "http://host:1234", totalPages: 1,
+    source: { apiUrl: "http://host:1234", photoPath: "/chapters/<id>/<chapter>" },
+    detail: { name: "Imported", page_count: 1, total_chapters: 5, cover: "" },
+    task: { comicId: "book_test", name: "Imported", chapters: [{ chapterNum: 5, pageCount: 1 }], imageProfile: {} } };
+  const results = [];
+  h.global.$gateway = {
+    getDownloadContext: () => ctx,
+    requestDownload: (_ctx, options) => h.global.$api.apiFetch(options),
+    pageSaved() {},
+    async commitDownload() {
+      const book = h.books().find((b) => b.id === ctx.localId);
+      assert.equal(book.chapters[0].num, 5);
+      assert.equal(book.chapters[0].page_count, 1);
+      assert.equal(book.chapters[0].downloaded, 1);
+    },
+    finishDownload: (_ctx, success) => results.push(success),
+  };
+  const page = await h.mount({ gatewayTaskId: "test" });
+  assert.equal(page.showChapterSelect, false);
+  assert.equal(h.requests[0].url, "http://host:1234/chapters/book_test/5");
+  h.list(h.requests[0], "chapter", 1, "第五/章");
+  await tick();
+  h.image(h.requests[1], "page");
+  await tick();
+  await h.advance(500);
+  assert.deepEqual(results, [true]);
+  assert.ok(h.files.has("internal://files/local_task_test/5　第五_章/1"));
+});
+
+for (const [format, usePng, useBin] of [["JPEG", false, false], ["PNG", true, false], ["LVGL", true, true]]) {
+test(`HTTP download page uses standard source and shared move path for cover and four ${format} pages`, async () => {
+  // Device settings differ from the frozen task profile; the task must win.
+  const h = harness();
+  const endpoint = "http://host:1234";
+  const ctx = { taskId: "task_cover", localId: "local_task_cover", endpoint, totalPages: 4,
+    source: { apiUrl: endpoint, photoPath: "/custom/<id>/list/<chapter>" },
+    detail: { name: "Cover test", page_count: 4, total_chapters: 1, cover: endpoint + "/selected/cover" },
+    task: { comicId: "book_cover", name: "Wrong task name", coverUrl: endpoint + "/last-page",
+      chapters: [{ chapterNum: 1, pageCount: 4 }], imageProfile: { width: 360, quality: 60, ifPng: usePng, ifLvgl: useBin } } };
+  const adapter = vm.createContext({
+    global: h.global,
+    gatewayFetch: (params) => h.global.$api.apiFetch(params),
+    console: { info: noop },
+  });
+  vm.runInContext(read("../src/components/gatewaySession.js")
+    .replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, ""), adapter);
+  const results = [];
+  h.global.$gateway = {
+    getDownloadContext: () => ctx,
+    requestDownload: adapter.requestDownload,
+    pageSaved() {},
+    async commitDownload() {},
+    finishDownload: (_ctx, success) => results.push(success),
+  };
+  const page = await h.mount({ gatewayTaskId: ctx.taskId });
+  assert.equal(page.name, "Cover test");
+  assert.equal(h.requests[0].url, endpoint + "/custom/book_cover/list/1");
+  assert.equal(h.global.API_SETTING.using, "source");
+  h.global.APP_SETTING.imageUsePng = !usePng;
+  h.global.APP_SETTING.imagePreTranscode = !useBin;
+  h.requests[0].success({ statusCode: 200, data: { title: "Chapter", images:
+    Array.from({ length: 4 }, (_, i) => ({ url: endpoint + `/local/photo/book_cover/chapter/1/${i + 1}.jpg` }))
+  } });
+  await tick();
+  const coverRequest = h.requests[1];
+  const coverUrl = new URL(coverRequest.url);
+  assert.equal(coverUrl.pathname, "/selected/cover");
+  assert.equal(coverUrl.searchParams.get("ifLVGL"), null);
+  assert.equal(coverUrl.searchParams.get("width"), "80");
+  assert.equal(coverUrl.searchParams.get("quality"), "60");
+  assert.equal(coverUrl.searchParams.get("ifPNG"), usePng ? "1" : null);
+  assert.ok(!/\.(png|jpg|bin)$/.test(coverUrl.hash));
+  const coverBytes = imageBytes("SELECTED_COVER");
+  const coverTemp = "internal://files/" + coverUrl.hash.slice(2);
+  h.image(coverRequest, coverBytes, coverTemp);
+  await tick();
+  const nativeNames = [coverTemp];
+  for (let i = 1; i <= 4; i++) {
+    const request = h.requests[i + 1];
+    const url = new URL(request.url);
+    assert.equal(url.searchParams.get("ifLVGL"), useBin ? "1" : null);
+    assert.equal(url.searchParams.get("ifPNG"), usePng ? "1" : null);
+    assert.equal(url.searchParams.get("width"), "360");
+    assert.equal(url.hash.endsWith(".bin"), useBin);
+    assert.ok(!/\.(png|jpg)$/.test(url.hash));
+    const temp = "internal://files/" + url.hash.slice(2);
+    nativeNames.push(temp);
+    h.image(request, imageBytes("PAGE_" + i, useBin), temp);
+    await tick();
+  }
+  assert.equal(new Set(nativeNames).size, 5);
+  assert.deepEqual(h.files.get("internal://files/local_task_cover/cover"), coverBytes);
+  for (let i = 1; i <= 4; i++) {
+    const uri = `internal://files/local_task_cover/${i}${useBin ? ".bin" : ""}`;
+    assert.deepEqual(h.files.get(uri), imageBytes("PAGE_" + i, useBin));
+  }
+  assert.equal(h.calls.filter((c) => c.type === "copy").length, 0);
+  assert.equal(h.calls.filter((c) => c.type === "move" && nativeNames.includes(c.srcUri)).length, 5);
+  assert.equal(h.books()[0].chapters[0].downloaded, 4, "cover is excluded from page counts");
+  assert.equal([...h.files.keys()].some((uri) => uri.startsWith("internal://files/_icf_")), false);
+  assert.deepEqual(results, [true]);
+  page.onDestroy();
+});
+}
+
+for (const moveFailure of [false, true]) {
+test(`HTTP shared move ${moveFailure ? "failure" : "late completion after exit"} cleans only its own temp`, async () => {
+  const h = harness();
+  const page = await h.mount();
+  const state = page._downloadState;
+  state.gateway = {};
+  h.global.$gateway = { finishDownload() {} };
+  const nativeUri = "internal://files/_icf_cover_test";
+  h.files.set(nativeUri, imageBytes("COVER"));
+  h.hold("move");
+  const saving = outcome(page.saveDownloadedFile({ data: nativeUri, statusCode: 200 },
+    "internal://files/source_A/cover", state, false));
+  await tick();
+  if (moveFailure) {
+    await h.finish("move", 300);
+    assert.ok(await saving);
+    assert.equal(h.files.has("internal://files/source_A/cover"), false);
+  } else {
+    page.onDestroy();
+    isAborted(await saving);
+    await h.finish("move");
+    assert.deepEqual(h.files.get("internal://files/source_A/cover"), imageBytes("COVER"));
+  }
+  assert.equal(h.files.has(nativeUri), false);
+  assert.equal(h.requests.length, 0);
+});
 }
 
 for (const cancellable of [false, true]) {

@@ -30,17 +30,17 @@ export function addUrlParam(url, key, value) {
   }
 }
 
-export function addImageParams(url, width = 480, quality = 50, params = ["width", "quality"]) {
+export function addImageParams(url, width = 480, quality = 50, params = ["width", "quality"], settings = global.APP_SETTING) {
   let result = addUrlParam(url, params[0], width);
   result = addUrlParam(result, params[1], quality);
-  if (global.APP_SETTING.imageUsePng) {
+  if (settings.imageUsePng) {
     result = addUrlParam(result, "ifPNG", 1);
   }
   return result;
 }
 
-export function addCoverParams(url) {
-  return addImageParams(url, 80, parseInt(global.APP_SETTING.imageQuality, 10) || 50);
+export function addCoverParams(url, settings = global.APP_SETTING) {
+  return addImageParams(url, 80, parseInt(settings.imageQuality, 10) || 50, undefined, settings);
 }
 
 export function appendLvglSuffix(url, suffix, preTranscode = global.APP_SETTING.imagePreTranscode) {
@@ -50,13 +50,10 @@ export function appendLvglSuffix(url, suffix, preTranscode = global.APP_SETTING.
   }
   // 通过 "#/文件名" 让固件按斜杠分段取临时文件名时拿到干净的名字，
   // 避免 query 里的 ? & = 等字符进入临时文件名导致系统异常
-  const ext = preTranscode
-    ? ".bin"
-    : global.APP_SETTING.imageUsePng
-      ? ".png"
-      : ".jpg";
+  // 普通 JPEG/PNG 按内容识别，只有 LVGL 要求 .bin 后缀。
+  const ext = preTranscode ? ".bin" : "";
   const safeName = String(suffix).replace(/[^\w.-]+/g, "_");
-  return result + "#/" + safeName + ext;
+  return result.split("#")[0] + "#/" + safeName + ext;
 }
 
 export function appendCoverSuffix(url, suffix) {

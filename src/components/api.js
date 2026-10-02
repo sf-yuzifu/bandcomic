@@ -178,8 +178,8 @@ export function buildHeaders(extra, sourceKey) {
   };
 }
 
-export function buildSourceUrl(path, replacements) {
-  let url = getCurrentSource().apiUrl + path;
+export function buildSourceUrl(path, replacements, source = getCurrentSource()) {
+  let url = source.apiUrl + path;
   const map = replacements || {};
   Object.keys(map).forEach((key) => {
     // String.replace 字符串模式只替换首个匹配，split/join 全量替换（同一 key 出现多次时）
@@ -188,15 +188,15 @@ export function buildSourceUrl(path, replacements) {
   return url;
 }
 
-export function buildDetailUrl(id) {
-  return buildSourceUrl(getCurrentSource().detailPath, { id: id });
+export function buildDetailUrl(id, source = getCurrentSource()) {
+  return buildSourceUrl(source.detailPath, { id: id }, source);
 }
 
-export function buildPhotoUrl(id, chapter) {
-  return buildSourceUrl(getCurrentSource().photoPath, {
+export function buildPhotoUrl(id, chapter, source = getCurrentSource()) {
+  return buildSourceUrl(source.photoPath, {
     id: id,
     chapter: chapter,
-  });
+  }, source);
 }
 
 export function buildSearchUrl(text, page) {

@@ -171,6 +171,11 @@ const MAX_FAILED_TOLERANCE = 3;
 const CHAPTER_WINDOW = 18;
 const DOWNLOAD_ABORTED = new Error("download aborted");
 const PAGE_FILE_RE = /^\d+(\.bin)?$/;
+let imageRequestSeq = 0;
+
+function downloadTempName(kind) {
+  return `_icf_${kind}_${(++imageRequestSeq).toString(36)}_${Date.now().toString(36)}`;
+}
 
 function sanitizeFolderName(name) {
   if (!name) return name;
@@ -203,6 +208,7 @@ export default {
     displayStart: 0,
     displayEnd: 18,
     queuePosition: "",
+    gatewayTaskId: "",
   },
 
   onShow() {
@@ -222,6 +228,7 @@ export default {
     this.destroyed = true;
     const state = this._downloadState;
     if (!state) return;
+    if (state.gateway) global.$gateway.finishDownload(state.gateway, false, "用户退出下载");
     // 同时结束页面的等待 Promise：底层取消排队任务时可能不再调用 success/fail。
     const pending = state.pending.splice(0);
     pending.forEach((cancel) => cancel());
@@ -247,10 +254,44 @@ export default {
       scrollBottomTriggered: false,
       pending: [],
       storageDirty: false,
+      source: { ...getCurrentSource() },
+      sourceKey: global.API_SETTING.using,
+      imageSettings: { ...global.APP_SETTING },
     });
+    if (this.gatewayTaskId) {
+      const context = global.$gateway.getDownloadContext(this.gatewayTaskId);
+      if (!context) { this.downloadError = "本地导入任务已失效"; return; }
+      state.gateway = context;
+      state.comicId = context.localId;
+      state.source = { ...context.source };
+      state.sourceKey = context.task.sourceKey || "LocalUpload";
+      const profile = context.task.imageProfile || {};
+      state.imageSettings = {
+        imageSize: profile.width || 480,
+        imageQuality: profile.quality || 50,
+        imageUsePng: !!(profile.ifPNG || profile.ifPng),
+        imagePreTranscode: !!(profile.ifLVGL || profile.ifLvgl),
+      };
+      this.id = context.task.comicId;
+      this.name = state.originalName = context.detail.name;
+      this.cover = context.detail.cover || "";
+      this.total_chapters = Number(context.detail.total_chapters);
+      this.chapter = context.task.chapters[0].chapterNum;
+      this.page_count = Number(context.detail.page_count);
+    }
     this.showChapterSelect = this.total_chapters > 1;
     await this.initData();
     if (!this.isDownloadActive(state)) return;
+    if (state.gateway && this.is_serial) {
+      this.selectedChapters = state.gateway.task.chapters.map((c) => c.chapterNum);
+      this.startBatchDownload().catch((e) => {
+        if (this.isDownloadActive(state)) {
+          this.downloadError = String(e);
+          global.$gateway.finishDownload(state.gateway, false, String(e));
+        }
+      });
+      return;
+    }
     if (!(this.is_serial && this.total_chapters > 1)) {
       // 错误已在 startDownloadProcess 内反映到 downloadError UI
       this.startDownloadProcess(state).catch(() => {});
@@ -312,8 +353,10 @@ export default {
 
   requestDownload(options, state) {
     return this.downloadOperation((resolve, reject) => {
-      const task = apiFetch({
+      const fetcher = state.gateway ? (params) => global.$gateway.requestDownload(state.gateway, params) : apiFetch;
+      const task = fetcher({
         ...options,
+        sourceKey: state.sourceKey,
         success: (response) => {
           if (!this.isDownloadActive(state) && options.responseType === "file") {
             deleteImageTemp(response && response.data);
@@ -508,6 +551,9 @@ export default {
       state.imageCache = [];
       if (typeof global !== "undefined" && global.runGC) global.runGC();
       if (state.failedChapters.length === 0) {
+        if (state.gateway) await global.$gateway.commitDownload(state.gateway);
+        this.checkDownloadActive(state);
+        if (state.gateway) global.$gateway.finishDownload(state.gateway, true);
         this.processing = true;
         prompt.showToast({
           message: this.$t("download.allComplete"),
@@ -519,6 +565,7 @@ export default {
           uri: "/pages/offline",
         });
       } else {
+        if (state.gateway) global.$gateway.finishDownload(state.gateway, false, "部分章节下载失败");
         this.showSummaryView(state);
       }
       return;
@@ -582,6 +629,7 @@ export default {
       console.debug(`下载过程出错: ${error}`);
       this.downloadError = error;
       this.processing = false;
+      if (state.gateway && !this.is_serial) global.$gateway.finishDownload(state.gateway, false, String(error));
       throw error;
     }
   },
@@ -672,6 +720,11 @@ export default {
         state.imageCache = [];
         if (typeof global !== "undefined" && global.runGC) global.runGC();
         this.processing = true;
+        if (state.gateway) {
+          await global.$gateway.commitDownload(state.gateway);
+          this.checkDownloadActive(state);
+          global.$gateway.finishDownload(state.gateway, true);
+        }
         prompt.showToast({
           message: this.$t("download.complete"),
           duration: 2000,
@@ -779,6 +832,7 @@ export default {
     }).catch((e) => {
       this.checkDownloadActive(state);
       console.debug(`章节元数据登记失败: ${e && e.code}`);
+      if (state.gateway) throw e;
     });
   },
 
@@ -867,6 +921,7 @@ export default {
                 return;
               }
               console.debug(`存储元数据回写失败: ${e && e.code}`);
+              if (state.gateway) { reject(e); return; }
               resolve();
             }
           );
@@ -877,6 +932,7 @@ export default {
             return;
           }
           console.debug(`扫描漫画目录失败, code = ${code}`);
+          if (state.gateway) { reject(new Error("索引扫描失败: " + code)); return; }
           resolve();
         },
       });
@@ -945,11 +1001,11 @@ export default {
 
   async fetchImageList(retryCount = 0, state = this._downloadState) {
     this.checkDownloadActive(state);
-    const apiUrl = getCurrentSource().apiUrl;
+    const apiUrl = state.source.apiUrl;
     let response;
     try {
       response = await this.requestDownload(
-        { url: buildPhotoUrl(this.id, this.chapter), responseType: "json" },
+        { url: buildPhotoUrl(this.id, this.chapter, state.source), responseType: "json" },
         state
       );
     } catch (e) {
@@ -999,6 +1055,10 @@ export default {
       );
     }
     state.imageCache = urls;
+    if (state.gateway) {
+      const expected = state.gateway.task.chapters.find((c) => c.chapterNum === this.chapter);
+      if (!expected || urls.length !== expected.pageCount) throw new Error("章节页数与任务不匹配");
+    }
     this.page_count = urls.length;
   },
 
@@ -1046,13 +1106,17 @@ export default {
 
   async saveDownloadedFile(response, fileUri, state, allowLvgl) {
     const tempUri = response && response.data;
-    const unprotect =
+    let unprotect =
       tempUri &&
       typeof global !== "undefined" &&
       global.$storage &&
       typeof global.$storage.protectTempFile === "function"
         ? global.$storage.protectTempFile(tempUri)
         : null;
+    const release = () => {
+      if (unprotect) { unprotect(); unprotect = null; }
+    };
+    let moving = false;
     // success 已返回、await 续体尚未运行时也可能退出，必须在 move 前再次校验。
     if (!this.isDownloadActive(state)) {
       if (unprotect) unprotect();
@@ -1069,36 +1133,49 @@ export default {
       this.checkDownloadActive(state);
       if (!valid) throw this.$t("error.invalidResponse");
       await this.downloadOperation((resolve, reject) => {
-        file.move({
-          srcUri: tempUri,
-          dstUri: fileUri,
-          success: () => resolve(),
-          fail: (data, code) => {
-            deleteImageTemp(tempUri);
-            reject(this.isDownloadActive(state)
-              ? this.$t("download.moveImageFailed", { code: code }) : DOWNLOAD_ABORTED);
-          },
-        });
+        moving = true;
+        try {
+          file.move({
+            srcUri: tempUri,
+            dstUri: fileUri,
+            success: () => { moving = false; release(); resolve(); },
+            fail: (data, code) => {
+              moving = false;
+              deleteImageTemp(tempUri);
+              release();
+              reject(this.isDownloadActive(state)
+                ? this.$t("download.moveImageFailed", { code: code }) : DOWNLOAD_ABORTED);
+            },
+          });
+        } catch (e) { moving = false; throw e; }
       }, state);
     } catch (e) {
-      deleteImageTemp(tempUri);
+      // 已提交的原生 move 不能撤销，退出不能抢删它的源文件；由自身回调释放。
+      if (!moving) deleteImageTemp(tempUri);
       throw e;
     } finally {
-      if (unprotect) unprotect();
+      if (!moving) release();
     }
   },
 
   async downloadPage(page, folderUri, retryCount = 0, state = this._downloadState) {
     this.checkDownloadActive(state);
+    const settings = state.imageSettings;
+    const preTranscode = !!settings.imagePreTranscode;
     const imageUrl = addImageParams(
       state.imageCache[page - 1],
-      parseInt(global.APP_SETTING.imageSize, 10) || 480,
-      parseInt(global.APP_SETTING.imageQuality, 10) || 50
+      parseInt(settings.imageSize, 10) || 480,
+      parseInt(settings.imageQuality, 10) || 50,
+      undefined,
+      settings
     );
-    const fileUri = `${folderUri}/${page}${global.APP_SETTING.imagePreTranscode ? ".bin" : ""}`;
-    const exists = await this.hasValidExistingImage(fileUri, !!global.APP_SETTING.imagePreTranscode, state);
+    const fileUri = `${folderUri}/${page}${preTranscode ? ".bin" : ""}`;
+    const exists = await this.hasValidExistingImage(fileUri, preTranscode, state);
     this.checkDownloadActive(state);
-    if (exists) return;
+    if (exists) {
+      if (state.gateway) global.$gateway.pageSaved(state.gateway, this.chapter, page);
+      return;
+    }
 
     state.storageDirty = true;
     let response;
@@ -1107,7 +1184,8 @@ export default {
         {
           url: appendLvglSuffix(
             imageUrl,
-            `${state.comicId}${this.chapter ? "_ch" + this.chapter : ""}_p${page}`
+            downloadTempName("page"),
+            preTranscode
           ),
           responseType: "file",
         },
@@ -1127,7 +1205,8 @@ export default {
         state
       );
     }
-    await this.saveDownloadedFile(response, fileUri, state, !!global.APP_SETTING.imagePreTranscode);
+    await this.saveDownloadedFile(response, fileUri, state, preTranscode);
+    if (state.gateway) global.$gateway.pageSaved(state.gateway, this.chapter, page);
   },
 
   async downloadCover(folderUri, retryCount = 0, state = this._downloadState) {
@@ -1144,7 +1223,7 @@ export default {
     try {
       response = await this.requestDownload(
         {
-          url: appendCoverSuffix(addCoverParams(this.cover), `${state.comicId}_cover`),
+          url: appendCoverSuffix(addCoverParams(this.cover, state.imageSettings), downloadTempName("cover")),
           responseType: "file",
         },
         state

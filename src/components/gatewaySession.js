@@ -1,433 +1,187 @@
 import { gatewayFetch, isNativeFetchSupported } from "./gatewayFetch";
 import { safeJsonParse } from "./jsonUtils";
-import { protectDir, isAlreadyExistsError } from "./storage";
-import { createDownloadState, downloadSingleImage } from "./downloadExecutor";
+import { updateJsonFile } from "./storage";
+import { buildDetailUrl, isComicDetailResponse } from "./api";
 
-let _gatewaySessionFileModule = null;
-try {
-  _gatewaySessionFileModule = require("@system.file");
-} catch (e) {
-  _gatewaySessionFileModule = null;
+let bound = null;
+let generation = 0;
+let active = null;
+const completed = [];
+
+// 使用静态模块名，确保 Vela 打包器可以解析可选系统模块。
+function system(name) {
+  try {
+    if (name === "@system.file") return require("@system.file");
+    if (name === "@system.router") return require("@system.router");
+    if (name === "@system.prompt") return require("@system.prompt");
+  } catch (e) {}
+  return null;
+}
+function toast(message) {
+  const prompt = system("@system.prompt");
+  if (prompt) prompt.showToast({ message });
+}
+export function isBound() { return !!bound; }
+export function getEndpoint() { return bound && bound.endpoint; }
+export function getSessionInfo() { return bound && { ...bound }; }
+export function unbind() { generation++; bound = null; }
+
+async function json(url, options = {}) {
+  const response = await gatewayFetch({ ...options, url, responseType: "text" });
+  if (response.statusCode !== 200) throw new Error("HTTP " + response.statusCode);
+  const data = typeof response.data === "string" ? safeJsonParse(response.data, null) : response.data;
+  if (!data || typeof data !== "object") throw new Error("Invalid response");
+  return data;
 }
 
-let _gatewaySessionPromptModule = null;
-try {
-  _gatewaySessionPromptModule = require("@system.prompt");
-} catch (e) {
-  _gatewaySessionPromptModule = null;
-}
-
-function showToast(msg) {
-  if (_gatewaySessionPromptModule && typeof _gatewaySessionPromptModule.showToast === "function") {
-    _gatewaySessionPromptModule.showToast({ message: msg });
-  }
-}
-
-let _boundEndpoint = null;
-let _boundSession = null;
-let _boundInstanceId = null;
-let _boundAt = null;
-
-export function isBound() {
-  return typeof _boundEndpoint === "string" && _boundEndpoint.length > 0;
-}
-
-export function getEndpoint() {
-  return _boundEndpoint;
-}
-
-export function getSessionInfo() {
-  if (!_boundEndpoint) return null;
-  return {
-    endpoint: _boundEndpoint,
-    session: _boundSession,
-    instanceId: _boundInstanceId,
-    boundAt: _boundAt,
-  };
-}
-
-export function unbind() {
-  _boundEndpoint = null;
-  _boundSession = null;
-  _boundInstanceId = null;
-  _boundAt = null;
-}
-
-/**
- * 校验下载临时文件是否真正成功落盘并取得大小，随后清理探针文件
- */
-function verifyAndCleanProbeFile(tempUri) {
-  return new Promise((resolve) => {
-    if (!_gatewaySessionFileModule || !tempUri) {
-      resolve(0);
-      return;
-    }
-    _gatewaySessionFileModule.get({
-      uri: tempUri,
-      success: function (info) {
-        const len = (info && info.length) || 0;
-        try {
-          _gatewaySessionFileModule.delete({ uri: tempUri, fail: function () {} });
-        } catch (e) {}
-        resolve(len);
-      },
-      fail: function () {
-        resolve(0);
-      },
-    });
-  });
-}
-
-/**
- * 处理插件下发的 gateway_bind 绑定消息。
- * 流程：
- * 1. 检查当前设备原生 fetch 能力；若无直接回失败（10 Pro 分流保护）；
- * 2. 原生 GET 请求 /control/health 检查服务身份与实例；
- * 3. 原生 responseType: "file" 下载固定图片探针并验证有效性；
- * 4. 验证通过后固化会话并向插件回复 gateway_bind_result。
- *
- * @param {Object} message - 插件消息
- * @param {Object} interConnect - interconnect 实例，具备 send()
- */
-export async function handleGatewayBind(message, interConnect) {
+export async function handleGatewayBind(message, connection) {
+  const gen = ++generation;
+  const endpoint = (message.endpoint || "").replace(/\/+$/, "");
   const session = message.session || "";
-  const endpoint = (message.endpoint || "").trim().replace(/\/+$/, "");
-  const expectedInstanceId = message.instanceId || null;
-
-  function reply(result) {
-    let conn = interConnect;
-    if (!conn || typeof conn.send !== "function") {
-      if (typeof global !== "undefined" && global.$hub && typeof global.$hub.getConnection === "function") {
-        conn = global.$hub.getConnection();
-      }
-    }
-    if (!conn || typeof conn.send !== "function") {
-      console.warn("无法回复 gateway_bind_result: 无有效 interconnect 连接");
-      return;
-    }
-    try {
-      conn.send({
-        data: {
-          type: "gateway_bind_result",
-          session: session,
-          ...result,
-        },
-        success: function () {
-          console.info("已成功发送 gateway_bind_result 应答: session=" + session);
-        },
-        fail: function (failData, code) {
-          console.warn("发送 gateway_bind_result 失败, code=" + code + ", data=" + failData);
-        },
-      });
-    } catch (e) {
-      console.error("发送 gateway_bind_result 异常: " + (e && e.message));
-    }
-  }
-
-  if (!isNativeFetchSupported()) {
-    reply({
-      success: false,
-      nativeFetch: false,
-      error: "设备不支持快应用原生 fetch 能力",
-    });
-    return;
-  }
-
-  if (!endpoint || !session) {
-    reply({
-      success: false,
-      nativeFetch: true,
-      error: "绑定参数缺失: endpoint 或 session 为空",
-    });
-    return;
-  }
-
+  const reply = (result) => {
+    const conn = connection || (global.$hub && global.$hub.getConnection());
+    if (conn) conn.send({ data: { type: "gateway_bind_result", session, ...result }, fail() {} });
+  };
   try {
-    // 步骤 1：探测 /control/health
-    const healthUrl = endpoint + "/control/health";
-    const healthRes = await gatewayFetch({
-      url: healthUrl,
-      method: "GET",
-      responseType: "text",
-    });
-
-    if (healthRes.statusCode !== 200) {
-      reply({
-        success: false,
-        nativeFetch: true,
-        error: "健康检查返回 HTTP " + healthRes.statusCode,
-      });
-      return;
+    if (!isNativeFetchSupported()) throw new Error("设备不支持原生 fetch");
+    if (!/^http:\/\/[^/]+$/.test(endpoint) || !session) throw new Error("绑定参数无效");
+    if (active) throw new Error("下载进行中，请完成后重新绑定");
+    const health = await json(endpoint + "/control/health");
+    if (health.service !== "bandcomic-local-http" ||
+        (message.instanceId && health.instanceId !== message.instanceId)) throw new Error("非法的服务标识或实例 ID 不匹配");
+    const probe = await gatewayFetch({ url: endpoint + "/control/probe.jpg", responseType: "file" });
+    const file = system("@system.file");
+    let length = 0;
+    try {
+      if (probe.statusCode !== 200 || !file || !probe.data) throw new Error("图片探针失败");
+      length = await new Promise((resolve, reject) => file.get({ uri: probe.data,
+        success: (info) => resolve(info.length || 0), fail: reject }));
+      if (!length) throw new Error("图片探针文件为空");
+    } finally {
+      if (file && probe.data) file.delete({ uri: probe.data, fail() {} });
     }
-
-    const healthData =
-      typeof healthRes.data === "string"
-        ? safeJsonParse(healthRes.data, null)
-        : healthRes.data;
-
-    if (!healthData || healthData.service !== "bandcomic-local-http") {
-      reply({
-        success: false,
-        nativeFetch: true,
-        error: "非法的服务标识，未检测到 bandcomic-local-http",
-      });
-      return;
-    }
-
-    if (expectedInstanceId && healthData.instanceId !== expectedInstanceId) {
-      reply({
-        success: false,
-        nativeFetch: true,
-        error: "实例 ID 不匹配: " + healthData.instanceId + " != " + expectedInstanceId,
-      });
-      return;
-    }
-
-    // 步骤 2：下载固定图片探针（验证 responseType: "file"）
-    const probeUrl = endpoint + "/control/probe.jpg";
-    const probeRes = await gatewayFetch({
-      url: probeUrl,
-      method: "GET",
-      responseType: "file",
-    });
-
-    if (probeRes.statusCode !== 200 || !probeRes.data) {
-      reply({
-        success: false,
-        nativeFetch: true,
-        error: "探针图片下载失败，HTTP " + probeRes.statusCode,
-      });
-      return;
-    }
-
-    const probeFileLength = await verifyAndCleanProbeFile(probeRes.data);
-    if (probeFileLength <= 0) {
-      reply({
-        success: false,
-        nativeFetch: true,
-        error: "探针图片文件校验失败: 文件为空或未落盘",
-      });
-      return;
-    }
-
-    // 绑定成功，更新会话
-    _boundEndpoint = endpoint;
-    _boundSession = session;
-    _boundInstanceId = healthData.instanceId;
-    _boundAt = Date.now();
-
-    reply({
-      success: true,
-      nativeFetch: true,
-      instanceId: healthData.instanceId,
-      endpoint: endpoint,
-      probeLength: probeFileLength,
-    });
-
-    showToast("本地漫画服务已绑定");
-  } catch (err) {
-    reply({
-      success: false,
-      nativeFetch: true,
-      error: "连接本地服务失败: " + (err.message || String(err)),
-    });
-    showToast("本地服务连接失败: " + (err.message || String(err)));
+    if (gen !== generation) return;
+    bound = { endpoint, session, instanceId: health.instanceId, boundAt: Date.now() };
+    reply({ success: true, nativeFetch: true, endpoint, instanceId: health.instanceId, probeLength: length });
+    toast("本地漫画服务已绑定");
+  } catch (e) {
+    if (gen === generation) reply({ success: false, nativeFetch: isNativeFetchSupported(), error: String(e.message || e) });
   }
 }
 
-/**
- * 处理插件下发的 import_http_task 导入任务。
- * 流程：
- * 1. 经原生 HTTP 获取任务详情 (/control/tasks/<taskId>)；
- * 2. 保护目标漫画目录免遭清理，按章节下载单张图片并校验；
- * 3. 定期回报进度 (/control/tasks/<taskId>/progress)；
- * 4. 全部落盘后写入 comics.json，汇报结果 (/control/tasks/<taskId>/result)。
- */
-export async function handleImportHttpTask(message, bridge) {
+// 互联只负责控制；内容与下载 UI 均交给现有下载页面。
+export async function handleImportHttpTask(message) {
   const taskId = message.taskId;
-  const endpoint = message.endpoint || _boundEndpoint;
-  if (!taskId || !endpoint) {
-    console.warn("import_http_task 参数缺失: taskId=" + taskId + ", endpoint=" + endpoint);
-    return;
-  }
-
-  showToast("收到本地导入任务，正在准备下载...");
-
-  // 1. 获取任务详情
-  let task;
+  if (!bound || !/^[\w-]+$/.test(taskId || "") ||
+      (message.endpoint && message.endpoint !== bound.endpoint)) return;
+  if (completed.indexOf(taskId) !== -1 || active) return;
+  const context = { ...bound, taskId, savedPages: 0, seen: {}, ended: false, report: Promise.resolve() };
+  active = context;
   try {
-    const taskRes = await gatewayFetch({
-      url: endpoint + "/control/tasks/" + taskId,
-      method: "GET",
-      responseType: "text",
-    });
-    task = typeof taskRes.data === "string" ? safeJsonParse(taskRes.data, null) : taskRes.data;
-  } catch (err) {
-    console.error("获取任务详情失败: " + err.message);
-    showToast("获取任务失败：" + err.message);
+    const task = await json(context.endpoint + "/control/tasks/" + taskId);
+    if (active !== context || !bound || bound.session !== context.session) throw new Error("绑定已失效");
+    if (!/^[\w-]+$/.test(task.comicId || "") || !Array.isArray(task.chapters) || !task.chapters.length ||
+        !task.chapters.every((c) => Number.isInteger(c.chapterNum) && c.chapterNum > 0 && c.pageCount > 0)) {
+      throw new Error("任务章节无效");
+    }
+    context.task = task;
+    context.totalPages = task.chapters.reduce((n, c) => n + c.pageCount, 0);
+    context.localId = "local_" + taskId;
+    // 按标准漫画源协议准备下载上下文，不将临时服务写入永久源或切换 using。
+    const configs = await json(context.endpoint + "/config");
+    const source = configs[task.sourceKey || "LocalUpload"];
+    if (!source || String(source.apiUrl).replace(/\/+$/, "") !== context.endpoint ||
+        ![source.detailPath, source.photoPath].every((path) => typeof path === "string" && /^\/(?!\/)/.test(path)) ||
+        !source.detailPath.includes("<id>") || !source.photoPath.includes("<id>") || !source.photoPath.includes("<chapter>")) {
+      throw new Error("本地漫画源配置无效");
+    }
+    context.source = { ...source, apiUrl: context.endpoint };
+    const detail = await json(buildDetailUrl(task.comicId, context.source));
+    const totalChapters = detail.total_chapters == null ? 1 : Number(detail.total_chapters);
+    if (!isComicDetailResponse({ statusCode: 200, data: detail }) || String(detail.item_id) !== task.comicId ||
+        !Number.isInteger(totalChapters) || totalChapters < 1 ||
+        !task.chapters.every((c) => c.chapterNum <= totalChapters) || typeof detail.cover !== "string" ||
+        (detail.cover && !detail.cover.startsWith(context.endpoint + "/"))) {
+      throw new Error("本地漫画详情无效");
+    }
+    context.detail = { ...detail, total_chapters: totalChapters };
+    if (active !== context || !bound || bound.session !== context.session) throw new Error("绑定已失效");
+    const router = system("@system.router");
+    if (!router) throw new Error("下载页面不可用");
+    router.push({ uri: "/pages/download", params: { gatewayTaskId: taskId } });
+  } catch (e) {
+    finishDownload(context, false, String(e.message || e));
+    toast("本地导入准备失败：" + (e.message || e));
+  }
+}
+
+export function getDownloadContext(taskId) {
+  return active && active.taskId === taskId && active.detail ? active : null;
+}
+
+export function requestDownload(context, options) {
+  if (!options.url.startsWith(context.endpoint + "/")) {
+    if (options.fail) options.fail("本地任务 URL 不属于绑定服务", 403);
     return;
   }
+  // 只适配原生传输与 JSON 回调，不再重写下载页生成的图片 URL、参数或文件名。
+  gatewayFetch({ ...options, responseType: options.responseType === "json" ? "text" : options.responseType,
+    success(response) {
+      if (options.responseType === "json" && typeof response.data === "string") {
+        response.data = safeJsonParse(response.data, null);
+      }
+      if (options.success) options.success(response);
+    },
+  }).catch(() => {}); // 回调式页面已由 fail 收口
+}
 
-  if (!task || !task.comicId) {
-    console.error("非法任务格式: " + JSON.stringify(task));
-    return;
-  }
+export function pageSaved(context, chapter, page) {
+  const key = chapter + "/" + page;
+  if (context.ended || context.seen[key]) return;
+  context.seen[key] = true;
+  context.savedPages++;
+  if (context.savedPages % 5 !== 0 && context.savedPages !== context.totalPages) return;
+  const count = context.savedPages;
+  context.report = context.report.then(() => json(context.endpoint + "/control/tasks/" + context.taskId + "/progress", {
+    method: "POST", data: JSON.stringify({ page: count, total: context.totalPages }),
+  })).catch(() => {});
+}
 
-  const comicId = "local_" + task.comicId;
-  const comicName = task.name || "本地漫画";
-  const folderUri = "internal://files/" + comicId;
-  const chapters = Array.isArray(task.chapters) ? task.chapters : [];
-  const imageProfile = task.imageProfile || {};
-  const allowLvgl = !!imageProfile.ifLVGL;
-  const isSerial = chapters.length > 1;
-
-  // 保护该目录不被 cleanTempFiles 清理
-  const unprotectDir = protectDir(comicId);
-
-  // 确保目录存在
-  if (_gatewaySessionFileModule && typeof _gatewaySessionFileModule.mkdir === "function") {
-    await new Promise((resolve) => {
-      _gatewaySessionFileModule.mkdir({
-        uri: folderUri,
-        recursive: true,
-        success: resolve,
-        fail: (data, code) => (isAlreadyExistsError(code) ? resolve() : resolve()),
-      });
+export async function commitDownload(context) {
+  if (context.ended || context.savedPages !== context.totalPages) throw new Error("下载未完整保存");
+  let replaced = [];
+  await updateJsonFile("internal://files/comics.json", [], (list) => {
+    if (context.ended) throw new Error("任务已取消");
+    const current = list.find((c) => c.id === context.localId);
+    if (!current) throw new Error("下载索引不存在");
+    replaced = list.filter((c) => c.id !== context.localId && c.name === current.name && c.id.startsWith("local_"));
+    return list.filter((c) => replaced.indexOf(c) === -1);
+  });
+  if (!replaced.length) return;
+  await updateJsonFile("internal://files/history.json", [], (list) => {
+    list.forEach((entry) => {
+      if (replaced.some((c) => entry.originalId === c.id || entry.id === "local_" + c.id)) {
+        entry.originalId = context.localId;
+        entry.id = "local_" + context.localId;
+        entry.cover = "internal://files/" + context.localId + "/cover";
+        delete entry.coverLocal;
+      }
     });
-  }
+    return list;
+  });
+  const file = system("@system.file");
+  if (file) replaced.forEach((c) => file.rmdir({ uri: "internal://files/" + c.id, recursive: true, fail() {} }));
+}
 
-  const state = createDownloadState({ comicId });
-  let savedFiles = {};
-  let totalSaved = 0;
-  let totalExpected = 0;
-
-  try {
-    // 2. 下载封面 (如果提供)
-    if (task.coverUrl) {
-      const coverUri = folderUri + "/cover";
-      try {
-        await downloadSingleImage({
-          url: task.coverUrl,
-          fileUri: coverUri,
-          allowLvgl: false,
-          fetchFn: gatewayFetch,
-          state,
-        });
-        savedFiles["cover"] = true;
-      } catch (e) {
-        console.warn("下载封面失败: " + e.message);
-      }
-    }
-
-    // 3. 逐章节下载
-    for (let ci = 0; ci < chapters.length; ci++) {
-      const chapter = chapters[ci];
-      const chNum = chapter.chapterNum || (ci + 1);
-      const chTitle = chapter.title || ("第" + chNum + "章");
-      const chDirName = isSerial ? `${chNum}　${chTitle}` : "";
-      const chapterDir = isSerial ? `${folderUri}/${chDirName}` : folderUri;
-
-      if (isSerial && _gatewaySessionFileModule && typeof _gatewaySessionFileModule.mkdir === "function") {
-        await new Promise((resolve) => {
-          _gatewaySessionFileModule.mkdir({
-            uri: chapterDir,
-            recursive: true,
-            success: resolve,
-            fail: (data, code) => (isAlreadyExistsError(code) ? resolve() : resolve()),
-          });
-        });
-      }
-
-      // 获取章节图片列表
-      let photoList;
-      try {
-        const photoRes = await gatewayFetch({
-          url: `${endpoint}/local/photo/${task.comicId}/chapter/${chNum}`,
-          method: "GET",
-          responseType: "text",
-        });
-        photoList = typeof photoRes.data === "string" ? safeJsonParse(photoRes.data, null) : photoRes.data;
-      } catch (e) {
-        console.error("获取章节图片列表失败: " + e.message);
-        continue;
-      }
-
-      const images = photoList && Array.isArray(photoList.images) ? photoList.images : [];
-      totalExpected += images.length;
-
-      for (let pi = 0; pi < images.length; pi++) {
-        const imgObj = images[pi];
-        const pageUrl = imgObj.url || imgObj;
-        const pageNum = pi + 1;
-        const pageFileName = `${pageNum}${allowLvgl ? ".bin" : ""}`;
-        const fileUri = `${chapterDir}/${pageFileName}`;
-        const relativeKey = isSerial ? `${chDirName}/${pageFileName}` : pageFileName;
-
-        try {
-          await downloadSingleImage({
-            url: pageUrl,
-            fileUri: fileUri,
-            allowLvgl: allowLvgl,
-            fetchFn: gatewayFetch,
-            state,
-          });
-          savedFiles[relativeKey] = true;
-          totalSaved++;
-
-          // 汇报进度给插件
-          gatewayFetch({
-            url: `${endpoint}/control/tasks/${taskId}/progress`,
-            method: "POST",
-            data: JSON.stringify({ page: totalSaved, total: totalExpected }),
-            responseType: "text",
-          }).catch(() => {});
-        } catch (e) {
-          console.warn(`下载第 ${pageNum} 页失败: ` + e.message);
-        }
-      }
-    }
-
-    // 4. 更新 comics.json 索引
-    if (bridge && typeof bridge.updateComicsIndex === "function") {
-      bridge.updateComicsIndex(
-        comicId,
-        comicName,
-        totalSaved,
-        isSerial,
-        chapters,
-        savedFiles,
-        Object.keys(savedFiles)
-      );
-    }
-
-    // 5. 汇报最终结果给插件
-    await gatewayFetch({
-      url: `${endpoint}/control/tasks/${taskId}/result`,
-      method: "POST",
-      data: JSON.stringify({
-        success: totalSaved > 0,
-        savedPages: totalSaved,
-        totalPages: totalExpected,
-      }),
-      responseType: "text",
-    });
-
-    showToast(`《${comicName}》导入成功！(${totalSaved}页)`);
-  } catch (err) {
-    console.error("任务执行异常: " + err.message);
-    gatewayFetch({
-      url: `${endpoint}/control/tasks/${taskId}/result`,
-      method: "POST",
-      data: JSON.stringify({
-        success: false,
-        savedPages: totalSaved,
-        totalPages: totalExpected,
-        error: err.message,
-      }),
-      responseType: "text",
-    }).catch(() => {});
-    showToast(`《${comicName}》导入中断：${err.message}`);
-  } finally {
-    unprotectDir();
-  }
+export function finishDownload(context, success, error) {
+  if (!context || context.ended) return;
+  context.ended = true;
+  if (active === context) active = null;
+  completed.push(context.taskId);
+  if (completed.length > 32) completed.shift();
+  context.report = context.report.then(() => json(context.endpoint + "/control/tasks/" + context.taskId + "/result", {
+    method: "POST", data: JSON.stringify({ success: !!success && context.savedPages === context.totalPages,
+      savedPages: context.savedPages, totalPages: context.totalPages || 0, error: error || "" }),
+  })).catch((e) => console.warn("导入结果回报失败：" + e.message));
+  return context.report;
 }
