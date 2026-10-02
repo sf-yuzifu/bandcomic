@@ -478,30 +478,33 @@ export default {
 
     // 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
     const comicId = this.getComicId();
+    let savedHistoryItem = null;
     const restorePosition = (historyList) => {
       const historyItem = historyList.find((item) => item.id === comicId);
       if (historyItem) {
-        // 恢复上次阅读的章节和页码
-        this.chapter = historyItem.chapter || 1;
+        savedHistoryItem = historyItem;
         this.page = historyItem.page || 1;
-        console.debug(`恢复阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`);
+        if (!this.local) {
+          this.chapter = historyItem.chapter || 1;
+          console.debug(`恢复在线阅读位置: 章节 ${this.chapter}, 页码 ${this.page}`);
+        }
       }
     };
     readHistory().then(
       (historyList) => {
         if (this.destroyed) return;
         restorePosition(historyList);
-        this.initData();
+        this.initData(savedHistoryItem);
       },
       () => {
         if (this.destroyed) return;
         // 没有历史记录，正常初始化
-        this.initData();
+        this.initData(null);
       }
     );
   },
 
-  initData() {
+  initData(savedHistoryItem) {
     if (!this.local) {
       originalName = this.title;
       this.is_serial = this.total_chapters > 1;
@@ -510,7 +513,64 @@ export default {
       }
     } else if (this.is_serial) {
       this.downloadChapter = parseParam(this.downloadChapter);
+      if (!Array.isArray(this.downloadChapter)) {
+        this.downloadChapter = [];
+      }
       this.total_chapters = this.downloadChapter.length;
+
+      // 本地连载恢复阅读位置（P1-32）：
+      // 优先根据历史中记录的稳定真实章号 chapterNum 映射到当前的列表下标；
+      // 若历史只有旧下标或未匹配到，做合理回退，避免补前置章/删除章后恢复错章
+      if (savedHistoryItem) {
+        let matchedIndex = -1;
+        const targetChapterNum =
+          savedHistoryItem.chapterNum !== undefined
+            ? savedHistoryItem.chapterNum
+            : savedHistoryItem.chapter;
+
+        if (targetChapterNum !== undefined && targetChapterNum !== null) {
+          matchedIndex = this.downloadChapter.findIndex(
+            (entry) => entry && entry[2] === targetChapterNum
+          );
+          if (matchedIndex === -1) {
+            // 真实章节缺失（如被用户删除）：回退到 <= targetChapterNum 的最大可用章，或第一章
+            let bestIndex = -1;
+            for (let i = 0; i < this.downloadChapter.length; i++) {
+              const chNum = this.downloadChapter[i] && this.downloadChapter[i][2];
+              if (typeof chNum === "number" && chNum <= targetChapterNum) {
+                bestIndex = i;
+              }
+            }
+            if (bestIndex !== -1) {
+              matchedIndex = bestIndex;
+            } else if (this.downloadChapter.length > 0) {
+              matchedIndex = 0;
+            }
+          }
+        }
+
+        if (matchedIndex === -1 && typeof savedHistoryItem.chapter === "number") {
+          // 兼容旧历史：尝试按下标 1-based 回退匹配
+          const oldIndex = savedHistoryItem.chapter - 1;
+          if (oldIndex >= 0 && oldIndex < this.downloadChapter.length) {
+            matchedIndex = oldIndex;
+          }
+        }
+
+        if (matchedIndex >= 0) {
+          this.chapter = matchedIndex + 1;
+        } else {
+          this.chapter = 1;
+        }
+        console.debug(
+          `恢复本地连载阅读位置: 列表位置 ${this.chapter} (真实章号 ${
+            this.downloadChapter[this.chapter - 1]
+              ? this.downloadChapter[this.chapter - 1][2]
+              : ""
+          }), 页码 ${this.page}`
+        );
+      }
+
       this.pickerValues = buildDigitRanges(this.total_chapters, this.chapter);
     } else {
       // 本地单本：page_count 来自路由参数，直接生成页码轮盘范围
@@ -921,12 +981,26 @@ export default {
   // 构造当前阅读进度快照
   buildHistoryData() {
     const comicId = this.getComicId();
+    let currentChapter = this.chapter;
+    let stableChapterNum = undefined;
+
+    // 本地连载历史保存真实章节号（P1-32）：
+    // 杜绝保存临时排序列表下标导致后续补下载前置章后恢复错章
+    if (this.local && this.is_serial && Array.isArray(this.downloadChapter)) {
+      const entry = this.downloadChapter[this.chapter - 1];
+      if (entry && entry[2] !== undefined) {
+        currentChapter = entry[2];
+        stableChapterNum = entry[2];
+      }
+    }
+
     return {
       id: comicId,
       originalId: this.id,
       title: this.is_serial && originalName ? originalName : this.title,
       cover: this.cover,
-      chapter: this.chapter,
+      chapter: currentChapter,
+      ...(stableChapterNum !== undefined ? { chapterNum: stableChapterNum } : {}),
       page: this.page > this.page_count ? this.page_count : this.page,
       total_chapters: this.total_chapters,
       page_count: this.page_count,

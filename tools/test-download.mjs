@@ -791,3 +791,194 @@ test("photo: local serial reading resolves images for special-character chapter 
   assert.equal(photoInstance.images, `${onDiskDir}/1`, "通过规范化路径自动成功解析图片");
 });
 
+test("photo: sparse download, supplemental previous chapters, and history resume chapter correctly (P1-32)", async () => {
+  const photoSource = read("../src/pages/photo/photo.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+  const routeSource = read("../src/components/routerParams.js");
+  const comicId = "sparse_comic";
+
+  // 场景：稀疏下载了第 2 章和第 5 章
+  // 此时 totalChapter 格式为：[[名称, 页数, 真实章号]]
+  // downloadChapter 数组为：[["Chapter 2", 10, 2], ["Chapter 5", 20, 5]]
+  const sparseDownloadChapter = [
+    ["Chapter 2", 10, 2],
+    ["Chapter 5", 20, 5],
+  ];
+
+  let savedHistory = [];
+  const appGlobal = {
+    $img: { addImageParams: (u) => u, appendLvglSuffix: (u) => u },
+    $route: {},
+    $storage: {
+      readHistory: () => Promise.resolve(savedHistory),
+      updateJsonFile: (uri, fallback, fn) => {
+        savedHistory = fn(savedHistory);
+        return Promise.resolve(savedHistory);
+      },
+      HISTORY_URI: "internal://files/history.json",
+      sanitizeFolderName: (name) => name,
+    },
+    $api: { apiFetch: () => {}, buildPhotoUrl: () => "" },
+    screenSize: { width: 480, height: 480 },
+    getTime: () => "12:00",
+    APP_SETTING: { imageSize: "480", imageQuality: "50" },
+  };
+
+  const routeContext = vm.createContext({ global: appGlobal });
+  vm.runInContext(routeSource.replace(/^export /gm, "") + "\nglobal.$route.parseParam = parseParam;", routeContext);
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: { debug: () => {}, error: () => {} },
+    file: { access: (opts) => opts.success() },
+    Promise,
+    URL,
+  });
+
+  vm.runInContext(photoSource.replace(/^import .*;\r?\n/gm, "").replace("export default ", "globalThis.photoDef = "), context);
+
+  // 1. 用户打开该漫画，阅读第 5 章（在稀疏列表中为下标 2，即 chapter=2）
+  const photo1 = Object.assign({}, context.photoDef, clone(context.photoDef.private), {
+    id: comicId,
+    local: true,
+    is_serial: true,
+    chapter: 2, // 对应 downloadChapter[1] 即第 5 章
+    page: 7,
+    page_count: 20,
+    downloadChapter: sparseDownloadChapter,
+    $element: () => ({ scrollTo: () => {} }),
+    $t: (k) => k,
+  });
+
+  const historyData = photo1.buildHistoryData();
+  // 必须记录真实章号 5，而不是数组下标 2
+  assert.equal(historyData.chapter, 5, "历史记录保存的必须是真实章号 5");
+  assert.equal(historyData.chapterNum, 5);
+  assert.equal(historyData.page, 7);
+
+  // 2. 模拟用户退回书架，后来补下载了第 1 章！
+  // 现在的章节列表变为第 1、2、5 章
+  const updatedDownloadChapter = [
+    ["Chapter 1", 15, 1],
+    ["Chapter 2", 10, 2],
+    ["Chapter 5", 20, 5],
+  ];
+
+  savedHistory = [historyData];
+
+  // 3. 用户再次打开漫画，恢复阅读位置
+  const photo2 = Object.assign({}, context.photoDef, clone(context.photoDef.private), {
+    id: comicId,
+    local: true,
+    is_serial: true,
+    downloadChapter: updatedDownloadChapter,
+    $element: () => ({ scrollTo: () => {} }),
+    $t: (k) => k,
+  });
+
+  await photo2.onInit();
+  await tick();
+
+  // 验证：尽管列表前方插入了第 1 章，恢复阅读位置后依然准确对准第 5 章（即当前列表中的第 3 个位置）！
+  assert.equal(photo2.chapter, 3, "当前列表下标正确映射为第 3 项");
+  assert.equal(photo2.downloadChapter[photo2.chapter - 1][2], 5, "打开的依然是真实第 5 章");
+  assert.equal(photo2.page, 7, "页码依然是第 7 页");
+});
+
+test("photo: chapter deletion fallback and legacy index-based history compatibility (P1-32)", async () => {
+  const photoSource = read("../src/pages/photo/photo.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+  const routeSource = read("../src/components/routerParams.js");
+  const comicId = "fallback_comic";
+
+  let savedHistory = [];
+  const appGlobal = {
+    $img: { addImageParams: (u) => u, appendLvglSuffix: (u) => u },
+    $route: {},
+    $storage: {
+      readHistory: () => Promise.resolve(savedHistory),
+      updateJsonFile: (uri, fallback, fn) => {
+        savedHistory = fn(savedHistory);
+        return Promise.resolve(savedHistory);
+      },
+      HISTORY_URI: "internal://files/history.json",
+      sanitizeFolderName: (name) => name,
+    },
+    $api: { apiFetch: () => {}, buildPhotoUrl: () => "" },
+    screenSize: { width: 480, height: 480 },
+    getTime: () => "12:00",
+    APP_SETTING: { imageSize: "480", imageQuality: "50" },
+  };
+
+  const routeContext = vm.createContext({ global: appGlobal });
+  vm.runInContext(routeSource.replace(/^export /gm, "") + "\nglobal.$route.parseParam = parseParam;", routeContext);
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: { debug: () => {}, error: () => {} },
+    file: { access: (opts) => opts.success() },
+    Promise,
+    URL,
+  });
+
+  vm.runInContext(photoSource.replace(/^import .*;\r?\n/gm, "").replace("export default ", "globalThis.photoDef = "), context);
+
+  // 1. 测试旧版历史格式（无 chapterNum，只有 chapter: 2 表示原列表第 2 项）
+  savedHistory = [
+    {
+      id: "local_" + comicId,
+      originalId: comicId,
+      chapter: 2,
+      page: 3,
+    },
+  ];
+
+  const currentChapters = [
+    ["Chapter 1", 10, 1],
+    ["Chapter 2", 15, 2],
+  ];
+
+  const legacyPhoto = Object.assign({}, context.photoDef, clone(context.photoDef.private), {
+    id: comicId,
+    local: true,
+    is_serial: true,
+    downloadChapter: currentChapters,
+    $element: () => ({ scrollTo: () => {} }),
+    $t: (k) => k,
+  });
+
+  await legacyPhoto.onInit();
+  await tick();
+
+  // 校验：旧历史兼容回退到列表第 2 项
+  assert.equal(legacyPhoto.chapter, 2);
+  assert.equal(legacyPhoto.page, 3);
+
+  // 2. 测试章节被删除场景（上次读第 5 章，但本地删除了第 5 章，只剩第 1、2 章）
+  savedHistory = [
+    {
+      id: "local_" + comicId,
+      originalId: comicId,
+      chapter: 5,
+      chapterNum: 5,
+      page: 12,
+    },
+  ];
+
+  const deletedPhoto = Object.assign({}, context.photoDef, clone(context.photoDef.private), {
+    id: comicId,
+    local: true,
+    is_serial: true,
+    downloadChapter: currentChapters, // 只有章号 1 和 2
+    $element: () => ({ scrollTo: () => {} }),
+    $t: (k) => k,
+  });
+
+  await deletedPhoto.onInit();
+  await tick();
+
+  // 校验：目标第 5 章被删除时，优雅回退至当前最大的可用章（第 2 项，即章号 2）
+  assert.equal(deletedPhoto.chapter, 2);
+  assert.equal(deletedPhoto.downloadChapter[deletedPhoto.chapter - 1][2], 2);
+});
+
+
+
