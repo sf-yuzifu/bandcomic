@@ -861,4 +861,180 @@ test("cleanTempFiles: removes orphan comic directories and temp files while pres
   assert.ok(!filesOnDisk.has("internal://files/_icf_temp_2"));
 });
 
+test("writeJsonFileAtomic: retains original data when first move fails due to I/O error on non-existent or existing target", async () => {
+  const storageSrc = fs.readFileSync(new URL("../src/components/storage.js", import.meta.url), "utf8");
+  const filesOnDisk = new Map([
+    ["internal://files/comics.json", Buffer.from(JSON.stringify([{ id: "book_orig", name: "Original Book" }]))],
+  ]);
+
+  let moveAttempts = 0;
+  const fileMock = {
+    readText(options) {
+      const data = filesOnDisk.get(options.uri);
+      if (data) options.success({ text: data.toString("utf8") });
+      else options.fail("not found", 301);
+    },
+    writeText(options) {
+      filesOnDisk.set(options.uri, Buffer.from(options.text));
+      options.success();
+    },
+    access(options) {
+      if (filesOnDisk.has(options.uri)) options.success();
+      else options.fail("missing", 301);
+    },
+    move(options) {
+      moveAttempts++;
+      // 模拟固件 move 遇到已存在文件时失败（code 202）
+      if (options.srcUri.endsWith(".tmp") && options.dstUri === "internal://files/comics.json" && moveAttempts === 1) {
+        options.fail("already exists", 202);
+        return;
+      }
+      // 其余 move 正常执行
+      const data = filesOnDisk.get(options.srcUri);
+      filesOnDisk.delete(options.srcUri);
+      filesOnDisk.set(options.dstUri, data);
+      options.success();
+    },
+    delete(options) {
+      filesOnDisk.delete(options.uri);
+      options.success();
+    },
+  };
+
+  const context = vm.createContext({
+    file: fileMock,
+    console: { debug: () => {}, warn: () => {}, error: () => {} },
+    Promise,
+    Uint8Array,
+    ArrayBuffer,
+    Map,
+    Set,
+  });
+
+  vm.runInContext(storageSrc.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
+
+  // 执行原子写新数据
+  const newData = [{ id: "book_new", name: "New Book" }];
+  await context.writeJsonFile("internal://files/comics.json", newData);
+
+  // 验证：新数据成功落盘为正式文件，.bak 已被清理
+  const readBack = await context.readJsonFile("internal://files/comics.json", []);
+  assert.equal(readBack[0].id, "book_new");
+  assert.ok(!filesOnDisk.has("internal://files/comics.json.bak"));
+});
+
+test("writeJsonFileAtomic: rollback restores .bak to original file if second move fails", async () => {
+  const storageSrc = fs.readFileSync(new URL("../src/components/storage.js", import.meta.url), "utf8");
+  const filesOnDisk = new Map([
+    ["internal://files/comics.json", Buffer.from(JSON.stringify([{ id: "book_precious", name: "Precious" }]))],
+  ]);
+
+  const fileMock = {
+    readText(options) {
+      const data = filesOnDisk.get(options.uri);
+      if (data) options.success({ text: data.toString("utf8") });
+      else options.fail("not found", 301);
+    },
+    writeText(options) {
+      filesOnDisk.set(options.uri, Buffer.from(options.text));
+      options.success();
+    },
+    access(options) {
+      if (filesOnDisk.has(options.uri)) options.success();
+      else options.fail("missing", 301);
+    },
+    move(options) {
+      // 首次 move（.tmp -> comics.json）模拟目标存在失败
+      if (options.srcUri.endsWith(".tmp") && options.dstUri === "internal://files/comics.json") {
+        options.fail("move failed", 300);
+        return;
+      }
+      // 允许 comics.json -> comics.json.bak 成功
+      // 允许 rollback: comics.json.bak -> comics.json 成功
+      const data = filesOnDisk.get(options.srcUri);
+      filesOnDisk.delete(options.srcUri);
+      filesOnDisk.set(options.dstUri, data);
+      options.success();
+    },
+    delete(options) {
+      filesOnDisk.delete(options.uri);
+      options.success();
+    },
+  };
+
+  const context = vm.createContext({
+    file: fileMock,
+    console: { debug: () => {}, warn: () => {}, error: () => {} },
+    Promise,
+    Uint8Array,
+    ArrayBuffer,
+    Map,
+    Set,
+  });
+
+  vm.runInContext(storageSrc.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
+
+  let writeError = null;
+  try {
+    await context.writeJsonFile("internal://files/comics.json", [{ id: "book_lost", name: "Lost" }]);
+  } catch (err) {
+    writeError = err;
+  }
+
+  // 必须抛出错误提示写入失败
+  assert.ok(writeError);
+  // 但旧文件经过 rollback 必须完好无损保留！
+  const savedData = await context.readJsonFile("internal://files/comics.json", []);
+  assert.equal(savedData[0].id, "book_precious", "二次move失败必须回滚恢复旧数据");
+});
+
+test("readJsonFile: automatically recovers from .bak or .tmp when main file is missing", async () => {
+  const storageSrc = fs.readFileSync(new URL("../src/components/storage.js", import.meta.url), "utf8");
+  // 主文件缺失，但留下了有效 .bak
+  const filesOnDisk = new Map([
+    ["internal://files/history.json.bak", Buffer.from(JSON.stringify([{ id: "recovered_hist", page: 10 }]))],
+  ]);
+
+  const fileMock = {
+    readText(options) {
+      const data = filesOnDisk.get(options.uri);
+      if (data) options.success({ text: data.toString("utf8") });
+      else options.fail("not found", 301);
+    },
+    access(options) {
+      if (filesOnDisk.has(options.uri)) options.success();
+      else options.fail("missing", 301);
+    },
+    move(options) {
+      const data = filesOnDisk.get(options.srcUri);
+      filesOnDisk.delete(options.srcUri);
+      filesOnDisk.set(options.dstUri, data);
+      options.success();
+    },
+    delete(options) {
+      filesOnDisk.delete(options.uri);
+      options.success();
+    },
+  };
+
+  const context = vm.createContext({
+    file: fileMock,
+    console: { debug: () => {}, warn: () => {}, error: () => {} },
+    Promise,
+    Uint8Array,
+    ArrayBuffer,
+    Map,
+    Set,
+  });
+
+  vm.runInContext(storageSrc.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
+
+  const hist = await context.readHistory();
+  assert.equal(hist.length, 1);
+  assert.equal(hist[0].id, "recovered_hist");
+  // 恢复后主文件存在，.bak 已被提升还原
+  assert.ok(filesOnDisk.has("internal://files/history.json"));
+});
+
+
 

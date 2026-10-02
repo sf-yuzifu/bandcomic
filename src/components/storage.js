@@ -100,6 +100,88 @@ function enqueueFileOp(uri, op) {
   return run;
 }
 
+function tryReadValidJson(candidateUri) {
+  return new Promise((resolve) => {
+    file.readText({
+      uri: candidateUri,
+      success: (data) => {
+        try {
+          if (!data || typeof data.text !== "string" || !data.text.trim()) {
+            resolve(null);
+            return;
+          }
+          const parsed = JSON.parse(data.text);
+          resolve(parsed == null ? null : parsed);
+        } catch (err) {
+          resolve(null);
+        }
+      },
+      fail: () => resolve(null),
+    });
+  });
+}
+
+function restoreCandidateToTarget(candidateUri, targetUri) {
+  return new Promise((resolve) => {
+    file.move({
+      srcUri: candidateUri,
+      dstUri: targetUri,
+      success: () => resolve(true),
+      fail: () => {
+        file.delete({
+          uri: targetUri,
+          success: () => {
+            file.move({
+              srcUri: candidateUri,
+              dstUri: targetUri,
+              success: () => resolve(true),
+              fail: () => resolve(false),
+            });
+          },
+          fail: () => resolve(false),
+        });
+      },
+    });
+  });
+}
+
+function fileExists(uri) {
+  return new Promise((resolve) => {
+    file.access({
+      uri: uri,
+      success: () => resolve(true),
+      fail: () => resolve(false),
+    });
+  });
+}
+
+async function tryRecoverFromBackupOrTmp(uri) {
+  const bakUri = uri + ".bak";
+  const tmpUri = uri + ".tmp";
+
+  // 1. 优先检查并尝试从 .bak 恢复（最可信的旧有效数据）
+  if (await fileExists(bakUri)) {
+    const bakData = await tryReadValidJson(bakUri);
+    if (bakData !== null) {
+      await restoreCandidateToTarget(bakUri, uri);
+      file.delete({ uri: tmpUri, success: () => {}, fail: () => {} });
+      return bakData;
+    }
+  }
+
+  // 2. 检查并尝试从 .tmp 恢复（已写完整但未完成 move 的最新数据）
+  if (await fileExists(tmpUri)) {
+    const tmpData = await tryReadValidJson(tmpUri);
+    if (tmpData !== null) {
+      await restoreCandidateToTarget(tmpUri, uri);
+      file.delete({ uri: bakUri, success: () => {}, fail: () => {} });
+      return tmpData;
+    }
+  }
+
+  return null;
+}
+
 export function readJsonFile(uri, defaultValue, strict) {
   return new Promise((resolve, reject) => {
     file.readText({
@@ -112,7 +194,14 @@ export function readJsonFile(uri, defaultValue, strict) {
           // 解析失败自愈（P0-15）：坏文件先备份为 .bad（单代）保住现场再重建——
           // 否则原子写会覆盖坏文件；备份后按原语义返回：strict reject 交调用方
           // 决定是否重建，非 strict 直接按默认继续（不再静默吞掉损坏事实）
-          backupCorruptFile(uri).then(function () {
+          backupCorruptFile(uri).then(async function () {
+            // 坏文件已移至 .bad，尝试从 .bak 或 .tmp 救回有效数据
+            const recovered = await tryRecoverFromBackupOrTmp(uri);
+            if (recovered !== null) {
+              console.warn("JSON 损坏已从备份自动自愈: " + uri);
+              resolve(recovered);
+              return;
+            }
             notifyCorrupt(uri);
             if (strict) {
               reject({ parseError: e });
@@ -122,7 +211,16 @@ export function readJsonFile(uri, defaultValue, strict) {
           });
         }
       },
-      fail: (data, code) => {
+      fail: async (data, code) => {
+        if (code === FILE_ERROR.NOT_FOUND) {
+          // 主文件缺失时，检查是否存在因意外中断留下的 .bak 或 .tmp 备份可供恢复
+          const recovered = await tryRecoverFromBackupOrTmp(uri);
+          if (recovered !== null) {
+            console.warn("缺失的主文件已从备份自动恢复: " + uri);
+            resolve(recovered);
+            return;
+          }
+        }
         reject({ data: data, code: code });
       },
     });
@@ -137,29 +235,89 @@ export function readJsonFile(uri, defaultValue, strict) {
 function writeJsonFileAtomic(uri, value, space) {
   const text = JSON.stringify(value, null, space);
   const tmpUri = uri + ".tmp";
+  const bakUri = uri + ".bak";
+
   return new Promise((resolve, reject) => {
+    // 写入临时文件
     file.writeText({
       uri: tmpUri,
       text: text,
       success: () => {
-        const doMove = () => {
-          file.move({
-            srcUri: tmpUri,
-            dstUri: uri,
-            success: () => resolve(),
-            fail: (data, code) => reject({ data: data, code: code }),
-          });
-        };
+        // 尝试直接覆盖重命名（现代平台原子替换）
         file.move({
           srcUri: tmpUri,
           dstUri: uri,
-          success: () => resolve(),
-          fail: () => {
-            // 目标已存在且 move 不覆盖的环境：删除后重移一次
-            file.delete({
+          success: () => {
+            // 写入成功后清理历史残留的 .bak
+            file.delete({ uri: bakUri, success: () => {}, fail: () => {} });
+            resolve();
+          },
+          fail: (moveErr, moveCode) => {
+            // 首次 move 失败：可能是不支持原子覆盖已存在目标，也可能是底层 I/O 故障。
+            // 严禁直接无差别 delete 目标（P0-26）：若直接删旧目标，二次 move 若再失败，
+            // 正式文件与索引将永久丢失！
+            // 安全方案：
+            // 1. 先探测目标原文件是否存在。
+            file.access({
               uri: uri,
-              success: doMove,
-              fail: doMove,
+              success: () => {
+                // 原文件确实存在，需要将原文件移至 .bak 备份，再将 .tmp 移至正式 uri
+                const rollback = (finalErr, finalCode) => {
+                  // 二次移动失败，尝试将 .bak 恢复为正式文件，确保旧有效数据不丢
+                  file.move({
+                    srcUri: bakUri,
+                    dstUri: uri,
+                    success: () => reject({ data: finalErr, code: finalCode }),
+                    fail: () => reject({ data: finalErr, code: finalCode }),
+                  });
+                };
+
+                const doStep2 = () => {
+                  file.move({
+                    srcUri: tmpUri,
+                    dstUri: uri,
+                    success: () => {
+                      // 正式文件已成功到位，安全移除备份
+                      file.delete({ uri: bakUri, success: () => {}, fail: () => {} });
+                      resolve();
+                    },
+                    fail: (err2, code2) => {
+                      rollback(err2, code2);
+                    },
+                  });
+                };
+
+                // 先清理可能存在的过期 .bak，确保重命名到 .bak 成功
+                file.delete({
+                  uri: bakUri,
+                  success: () => {
+                    file.move({
+                      srcUri: uri,
+                      dstUri: bakUri,
+                      success: doStep2,
+                      fail: (errBak, codeBak) => {
+                        // 连备份移动都失败，说明底层发生严重 I/O 错误；
+                        // 保留原 uri 不动，清理 .tmp，拒绝操作
+                        reject({ data: errBak || moveErr, code: codeBak || moveCode });
+                      },
+                    });
+                  },
+                  fail: () => {
+                    file.move({
+                      srcUri: uri,
+                      dstUri: bakUri,
+                      success: doStep2,
+                      fail: (errBak, codeBak) => {
+                        reject({ data: errBak || moveErr, code: codeBak || moveCode });
+                      },
+                    });
+                  },
+                });
+              },
+              fail: () => {
+                // 原文件根本不存在，首次 move 失败属于纯粹的 I/O 故障，拒绝操作并保留现场
+                reject({ data: moveErr, code: moveCode });
+              },
             });
           },
         });
@@ -360,6 +518,9 @@ export function cleanTempFiles() {
               if (name.endsWith(".bad")) return;
               if (PERSISTENT_FILES.includes(name)) return;
               if (name.endsWith(".tmp") && PERSISTENT_FILES.includes(name.slice(0, -4))) {
+                return;
+              }
+              if (name.endsWith(".bak") && PERSISTENT_FILES.includes(name.slice(0, -4))) {
                 return;
               }
               filesToDelete.push(item);
