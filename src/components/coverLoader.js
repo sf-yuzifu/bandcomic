@@ -94,7 +94,11 @@ function pumpQueue() {
     };
 
     try {
-      proxyImage(cover.url, batch.options.getName(cover.item), finish, 1);
+      const sourceKey =
+        typeof batch.options.getSourceKey === "function"
+          ? batch.options.getSourceKey(cover.item)
+          : cover.item && cover.item.source;
+      proxyImage(cover.url, batch.options.getName(cover.item), finish, 1, sourceKey);
     } catch (e) {
       finish("");
     }

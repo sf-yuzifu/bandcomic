@@ -1396,6 +1396,168 @@ test("ime: square screen null check on candidate element prevents crash in en/nu
   }, "圆屏模式无回归");
 });
 
+test("api: cross-source health check and history cover proxy use correct source cookie without mismatch (P1-36)", async () => {
+  const apiSource = read("../src/components/api.js");
+  const coverLoaderSource = read("../src/components/coverLoader.js");
+
+  const fetchCalls = [];
+
+  const appGlobal = {
+    userAgent: () => "TestUA/1.0",
+    API_SETTING: {
+      using: "sourceA",
+      sourceA: { name: "Source A", apiUrl: "https://a.com" },
+      sourceB: { name: "Source B", apiUrl: "https://b.com" },
+      sourceC: { name: "Source C", apiUrl: "https://c.com" },
+    },
+    cookie: {
+      sourceA: "auth_cookie_A=secretA",
+      sourceB: "auth_cookie_B=secretB",
+      // sourceC 无 cookie
+    },
+  };
+
+  const fakeFetchModule = {
+    isDirectAvailable: () => Promise.resolve(false), // 模拟需代理
+    fetch: (options) => {
+      fetchCalls.push(options);
+      return Promise.resolve();
+    },
+  };
+
+  const apiContext = vm.createContext({
+    global: appGlobal,
+    fetch: fakeFetchModule,
+    Promise,
+    URL,
+    encodeURIComponent,
+    appendCoverSuffix: (url, name) => `${url}#${name}`,
+    console: { debug: noop, error: noop },
+  });
+
+  vm.runInContext(
+    apiSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace(/^export \{.*?\} from .*?(;\r?\n|\r?\n)/gm, "")
+      .replace(/^export /gm, "") +
+      "\nglobalThis.api = { buildHeaders, apiFetch, checkSourceHealth, proxyImage };",
+    apiContext
+  );
+
+  const { buildHeaders, checkSourceHealth, proxyImage } = apiContext.api;
+
+  // 1. 测试 buildHeaders 与 apiFetch 针对 sourceKey 的透传和显式归属
+  assert.equal(
+    buildHeaders({}, "sourceA").Cookie,
+    "auth_cookie_A=secretA",
+    "显式 sourceA 提取 A 的 cookie"
+  );
+  assert.equal(
+    buildHeaders({}, "sourceB").Cookie,
+    "auth_cookie_B=secretB",
+    "即使当前 using 是 sourceA，显式 sourceB 也能正确提取 B 的 cookie"
+  );
+  assert.equal(
+    buildHeaders({}, "sourceC").Cookie,
+    undefined,
+    "无 cookie 的 sourceC 请求绝不携带其他源的 cookie"
+  );
+  assert.equal(
+    buildHeaders({}).Cookie,
+    "auth_cookie_A=secretA",
+    "未显式指定 sourceKey 时兜底使用 using"
+  );
+
+  // 2. 测试 checkSourceHealth(sourceKey)
+  fetchCalls.length = 0;
+  checkSourceHealth("sourceB");
+  await tick();
+  assert.equal(fetchCalls.length, 1);
+  const healthCall = fetchCalls[0];
+  assert.equal(healthCall.url, "https://b.com/config");
+  assert.equal(
+    healthCall.header.Cookie,
+    "auth_cookie_B=secretB",
+    "健康检测源 B 必须带源 B 的 Cookie，不得带源 A 的 Cookie"
+  );
+
+  fetchCalls.length = 0;
+  checkSourceHealth("sourceC");
+  await tick();
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(
+    fetchCalls[0].header.Cookie,
+    undefined,
+    "检测无 Cookie 的源 C 时绝不携带源 A 或源 B 的认证头"
+  );
+
+  // 3. 测试 coverLoader 的跨源封面代理请求（历史记录多源混合）
+  appGlobal.$api = apiContext.api;
+  const coverContext = vm.createContext({
+    global: appGlobal,
+    file: { delete: noop },
+    proxyImage: proxyImage,
+    console: { debug: noop, error: noop },
+  });
+
+  vm.runInContext(
+    coverLoaderSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace(/^export /gm, "") +
+      "\nglobalThis.coverLoader = { loadCoverProxies };",
+    coverContext
+  );
+
+  const { loadCoverProxies } = coverContext.coverLoader;
+
+  const historyList = [
+    { id: "h1", originalId: "1", source: "sourceB", cover: "https://b.com/img1.jpg" },
+    { id: "h2", originalId: "2", source: "sourceC", cover: "https://c.com/img2.jpg" },
+    { id: "h3", originalId: "3", source: "sourceA", cover: "https://a.com/img3.jpg" },
+  ];
+
+  fetchCalls.length = 0;
+  loadCoverProxies(historyList, {
+    getUrl: (item) => item.cover,
+    getName: (item) => `${item.source}_${item.originalId}_cover`,
+    getSourceKey: (item) => item.source,
+    match: (row, item) => row.id === item.id,
+    merge: (item, uri) => ({ ...item, coverLocal: uri }),
+  });
+
+  await tick();
+  // 逐张加载第 1 张封面（sourceB）
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(
+    fetchCalls[0].header.Cookie,
+    "auth_cookie_B=secretB",
+    "混合历史列表加载 sourceB 封面必须使用 sourceB 的 Cookie"
+  );
+
+  // 模拟第 1 张完成，触发第 2 张（sourceC）
+  fetchCalls.pop().success({ data: "internal://files/b1" });
+  await tick();
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(
+    fetchCalls[0].header.Cookie,
+    undefined,
+    "加载 sourceC 封面不带任何 Cookie"
+  );
+
+  // 模拟第 2 张完成，触发第 3 张（sourceA）
+  fetchCalls.pop().success({ data: "internal://files/c2" });
+  await tick();
+  assert.equal(fetchCalls.length, 1);
+  assert.equal(
+    fetchCalls[0].header.Cookie,
+    "auth_cookie_A=secretA",
+    "加载 sourceA 封面正确使用 sourceA 的 Cookie"
+  );
+
+  // 验证当前全局 using 始终没有被篡改
+  assert.equal(appGlobal.API_SETTING.using, "sourceA", "全流程全局 using 保持稳定");
+});
+
 
 
 

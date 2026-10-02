@@ -166,11 +166,13 @@ export function mergeSourcesToGlobal(sourceArray) {
   });
 }
 
-export function buildHeaders(extra) {
+export function buildHeaders(extra, sourceKey) {
+  const targetKey =
+    sourceKey !== undefined ? sourceKey : global.API_SETTING && global.API_SETTING.using;
   return {
     "User-Agent": global.userAgent(),
-    ...(global.cookie && global.cookie[global.API_SETTING.using]
-      ? { Cookie: global.cookie[global.API_SETTING.using] }
+    ...(global.cookie && targetKey && global.cookie[targetKey]
+      ? { Cookie: global.cookie[targetKey] }
       : {}),
     ...(extra || {}),
   };
@@ -207,7 +209,7 @@ export function buildSearchUrl(text, page) {
 export function apiFetch(options) {
   return fetch.fetch({
     ...options,
-    header: buildHeaders(options.header),
+    header: buildHeaders(options.header, options.sourceKey),
   });
 }
 
@@ -224,6 +226,7 @@ export function checkSourceHealth(sourceKey) {
     apiFetch({
       url: source.apiUrl + "/config",
       responseType: "text",
+      sourceKey: sourceKey,
       success: (response) => {
         const statusCode = getHttpStatus(response);
         if (!isHttpSuccess(response)) {
@@ -255,7 +258,7 @@ export function checkSourceHealth(sourceKey) {
 // 设备不支持直接加载远程图片时，通过插件把图片拉取为本地文件后回调本地 uri；
 // 支持直连的设备直接回调原 url
 // priority 透传给请求队列：0 = 用户可见（默认），1 = 后台封面
-export function proxyImage(url, name, callback, priority) {
+export function proxyImage(url, name, callback, priority, sourceKey) {
   fetch.isDirectAvailable().then((direct) => {
     if (direct) {
       callback(url);
@@ -265,6 +268,7 @@ export function proxyImage(url, name, callback, priority) {
       url: appendCoverSuffix(url, name),
       responseType: "file",
       priority: priority || 0,
+      sourceKey: sourceKey,
       success: (response) => {
         callback(response.data || "");
       },

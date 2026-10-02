@@ -166,7 +166,8 @@ export default {
           (uri) => {
             if (uri) this.coverDisplayUri = uri;
           },
-          1
+          1,
+          global.API_SETTING.using
         );
       }
     }

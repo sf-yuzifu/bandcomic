@@ -456,6 +456,7 @@ export default {
     this._cancelResultCovers = loadCoverProxies(this.searchResults, {
       getUrl: (item) => item.thumb,
       getName: (item) => `${global.API_SETTING.using}_${item.gid}_cover`,
+      getSourceKey: () => global.API_SETTING.using,
       match: (row, item) => row.gid === item.gid && row.thumb === item.thumb,
       merge: (item, uri) => ({ ...item, thumb: uri }),
       skipSame: true,

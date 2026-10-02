@@ -396,6 +396,7 @@ export default {
     this._cancelHistoryCovers = loadCoverProxies(this.historyList, {
       getUrl: (item) => (item.cover ? addCoverParams(item.cover) : ""),
       getName: (item) => `${item.source}_${item.originalId}_cover`,
+      getSourceKey: (item) => item.source,
       match: (row, item) => row.id === item.id,
       merge: (item, uri) => ({ ...item, coverLocal: uri }),
     });
