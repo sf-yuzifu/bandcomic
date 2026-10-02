@@ -46,10 +46,15 @@ function harness() {
     readSources: () => h.readSources ? h.readSources() : Promise.resolve(h.sources),
     safeJsonParse: (value, fallback) => { try { return JSON.parse(value); } catch { return fallback; } },
     updateJsonFile: (uri, fallback, fn) => {
+      if (uri === "history.json" || uri.endsWith("history.json")) {
+        h.history = fn(JSON.parse(JSON.stringify(h.history || [])));
+        return Promise.resolve(h.history);
+      }
       h.books = fn(JSON.parse(JSON.stringify(h.books)));
       return Promise.resolve(h.books);
     },
     COMICS_URI: "comics.json",
+    HISTORY_URI: "history.json",
     isAlreadyExistsError: (code) => code === 202,
     global: { APP_SETTING: {} }, Uint8Array, Int8Array, ArrayBuffer, Promise, Map: FrameMap,
     console: { debug: () => {} },
@@ -119,6 +124,12 @@ function harness() {
       if (h.rmdirFault && h.rmdirFault(options)) {
         options.fail("I/O error", 300);
       } else {
+        const prefix = options.uri.endsWith("/") ? options.uri : options.uri + "/";
+        for (const key of [...h.files.keys()]) {
+          if (key === options.uri || key.startsWith(prefix)) {
+            h.files.delete(key);
+          }
+        }
         options.success();
       }
     } else {
@@ -1035,6 +1046,146 @@ test("readJsonFile: automatically recovers from .bak or .tmp when main file is m
   // 恢复后主文件存在，.bak 已被提升还原
   assert.ok(filesOnDisk.has("internal://files/history.json"));
 });
+
+test("import: duplicate import replaces local comic and removes old directory (P1-30)", async () => {
+  const h = harness();
+  // 首次导入
+  h.message({ type: "import_comic_header", name: "DupeBook", files: ["cover", "1"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "DupeBook", file: "cover", index: 0, total: 1, data: "Y292ZXI=" });
+  h.message({ type: "import_comic_chunk", name: "DupeBook", file: "1", index: 0, total: 1, data: "cGFnZTE=" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "DupeBook" });
+  await h.drainIO();
+
+  assert.equal(h.books.length, 1);
+  const oldId = h.books[0].id;
+  assert.ok(oldId.startsWith("local_"));
+  assert.ok(h.files.has("internal://files/" + oldId + "/1"));
+
+  // 再次导入同名漫画
+  h.message({ type: "import_comic_header", name: "DupeBook", files: ["cover", "1", "2"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "DupeBook", file: "cover", index: 0, total: 1, data: "Y292ZXI=" });
+  h.message({ type: "import_comic_chunk", name: "DupeBook", file: "1", index: 0, total: 1, data: "cGFnZTE=" });
+  h.message({ type: "import_comic_chunk", name: "DupeBook", file: "2", index: 0, total: 1, data: "cGFnZTI=" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "DupeBook" });
+  await h.drainIO();
+
+  // 校验：索引依然只有 1 条，ID 已更新为新 ID
+  assert.equal(h.books.length, 1);
+  const newId = h.books[0].id;
+  assert.notEqual(newId, oldId);
+  assert.equal(h.books[0].page_count, 2);
+
+  // 校验：旧目录已被递归清理，新目录文件存在
+  assert.ok(!h.files.has("internal://files/" + oldId + "/1"), "旧导入目录应被安全清理");
+  assert.ok(h.files.has("internal://files/" + newId + "/1"), "新导入目录文件应保留");
+  assert.ok(h.files.has("internal://files/" + newId + "/2"), "新导入目录文件应保留");
+});
+
+test("import: same name as online comic preserves online comic and does not replace its id or directory (P1-30)", async () => {
+  const h = harness();
+  // 模拟预先存在一本同名的在线下载漫画
+  const onlineId = "copymanga_12345";
+  h.books = [{ id: onlineId, name: "CrossSourceBook", page_count: 5, is_serial: false }];
+  h.files.set("internal://files/" + onlineId + "/1", Buffer.from("online_page"));
+
+  // 导入一本同名漫画
+  h.message({ type: "import_comic_header", name: "CrossSourceBook", files: ["cover", "1"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "CrossSourceBook", file: "cover", index: 0, total: 1, data: "Y292ZXI=" });
+  h.message({ type: "import_comic_chunk", name: "CrossSourceBook", file: "1", index: 0, total: 1, data: "cGFnZTE=" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "CrossSourceBook" });
+  await h.drainIO();
+
+  // 校验：在线漫画条目完好保留，未被篡改为 local_；新增独立的导入条目
+  assert.equal(h.books.length, 2, "同名在线漫画不应被导入记录替换覆盖");
+  const onlineBook = h.books.find((b) => b.id === onlineId);
+  const localBook = h.books.find((b) => b.id !== onlineId);
+
+  assert.ok(onlineBook, "在线条目必须存在");
+  assert.equal(onlineBook.id, onlineId);
+  assert.ok(localBook, "本地条目必须存在");
+  assert.ok(localBook.id.startsWith("local_"));
+
+  // 在线目录绝不能被误清理
+  assert.ok(h.files.has("internal://files/" + onlineId + "/1"), "在线漫画目录文件不得被误删除");
+});
+
+test("import: duplicate import migrates reading history to new local id (P1-30)", async () => {
+  const h = harness();
+  // 首次导入
+  h.message({ type: "import_comic_header", name: "HistBook", files: ["cover", "1"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "HistBook", file: "cover", index: 0, total: 1, data: "Y292ZXI=" });
+  h.message({ type: "import_comic_chunk", name: "HistBook", file: "1", index: 0, total: 1, data: "cGFnZTE=" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "HistBook" });
+  await h.drainIO();
+
+  const oldId = h.books[0].id;
+  // 模拟用户阅读过该漫画，历史记录中包含进度
+  h.history = [
+    {
+      id: "local_" + oldId,
+      originalId: oldId,
+      title: "HistBook",
+      chapter: 1,
+      page: 3,
+      last_read_time: 123456,
+    },
+  ];
+
+  // 再次导入该漫画
+  h.message({ type: "import_comic_header", name: "HistBook", files: ["cover", "1", "2"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "HistBook", file: "cover", index: 0, total: 1, data: "Y292ZXI=" });
+  h.message({ type: "import_comic_chunk", name: "HistBook", file: "1", index: 0, total: 1, data: "cGFnZTE=" });
+  h.message({ type: "import_comic_chunk", name: "HistBook", file: "2", index: 0, total: 1, data: "cGFnZTI=" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "HistBook" });
+  await h.drainIO();
+
+  const newId = h.books[0].id;
+  assert.notEqual(newId, oldId);
+
+  // 校验：阅读历史已平滑迁移至新 ID，续读进度保留
+  assert.equal(h.history.length, 1);
+  assert.equal(h.history[0].id, "local_" + newId);
+  assert.equal(h.history[0].originalId, newId);
+  assert.equal(h.history[0].page, 3);
+});
+
+test("import: failed/cancelled duplicate import does not corrupt old comic (P1-30)", async () => {
+  const h = harness();
+  // 首次导入成功
+  h.message({ type: "import_comic_header", name: "SafeBook", files: ["cover", "1"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "SafeBook", file: "cover", index: 0, total: 1, data: "Y292ZXI=" });
+  h.message({ type: "import_comic_chunk", name: "SafeBook", file: "1", index: 0, total: 1, data: "cGFnZTE=" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "SafeBook" });
+  await h.drainIO();
+
+  const oldId = h.books[0].id;
+  assert.ok(h.files.has("internal://files/" + oldId + "/1"));
+
+  // 再次开始同名导入，但新会话中途断开/取消，未发送 done
+  h.message({ type: "import_comic_header", name: "SafeBook", files: ["cover", "1", "2"] });
+  await h.drainIO();
+  // 模拟新导入被新的操作打断取消
+  h.handshake();
+  await h.drainIO();
+
+  // 校验：旧漫画依然完好，索引依然指向旧 ID
+  assert.equal(h.books.length, 1);
+  assert.equal(h.books[0].id, oldId);
+  assert.ok(h.files.has("internal://files/" + oldId + "/1"), "未成功的导入绝不能损坏旧漫画文件");
+});
+
 
 
 

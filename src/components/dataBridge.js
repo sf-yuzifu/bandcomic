@@ -8,6 +8,7 @@ import {
   updateJsonFile,
   COMICS_URI,
   SOURCES_URI,
+  HISTORY_URI,
   FILE_ERROR,
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
@@ -1253,14 +1254,25 @@ export function createDataBridge(interConnect) {
       downloaded_at: Date.now(),
     };
 
+    let replacedOldId = null;
+
     // 串行队列内读-改-写 + 原子落盘，避免与下载/阅读路径并发时丢条目
     updateJsonFile(COMICS_URI, [], function (comicsList) {
       const list = Array.isArray(comicsList) ? comicsList : [];
+      // 区分来源（P1-30）：仅替换属于导入来源（以 local_ 开头）的同名条目，绝不误篡改在线下载记录
       const existing = list.find(function (c) {
-        return c.name === comicName;
+        return (
+          c &&
+          c.name === comicName &&
+          typeof c.id === "string" &&
+          c.id.startsWith("local_")
+        );
       });
 
       if (existing) {
+        if (existing.id !== comicId) {
+          replacedOldId = existing.id;
+        }
         existing.id = comicId;
         existing.page_count = entry.page_count;
         existing.is_serial = entry.is_serial;
@@ -1282,6 +1294,31 @@ export function createDataBridge(interConnect) {
             isSerial +
             ")"
         );
+
+        // 新索引更新成功后，安全处理旧版本目录与历史记录迁移（P1-30）
+        if (replacedOldId && replacedOldId !== comicId) {
+          // 1. 迁移旧阅读历史指向新 ID
+          updateJsonFile(HISTORY_URI, [], function (historyList) {
+            const list = Array.isArray(historyList) ? historyList : [];
+            const oldHist = list.find(function (item) {
+              return (
+                item &&
+                (item.originalId === replacedOldId ||
+                  item.id === "local_" + replacedOldId)
+              );
+            });
+            if (oldHist) {
+              oldHist.originalId = comicId;
+              oldHist.id = "local_" + comicId;
+            }
+            return list;
+          }).catch(function (err) {
+            console.debug("迁移旧阅读历史失败: " + (err && err.code));
+          });
+
+          // 2. 安全清理旧漫画目录（彻底根除同名重复导入孤儿目录残留）
+          cleanupImportDir("internal://files/" + replacedOldId);
+        }
       },
       function (e) {
         console.debug("更新 comics.json 失败, code=" + (e && e.code));
