@@ -980,5 +980,174 @@ test("photo: chapter deletion fallback and legacy index-based history compatibil
   assert.equal(deletedPhoto.downloadChapter[deletedPhoto.chapter - 1][2], 2);
 });
 
+test("download: single comic storage meta counts only valid page files, ignores cover and extra files (P1-33)", async () => {
+  const h = harness();
+  const page = await h.mount({ total_chapters: 1, page_count: 3 });
+  const comicId = page._downloadState.comicId;
+  const folder = `internal://files/${comicId}`;
+  h.dirs.add(folder);
+
+  // 1. 无封面场景（仅正文 1, 2, 3）：应准确统计为 3 页，不扣减
+  h.files.set(`${folder}/1`, "page1");
+  h.files.set(`${folder}/2`, "page2");
+  h.files.set(`${folder}/3`, "page3");
+
+  await page.syncChapterMeta(page._downloadState);
+  await page.syncComicStorageMeta(page._downloadState);
+
+  let book = h.books().find((b) => b.id === comicId);
+  assert.equal(book.chapters[0].downloaded, 3, "无封面时 3 张正文应登记 downloaded=3 而非 2");
+  assert.equal(book.chapters[0].page_count, 3);
+
+  // 2. 有封面场景（cover + 1, 2, 3）：排除 cover，依然统计为 3 页
+  h.files.set(`${folder}/cover`, "cover_image");
+  await page.syncComicStorageMeta(page._downloadState);
+  book = h.books().find((b) => b.id === comicId);
+  assert.equal(book.chapters[0].downloaded, 3, "有封面时排除 cover，正文页数依然为 3");
+
+  // 3. 混入 bin 文件、临时文件及无关文件场景
+  h.files.delete(`${folder}/1`);
+  h.files.delete(`${folder}/2`);
+  h.files.delete(`${folder}/3`);
+  h.files.set(`${folder}/1.bin`, "bin1");
+  h.files.set(`${folder}/2.bin`, "bin2");
+  h.files.set(`${folder}/3.bin`, "bin3");
+  h.files.set(`${folder}/download.tmp`, "temp_data");
+  h.files.set(`${folder}/.DS_Store`, "noise");
+  h.files.set(`${folder}/_icf_123.bin`, "orphan_temp");
+
+  await page.syncComicStorageMeta(page._downloadState);
+  book = h.books().find((b) => b.id === comicId);
+  assert.equal(book.chapters[0].downloaded, 3, "支持 .bin 正文且自动过滤 tmp/.DS_Store 等无关文件");
+});
+
+test("offline: self-healing scan accurately counts valid pages without deducting cover and clears metaStale (P1-33)", async () => {
+  const offlineSource = read("../src/pages/offline/offline.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+  const storageSource = read("../src/components/storage.js");
+
+  const files = new Map();
+  const dirs = new Set();
+  function scan(uri) {
+    const children = [];
+    const prefix = uri + "/";
+    for (const dir of dirs) {
+      if (dir.startsWith(prefix) && !dir.slice(prefix.length).includes("/")) {
+        children.push({ uri: dir, type: "dir", subFiles: scan(dir) });
+      }
+    }
+    for (const [path, content] of files) {
+      if (path.startsWith(prefix) && !path.slice(prefix.length).includes("/")) {
+        children.push({ uri: path, type: "file", length: content.length });
+      }
+    }
+    return children;
+  }
+  const file = {
+    readText(options) {
+      if (files.has(options.uri)) options.success({ text: files.get(options.uri) });
+      else options.fail("missing", 301);
+    },
+    writeText(options) {
+      files.set(options.uri, options.text);
+      options.success();
+    },
+    get(options) {
+      if (dirs.has(options.uri)) options.success({ type: "dir", subFiles: scan(options.uri) });
+      else if (files.has(options.uri)) options.success({ type: "file", length: files.get(options.uri).length });
+      else options.fail("missing", 301);
+    },
+    delete(options) {
+      files.delete(options.uri);
+      if (options.success) options.success();
+    },
+    move(options) {
+      files.set(options.dstUri, files.get(options.srcUri));
+      files.delete(options.srcUri);
+      if (options.success) options.success();
+    },
+  };
+
+  const quiet = { debug: noop, error: noop };
+  const storageContext = vm.createContext({ file, console: quiet, Promise });
+  vm.runInContext(
+    storageSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
+      "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics, sanitizeFolderName };",
+    storageContext
+  );
+
+  const appGlobal = {
+    $storage: storageContext.storage,
+    $route: { serializeParams: (p) => p },
+    $img: { addCoverParams: (url) => url },
+    $set: { getSearchPageSize: () => 10 },
+    $cover: { loadCoverProxies: noop },
+    createConfirmGuard: () => () => false,
+    getTime: () => "12:00",
+    getReservedSpace: () => 0,
+  };
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: quiet,
+    file,
+    Promise,
+    router: { push: noop, replace: noop },
+    prompt: { showToast: noop },
+    device: {
+      getTotalStorage: ({ success }) => success({ totalStorage: 1000000 }),
+      getAvailableStorage: ({ success }) => success({ availableStorage: 800000 }),
+    },
+    setTimeout: (fn) => fn(),
+  });
+
+  vm.runInContext(
+    offlineSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.offlineDef = "),
+    context
+  );
+
+  const comicId = "single_test_comic";
+  const folder = `internal://files/${comicId}`;
+  dirs.add(folder);
+  // 磁盘只有 3 张正文，无封面
+  files.set(`${folder}/1`, "page1");
+  files.set(`${folder}/2`, "page2");
+  files.set(`${folder}/3`, "page3");
+
+  // 元数据初始模拟此前有 bug 的情况：page_count=3, downloaded=2（被少算了1页），导致 metaStale=true
+  const initialComics = [
+    {
+      id: comicId,
+      name: "Single Test",
+      page_count: 3,
+      is_serial: false,
+      size: 15,
+      chapters: [{ num: 0, name: "", page_count: 3, downloaded: 2 }],
+      downloaded_at: Date.now(),
+    },
+  ];
+  files.set("internal://files/comics.json", JSON.stringify(initialComics));
+
+  const offline = Object.assign({}, context.offlineDef, clone(context.offlineDef.private), {
+    $t: (k) => k,
+    $element: () => ({ scrollTo: () => {} }),
+  });
+
+  // 执行 loadingComic，会检测到 downloaded < page_count 并触发 metaStale 磁盘扫描自愈
+  await offline.loadingComic();
+  await tick();
+  await tick();
+  await tick();
+  await tick();
+
+  // 验证自愈后的 comics.json 元数据：downloaded 应已自愈为 3，不再是 2
+  const updatedComics = JSON.parse(files.get("internal://files/comics.json"));
+  assert.equal(updatedComics[0].chapters[0].downloaded, 3, "自愈后有效正文页数必须正确回写为 3");
+  // 此时漫画已完全下载，isComicIncomplete 返回 false
+  assert.equal(offline.isComicIncomplete(updatedComics[0]), false, "3/3 无封面漫画不得误标部分下载未完成");
+});
+
+
 
 

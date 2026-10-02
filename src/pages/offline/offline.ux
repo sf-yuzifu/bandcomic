@@ -179,7 +179,7 @@
 </template>
 
 <script>
-import router from "@system.router"
+import router from "@system.router";
 import file from "@system.file";
 import prompt from "@system.prompt";
 import device from "@system.device";
@@ -220,6 +220,8 @@ function formatFileSize(size) {
 }
 
 const confirmDelHistory = createConfirmGuard();
+
+const PAGE_FILE_RE = /^\d+(\.bin)?$/;
 
 // metaStale 自愈扫描的会话级缓存：key = 漫画 id + chapters 元数据指纹。
 // 中断漫画的回写不会改变"未完成"状态（downloaded 仍 < page_count），
@@ -675,24 +677,27 @@ export default {
                   const chapterNum = parts[0];
                   const chapterName = parts.slice(1).join("　");
                   const num = parseInt(chapterNum, 10);
+                  const validPageCount = (i.subFiles || []).filter((f) =>
+                    PAGE_FILE_RE.test(f.uri.split("/").pop())
+                  ).length;
                   if (metaStale) {
                     // 页数按章节号记账，章节名/排序沿用元数据
                     // （同时兼容导入漫画的无数字前缀目录名）
                     if (!isNaN(num)) {
-                      scannedPages[num] = i.subFiles.length;
+                      scannedPages[num] = validPageCount;
                     }
                   } else {
                     if (!comic.totalChapter) {
                       comic.totalChapter = [];
                     }
-                    comic.totalChapter.push([chapterName, i.subFiles.length, chapterNum]);
+                    comic.totalChapter.push([chapterName, validPageCount, chapterNum]);
                   }
                   // 导入漫画的章节目录不带数字前缀，跳过（保留导入时写入的元数据）
                   if (!isNaN(num)) {
                     scannedChapters.push({
                       num: num,
                       name: chapterName,
-                      downloaded: i.subFiles.length,
+                      downloaded: validPageCount,
                     });
                   }
                   for (const m of i.subFiles) {
@@ -709,9 +714,11 @@ export default {
                 });
               }
               if (!comic.is_serial) {
-                // 单本：根目录文件含封面，页数减一
-                const fileCount = data.subFiles.filter((f) => f.type !== "dir").length;
-                scannedChapters.push({ num: 0, name: "", downloaded: Math.max(0, fileCount - 1) });
+                // 单本：按有效正文文件名精准统计，排除封面及无关文件
+                const validPages = (data.subFiles || []).filter(
+                  (f) => f.type !== "dir" && PAGE_FILE_RE.test(f.uri.split("/").pop())
+                ).length;
+                scannedChapters.push({ num: 0, name: "", downloaded: validPages });
               }
               if (!metaStale && comic.totalChapter) {
                 comic.totalChapter.sort((a, b) => a[2] - b[2]);

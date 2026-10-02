@@ -170,6 +170,7 @@ const MAX_FAILED_TOLERANCE = 3;
 
 const CHAPTER_WINDOW = 18;
 const DOWNLOAD_ABORTED = new Error("download aborted");
+const PAGE_FILE_RE = /^\d+(\.bin)?$/;
 
 function sanitizeFolderName(name) {
   if (!name) return name;
@@ -391,7 +392,9 @@ export default {
             if (item.type !== "dir") return;
             const num = parseInt(item.uri.split("/").pop().split("　")[0], 10);
             if (!isNaN(num)) {
-              pages[num] = (item.subFiles || []).length;
+              pages[num] = (item.subFiles || []).filter((f) =>
+                PAGE_FILE_RE.test(f.uri.split("/").pop())
+              ).length;
             }
           });
           resolve(pages);
@@ -802,15 +805,19 @@ export default {
               for (const item of subFiles) {
                 if (item.type === "dir") {
                   let len = 0;
+                  let pageCount = 0;
                   for (const f of item.subFiles || []) {
                     len += f.length;
+                    if (PAGE_FILE_RE.test(f.uri.split("/").pop())) {
+                      pageCount++;
+                    }
                   }
                   size += len;
                   const parts = item.uri.split("/").pop().split("　");
                   scanned.push({
                     num: parseInt(parts[0], 10),
                     name: parts.slice(1).join("　"),
-                    downloaded: (item.subFiles || []).length,
+                    downloaded: pageCount,
                   });
                 } else {
                   size += item.length;
@@ -821,11 +828,12 @@ export default {
               for (const item of subFiles) {
                 if (item.type !== "dir") {
                   size += item.length;
-                  pages++;
+                  if (PAGE_FILE_RE.test(item.uri.split("/").pop())) {
+                    pages++;
+                  }
                 }
               }
-              // 根目录文件含封面，页数减一
-              scanned.push({ num: 0, name: "", downloaded: Math.max(0, pages - 1) });
+              scanned.push({ num: 0, name: "", downloaded: pages });
             }
             const prev = Array.isArray(comic.chapters) ? comic.chapters : [];
             const merged = scanned.map((sc) => {
