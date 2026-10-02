@@ -664,7 +664,7 @@ export function createDataBridge(interConnect) {
 
   // 启动一个文件的异步落盘：回调只认捕获的 state（不碰全局 _importState），
   // 会话已取消则丢弃落盘结果，不推进后续索引
-  function startImportWrite(state, uri, data) {
+  function startImportWrite(state, uri, data, fileKey) {
     state.inflightWrites++;
     writeBinaryFromBase64(
       uri,
@@ -673,6 +673,9 @@ export function createDataBridge(interConnect) {
         state.inflightWrites--;
         if (state.cancelled) return;
         state.completedFiles++;
+        if (fileKey) {
+          state.savedFiles[fileKey] = true;
+        }
         if (state.completedFiles % 5 === 0 || state.completedFiles === state.totalFiles) {
           prompt.showToast({
             message: "接收 " + state.completedFiles + "/" + state.totalFiles,
@@ -686,6 +689,30 @@ export function createDataBridge(interConnect) {
         if (state.cancelled) return;
         state.completedFiles++;
         state.failedFiles++;
+        if (fileKey) {
+          state.failedFilesList[fileKey] = true;
+        }
+        maybeFinalizeImport(state);
+      }
+    );
+  }
+
+  // 多章模式可选书级封面的落盘：不计入 totalFiles 文件计数，但受 inflightWrites 保护与落盘记录
+  function startImportCoverWrite(state, uri, data) {
+    state.inflightWrites++;
+    writeBinaryFromBase64(
+      uri,
+      data,
+      function () {
+        state.inflightWrites--;
+        if (state.cancelled) return;
+        state.savedFiles["cover"] = true;
+        maybeFinalizeImport(state);
+      },
+      function () {
+        state.inflightWrites--;
+        if (state.cancelled) return;
+        state.failedFilesList["cover"] = true;
         maybeFinalizeImport(state);
       }
     );
@@ -702,30 +729,53 @@ export function createDataBridge(interConnect) {
 
   function finalizeImport(state) {
     if (state.cancelled) return;
-    const failed = state.failedFiles || 0;
+
+    // 核对实际落盘成功的正式文件数量（区分已声明文件、成功落盘、缺失残片与写盘失败）
+    let totalSaved = 0;
+    if (state.mode === "single") {
+      state.files.forEach(function (f) {
+        if (state.savedFiles[f]) totalSaved++;
+      });
+    } else if (state.chapters) {
+      state.chapters.forEach(function (ch, ci) {
+        const chapName = (ch.name || "").trim() || "第" + (ci + 1) + "章";
+        (ch.files || []).forEach(function (f) {
+          if (state.savedFiles[chapName + "/" + f]) totalSaved++;
+        });
+      });
+    }
+    const totalFailed = Math.max(0, state.totalFiles - totalSaved);
 
     updateComicsIndex(
       state.comicId,
       state.comicName,
       state.pageCount,
       state.isSerial,
-      state.chapters
+      state.chapters,
+      state.savedFiles,
+      state.files
     );
 
     let msg =
       "导入完成: " +
       state.comicName +
       " (" +
-      (state.totalFiles - failed) +
+      totalSaved +
       "/" +
       state.totalFiles +
-      "文件)";
-    if (failed > 0) {
-      msg += "，" + failed + "个失败";
+      "文件";
+    if (totalFailed > 0) {
+      msg += "，" + totalFailed + "个失败";
     }
+    msg += ")";
     prompt.showToast({
       message: msg,
     });
+
+    // 释放残片缓冲与滑窗乱序缓存
+    state.buffers = {};
+    state.gbuf = null;
+    state.pendingWrites = [];
 
     if (_importState === state) {
       _importState = null;
@@ -793,6 +843,8 @@ export function createDataBridge(interConnect) {
       files: [],
       chapters: chapters,
       buffers: {},
+      savedFiles: {},
+      failedFilesList: {},
       totalFiles: 0,
       completedFiles: 0,
       pageCount: pageCount,
@@ -846,16 +898,10 @@ export function createDataBridge(interConnect) {
       pending.forEach(function (w) {
         if (state.cancelled) return;
         if (w.isCover) {
-          // 封面不参与文件计数
-          writeBinaryFromBase64(
-            w.uri,
-            w.data,
-            function () {},
-            function () {}
-          );
+          startImportCoverWrite(state, w.uri, w.data);
           return;
         }
-        startImportWrite(state, w.uri, w.data);
+        startImportWrite(state, w.uri, w.data, w.fileKey);
       });
     }
 
@@ -987,24 +1033,20 @@ export function createDataBridge(interConnect) {
       const isUncountedCover = state.mode === "multi" && fileKey === "cover";
       if (isUncountedCover) {
         if (state.dirReady) {
-          writeBinaryFromBase64(
-            fileUri,
-            fullBase64,
-            function () {},
-            function () {}
-          );
+          startImportCoverWrite(state, fileUri, fullBase64);
         } else {
-          state.pendingWrites.push({ uri: fileUri, data: fullBase64, isCover: true });
+          state.pendingWrites.push({ uri: fileUri, data: fullBase64, isCover: true, fileKey: fileKey });
         }
         return;
       }
 
       if (state.dirReady) {
-        startImportWrite(state, fileUri, fullBase64);
+        startImportWrite(state, fileUri, fullBase64, fileKey);
       } else {
         state.pendingWrites.push({
           uri: fileUri,
           data: fullBase64,
+          fileKey: fileKey,
         });
       }
     }
@@ -1158,12 +1200,26 @@ export function createDataBridge(interConnect) {
     }
   }
 
-  function updateComicsIndex(comicId, comicName, pageCount, isSerial, chapters) {
-    // 章节元数据：导入视为全部下载完成；size 缺失，离线页首次进入会扫描回写真实值
+  function updateComicsIndex(
+    comicId,
+    comicName,
+    pageCount,
+    isSerial,
+    chapters,
+    savedFiles,
+    files
+  ) {
+    // 章节元数据：导入按真实成功落盘的文件数登记 downloaded；size 缺失，离线页首次进入会扫描回写真实值
     let chaptersMeta;
     if (isSerial && Array.isArray(chapters)) {
       chaptersMeta = chapters.map(function (ch, i) {
         const count = (ch.files || []).length;
+        const chapName = (ch.name || "").trim() || "第" + (i + 1) + "章";
+        const downloaded = savedFiles
+          ? (ch.files || []).filter(function (f) {
+              return !!savedFiles[chapName + "/" + f];
+            }).length
+          : count;
         // 插件按 "<章号><全角空格><章名>" 命名章节目录与分片键；
         // 元数据沿用下载链路约定：num 单列、name 不带前缀（阅读页再拼回带前缀的目录名）
         const rawName = ch.name || "";
@@ -1173,11 +1229,18 @@ export function createDataBridge(interConnect) {
           num: hasPrefix ? parseInt(parts[0], 10) : i + 1,
           name: hasPrefix ? parts.slice(1).join("　") : rawName,
           page_count: count,
-          downloaded: count,
+          downloaded: downloaded,
         };
       });
     } else {
-      chaptersMeta = [{ num: 0, name: "", page_count: pageCount || 0, downloaded: pageCount || 0 }];
+      let downloaded = pageCount || 0;
+      if (savedFiles && Array.isArray(files)) {
+        const hasCover = files.indexOf("cover") !== -1;
+        downloaded = files.filter(function (f) {
+          return (hasCover ? f !== "cover" : true) && !!savedFiles[f];
+        }).length;
+      }
+      chaptersMeta = [{ num: 0, name: "", page_count: pageCount || 0, downloaded: downloaded }];
     }
 
     const entry = {

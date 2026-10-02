@@ -102,9 +102,13 @@ function harness() {
     } else if (method === "mkdir") {
       options.success();
     } else if (method === "write") {
-      const buf = options.buffer instanceof ArrayBuffer ? new Uint8Array(options.buffer) : options.buffer;
-      h.files.set(options.uri, Buffer.from(buf));
-      options.success();
+      if (h.writeFault && h.writeFault(options)) {
+        options.fail("disk error", 300);
+      } else {
+        const buf = options.buffer instanceof ArrayBuffer ? new Uint8Array(options.buffer) : options.buffer;
+        h.files.set(options.uri, Buffer.from(buf));
+        options.success();
+      }
     } else if (method === "access") {
       options.success();
     } else if (method === "rmdir") {
@@ -646,5 +650,99 @@ test("import: same name consecutive import isolates sessions and drops old sessi
   assert.equal(h.books.length, 1);
   const written = [...h.files.values()][0];
   assert.equal(written.toString(), "SESSION_2");
+});
+
+test("import: done with missing file chunks reports only saved files and excludes missing pages from downloaded", async () => {
+  const h = harness();
+  // 声明 3 个文件：封面 + 2 页正文
+  h.message({ type: "import_comic_header", name: "MissingTest", files: ["cover", "1", "2"] });
+  await h.drainIO();
+
+  // cover 完整接收并落盘
+  h.message({ type: "import_comic_chunk", name: "MissingTest", file: "cover", index: 0, total: 1, data: "YWJj" });
+  await h.drainIO();
+
+  // 正文 1 缺尾片（total=2 但只到了 index 0），正文 2 完全没到
+  h.message({ type: "import_comic_chunk", name: "MissingTest", file: "1", index: 0, total: 2, data: "YWJj" });
+  await tick();
+
+  // 提前收到 done
+  h.message({ type: "import_comic_done", name: "MissingTest" });
+  await h.drainIO();
+
+  // 校验：仅 cover 实际落盘
+  assert.equal(h.files.size, 1);
+  // 正文页 downloaded 应为 0，而不是误报的 2
+  assert.equal(h.books[0].chapters[0].downloaded, 0);
+  assert.equal(h.books[0].chapters[0].page_count, 2);
+  // Toast 应明确指出仅完成 1/3，并提示 2 个失败
+  assert.ok(h.toasts.some((s) => s.includes("(1/3文件，2个失败)")));
+  assert.ok(!h.toasts.some((s) => s.includes("(3/3文件)")));
+});
+
+test("import: disk write failures accurately reduce downloaded count and report failed count in toast", async () => {
+  const h = harness();
+  h.writeFault = () => true; // 模拟写盘全部失败
+
+  h.message({ type: "import_comic_header", name: "FailTest", files: ["cover", "1"] });
+  await h.drainIO();
+
+  h.message({ type: "import_comic_chunk", name: "FailTest", file: "cover", index: 0, total: 1, data: "YWJj" });
+  h.message({ type: "import_comic_chunk", name: "FailTest", file: "1", index: 0, total: 1, data: "YWJj" });
+  await h.drainIO();
+
+  h.message({ type: "import_comic_done", name: "FailTest" });
+  await h.drainIO();
+
+  // 磁盘实际无文件
+  assert.equal(h.files.size, 0);
+  // 正文 downloaded 为 0，不被错误登记为 1
+  assert.equal(h.books[0].chapters[0].downloaded, 0);
+  assert.ok(h.toasts.some((s) => s.includes("(0/2文件，2个失败)")));
+});
+
+test("import: multi-chapter mode accurately tracks downloaded count per chapter and accounts for optional cover", async () => {
+  const h = harness();
+  // 模拟对指定文件写入失败：让第1章第2页失败
+  h.writeFault = (options) => options.uri.includes("第1章/2");
+
+  h.message({
+    type: "import_comic_header",
+    name: "MultiTest",
+    mode: "multi",
+    chapters: [
+      { name: "第1章", files: ["1", "2"] },
+      { name: "第2章", files: ["1"] },
+    ],
+  });
+  await h.drainIO();
+
+  // 发送多章模式可选封面
+  h.message({ type: "import_comic_chunk", name: "MultiTest", file: "cover", index: 0, total: 1, data: "Y292ZXI=" });
+  // 第1章第1页 (成功)
+  h.message({ type: "import_comic_chunk", name: "MultiTest", file: "第1章/1", index: 0, total: 1, data: "cGcx" });
+  // 第1章第2页 (注入失败)
+  h.message({ type: "import_comic_chunk", name: "MultiTest", file: "第1章/2", index: 0, total: 1, data: "cGcy" });
+  // 第2章第1页 (成功)
+  h.message({ type: "import_comic_chunk", name: "MultiTest", file: "第2章/1", index: 0, total: 1, data: "cGcz" });
+  await h.drainIO();
+
+  h.message({ type: "import_comic_done", name: "MultiTest" });
+  await h.drainIO();
+
+  assert.equal(h.books.length, 1);
+  const book = h.books[0];
+  assert.equal(book.chapters.length, 2);
+  // 第1章：声明2页，实落1页
+  assert.equal(book.chapters[0].page_count, 2);
+  assert.equal(book.chapters[0].downloaded, 1);
+  // 第2章：声明1页，实落1页
+  assert.equal(book.chapters[1].page_count, 1);
+  assert.equal(book.chapters[1].downloaded, 1);
+
+  // 封面 + 2个正文页共3个文件在磁盘
+  assert.equal(h.files.size, 3);
+  // 提示：共3个章节文件，完成2个，1个失败
+  assert.ok(h.toasts.some((s) => s.includes("(2/3文件，1个失败)")));
 });
 
