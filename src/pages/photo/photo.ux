@@ -445,6 +445,9 @@ export default {
     // Request state is intentionally non-reactive; only image/list callbacks use it.
     this._photoReadGeneration = 0;
     this._photoImageSeq = 0;
+    this._historyData = null;
+    this._historyDirty = false;
+    this._pagesSinceFlush = 0;
     // 模块级状态跨页面实例共享，进页重置（图片缓存三件套 + shownPage 一并重置，
     // 配合 destroyed 守卫杜绝上一本漫画的图串台，P0-9）
     reachedEdge = null;
@@ -783,6 +786,7 @@ export default {
       shownPage = this.page;
       reachedEdge = null;
       posX = posY = 0;
+      this.onImageDisplayed();
       this.preloadAdjacentPages(request);
       return;
     }
@@ -808,6 +812,7 @@ export default {
         shownPage = page;
         reachedEdge = null;
         posX = posY = 0;
+        this.onImageDisplayed();
         this.preloadAdjacentPages(request);
       },
       fail: () => {
@@ -859,6 +864,7 @@ export default {
             shownPage = p;
             reachedEdge = null;
             posX = posY = 0;
+            this.onImageDisplayed();
             return;
           }
           if (Math.abs(p - this.page) === 1) {
@@ -882,6 +888,13 @@ export default {
     preloadPage(this.page - 1);
   },
 
+  onImageDisplayed() {
+    if (!this._historyData) {
+      this._historyData = this.buildHistoryData();
+      this._historyDirty = true;
+    }
+  },
+
   resolveLocalImage(baseUri, request, fallbackBaseUri) {
     const binUri = baseUri + ".bin";
     file.access({
@@ -889,6 +902,7 @@ export default {
       success: () => {
         if (!this.isImageRequestCurrent(request)) return;
         this.images = binUri;
+        this.onImageDisplayed();
       },
       fail: () => {
         if (!this.isImageRequestCurrent(request)) return;
@@ -897,6 +911,7 @@ export default {
           success: () => {
             if (!this.isImageRequestCurrent(request)) return;
             this.images = baseUri;
+            this.onImageDisplayed();
           },
           fail: () => {
             if (!this.isImageRequestCurrent(request)) return;

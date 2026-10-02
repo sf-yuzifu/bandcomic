@@ -1823,6 +1823,191 @@ test("source: global state synchronizes on disk write completion even if page wa
   assert.equal(appGlobal.API_SETTING.using, "newSource", "using 槽位已被安全校正指向可用源");
 });
 
+test("photo: first successful image display creates history snapshot and writes on exit without flipping (P1-39)", async () => {
+  const photoSource = read("../src/pages/photo/photo.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+
+  const filesOnDisk = new Map();
+
+  const fileMock = {
+    readText(options) {
+      if (filesOnDisk.has(options.uri)) {
+        options.success({ text: filesOnDisk.get(options.uri) });
+      } else {
+        options.fail("missing", 301);
+      }
+    },
+    writeText(options) {
+      filesOnDisk.set(options.uri, options.text);
+      options.success();
+    },
+    access(options) {
+      if (filesOnDisk.has(options.uri)) options.success();
+      else options.fail("missing", 301);
+    },
+    move(options) {
+      filesOnDisk.set(options.dstUri, filesOnDisk.get(options.srcUri));
+      filesOnDisk.delete(options.srcUri);
+      options.success();
+    },
+    delete(options) {
+      filesOnDisk.delete(options.uri);
+      if (options.success) options.success();
+    },
+  };
+
+  let fetchShouldFail = false;
+  const appGlobal = {
+    APP_SETTING: { imageSize: "480", imageQuality: "50", imagePreload: false },
+    API_SETTING: { using: "sourceA", sourceA: { apiUrl: "https://source.test" } },
+    $img: {
+      addImageParams: (url) => url,
+      appendLvglSuffix: (url) => url,
+    },
+    $route: {
+      parseParam: (p) => p,
+    },
+    $storage: {
+      HISTORY_URI: "internal://files/history.json",
+      updateJsonFile(uri, fallback, updater) {
+        const current = filesOnDisk.has(uri) ? JSON.parse(filesOnDisk.get(uri)) : fallback;
+        const updated = updater(current);
+        filesOnDisk.set(uri, JSON.stringify(updated));
+        return Promise.resolve(updated);
+      },
+      readHistory() {
+        return Promise.resolve(filesOnDisk.has("internal://files/history.json")
+          ? JSON.parse(filesOnDisk.get("internal://files/history.json")) : []);
+      },
+    },
+    $api: {
+      apiFetch(options) {
+        if (fetchShouldFail) {
+          if (options.fail) options.fail("network error", 500);
+          return Promise.resolve();
+        }
+        if (options.responseType === "json") {
+          options.success({
+            data: {
+              title: "Single Book 1",
+              images: [{ url: "https://img.test/1.jpg" }, { url: "https://img.test/2.jpg" }],
+            },
+          });
+        } else {
+          // 模拟成功返回图片临时文件
+          options.success({ data: "internal://files/photo_p1.jpg" });
+        }
+        return Promise.resolve();
+      },
+      buildPhotoUrl: () => "https://source.test/photo",
+    },
+    screenShape: "rect",
+    deviceProduct: "test",
+    getTime: () => "12:00",
+  };
+
+  const context = vm.createContext({
+    global: appGlobal,
+    file: fileMock,
+    Promise,
+    URL,
+    console: { debug: noop, error: noop },
+    brightness: { setMode: noop, setValue: noop },
+    deleteFetchTemp: noop,
+    clearPreloadCache: noop,
+    trimPhotoCache: noop,
+    parseParam: (p) => p,
+    buildDigitRanges: () => [],
+    router: { back: noop },
+  });
+
+  vm.runInContext(
+    photoSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.photoDef = "),
+    context
+  );
+
+  function createPhoto(params = {}) {
+    return Object.assign({}, context.photoDef, clone(context.photoDef.private), {
+      id: "single_book_1",
+      title: "Single Book 1",
+      total_chapters: 1,
+      chapter: 1,
+      page: 1,
+      page_count: 10,
+      local: false,
+      $element: () => ({ scrollTo: () => {} }),
+      $t: (k) => k,
+    }, params);
+  }
+
+  // 1. 打开漫画，首张展示成功，不翻页直接退出（onHide / onDestroy）
+  const photo = createPhoto();
+  photo.onInit();
+  await tick();
+
+  // 模拟图片列表到达后请求第一页展示
+  photo.ImageCache = ["https://img.test/1.jpg", "https://img.test/2.jpg"];
+  photo.listReady = true;
+  photo.getImageForPage();
+
+  assert.equal(photo.images, "internal://files/photo_p1.jpg", "第一张图片成功展示");
+  assert.equal(photo._historyDirty, true, "首张成功展示必须已标记 _historyDirty 快照");
+
+  // 用户不翻页，直接退后台或退出页面
+  photo.onHide();
+  photo.onDestroy();
+  await tick();
+
+  // 验证：历史记录中已成功记录该漫画！
+  const historyList = JSON.parse(filesOnDisk.get("internal://files/history.json"));
+  assert.equal(historyList.length, 1, "只读首张后退出，历史记录中必须存在记录");
+  assert.equal(historyList[0].originalId, "single_book_1");
+  assert.equal(historyList[0].page, 1);
+  assert.ok(historyList[0].last_read_time > 0);
+
+  // 2. 验证已有历史记录再次打开只看第一张，退出时更新 last_read_time
+  const oldTime = historyList[0].last_read_time;
+  await new Promise((r) => setTimeout(r, 10));
+
+  const photoAgain = createPhoto();
+  photoAgain.onInit();
+  await tick();
+  photoAgain.ImageCache = ["https://img.test/1.jpg"];
+  photoAgain.listReady = true;
+  photoAgain.getImageForPage();
+
+  photoAgain.onHide();
+  photoAgain.onDestroy();
+  await tick();
+
+  const historyList2 = JSON.parse(filesOnDisk.get("internal://files/history.json"));
+  assert.ok(
+    historyList2[0].last_read_time >= oldTime,
+    "再次阅读首张后退出，最近阅读时间更新"
+  );
+
+  // 3. 验证加载失败场景（如网络请求失败进入 errorState），不误记虚假历史
+  filesOnDisk.delete("internal://files/history.json");
+  fetchShouldFail = true;
+  const failedPhoto = createPhoto({ id: "failed_book" });
+  failedPhoto.onInit();
+  await tick();
+
+  assert.equal(failedPhoto.images, "");
+  assert.equal(failedPhoto._historyDirty, false, "失败打开不得建立脏历史快照");
+
+  failedPhoto.onHide();
+  failedPhoto.onDestroy();
+  await tick();
+
+  assert.equal(
+    filesOnDisk.has("internal://files/history.json"),
+    false,
+    "图片未成功展示（加载失败）不误记历史"
+  );
+});
+
 
 
 
