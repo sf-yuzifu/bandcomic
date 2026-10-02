@@ -609,35 +609,45 @@
               align-items: center;
             "
           >
-            <scroll
-              id="cvalWaiting"
-              scroll-x="{{ true }}"
-              style="position: absolute; width: 85%; height: 42px"
+            <div
+              style="
+                position: absolute;
+                width: 85%;
+                height: 42px;
+                justify-content: center;
+                align-items: center;
+              "
             >
-              <div
-                static
-                style="
-                  position: absolute;
-                  left: 0px;
-                  height: 42px;
-                  padding-left: 20px;
-                  padding-right: 20px;
-                "
+              <scroll
+                id="cvalWaiting"
+                scroll-x="{{ true }}"
+                style="position: absolute; width: 100%; height: 42px"
               >
-                <text class="calbtn02" style="padding-right: 10px" @click="pushCval">
-                  {{ cval }}
-                </text>
-                <text
-                  for="{{ cvalList }}"
-                  show="{{ resultList.length > $idx }}"
-                  class="calbtn02"
-                  style="padding-right: 10px"
-                  @click="onRsSelect(resultList[$idx])"
+                <div
+                  static
+                  style="
+                    position: absolute;
+                    left: 0px;
+                    height: 42px;
+                    padding-left: 20px;
+                    padding-right: 20px;
+                  "
                 >
-                  {{ resultList[$idx] }}
-                </text>
-              </div>
-            </scroll>
+                  <text class="calbtn02" style="padding-right: 10px" @click="pushCval">
+                    {{ cval }}
+                  </text>
+                  <text
+                    for="{{ cvalList }}"
+                    show="{{ resultList.length > $idx }}"
+                    class="calbtn02"
+                    style="padding-right: 10px"
+                    @click="onRsSelect(resultList[$idx])"
+                  >
+                    {{ resultList[$idx] }}
+                  </text>
+                </div>
+              </scroll>
+            </div>
             <img
               if="{{ resultList.length > 0 }}"
               style="position: absolute; right: 8px; width: 60px; height: 40px"
