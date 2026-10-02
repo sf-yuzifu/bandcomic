@@ -656,7 +656,7 @@ export default {
         return;
       }
       this.title = localChapterEntry[0];
-      this.page_count = localChapterEntry[1];
+      this.page_count = Math.max(localChapterEntry[1] || 0, this.page || 0);
       // 页码轮盘范围随章节总页数重建
       this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
     }
@@ -827,7 +827,17 @@ export default {
       },
       fail: () => {
         if (!this.isImageRequestCurrent(request)) return;
-        this.images = baseUri;
+        file.access({
+          uri: baseUri,
+          success: () => {
+            if (!this.isImageRequestCurrent(request)) return;
+            this.images = baseUri;
+          },
+          fail: () => {
+            if (!this.isImageRequestCurrent(request)) return;
+            this.enterErrorState();
+          },
+        });
       },
     });
   },

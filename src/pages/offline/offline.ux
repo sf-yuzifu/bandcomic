@@ -698,7 +698,7 @@ export default {
               if (metaStale && Array.isArray(comic.totalChapter)) {
                 // 把磁盘实际页数 patch 回元数据三元组；磁盘无此章（空目录/未建）即 0 页
                 comic.totalChapter.forEach((trip) => {
-                  trip[1] = scannedPages[trip[2]] || 0;
+                  trip[1] = Math.max(trip[1] || 0, scannedPages[trip[2]] || 0);
                 });
               }
               if (!comic.is_serial) {
@@ -765,7 +765,7 @@ export default {
       comic.totalChapter = comic.chapters
         .slice()
         .sort((a, b) => a.num - b.num)
-        .map((c) => [c.name, c.downloaded != null ? c.downloaded : c.page_count || 0, c.num]);
+        .map((c) => [c.name, c.page_count || c.downloaded || 0, c.num]);
     }
   },
 
