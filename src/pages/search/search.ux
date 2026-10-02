@@ -114,7 +114,7 @@ import prompt from "@system.prompt";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addCoverParams } = global.$img;
 const { serializeParams } = global.$route;
-const { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType } = global.$api;
+const { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType, isComicDetailResponse } = global.$api;
 const { getSearchPageSize } = global.$set;
 const { loadCoverProxies } = global.$cover;
 
@@ -504,7 +504,7 @@ export default {
         this.loadingDetail = false;
         // 不在此清行状态（P1-16③ 返修）：与 router.push 同帧竞争会留下永久灰显；
         // 行在跳转期间保持灰显，返回瞬间由 onShow 的 clearOpening 清掉
-        if (!response.data || typeof response.data !== "object") {
+        if (!isComicDetailResponse(response)) {
           this.clearOpening();
           prompt.showToast({
             message: this.$t("error.invalidResponse"),

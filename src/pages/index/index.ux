@@ -109,7 +109,7 @@ const {
   FILE_ERROR,
 } = global.$storage;
 const { safeJsonParse } = global.$json;
-const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal, getCurrentSourceName } = global.$api;
+const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal, getCurrentSourceName, isComicDetailResponse } = global.$api;
 
 const { getTime, createConfirmGuard } = global;
 
@@ -368,7 +368,7 @@ export default {
       url: buildDetailUrl(this.context),
       responseType: "json",
       success: (response) => {
-        if (!response.data || typeof response.data !== "object") {
+        if (!isComicDetailResponse(response)) {
           prompt.showToast({
             message: this.$t("error.invalidResponse"),
             duration: 3000,

@@ -1,6 +1,22 @@
 import fetch from "./interconnfetch";
 import { appendCoverSuffix } from "./imageUrl";
 import { safeJsonParse } from "./jsonUtils";
+import { getHttpStatus, isHttpSuccess } from "./httpResponse";
+
+export { getHttpStatus, isHttpSuccess } from "./httpResponse";
+
+export function isComicDetailResponse(response) {
+  if (!isHttpSuccess(response)) return false;
+  const body = response.data;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  const id = body.item_id;
+  const validId = (typeof id === "string" && id.trim().length > 0) ||
+    (typeof id === "number" && Number.isFinite(id) && id >= 0);
+  const pages = body.page_count;
+  const validPages = (typeof pages === "number" || (typeof pages === "string" && pages.trim() !== "")) &&
+    Number.isInteger(Number(pages)) && Number(pages) >= 0;
+  return validId && typeof body.name === "string" && body.name.trim().length > 0 && validPages;
+}
 
 // Vela fetch 底层基于 curl，错误码直接透传 curl errno
 export const FETCH_ERROR = {
@@ -209,8 +225,8 @@ export function checkSourceHealth(sourceKey) {
       url: source.apiUrl + "/config",
       responseType: "text",
       success: (response) => {
-        const statusCode = response.statusCode || 200;
-        if (statusCode >= 400) {
+        const statusCode = getHttpStatus(response);
+        if (!isHttpSuccess(response)) {
           resolve({ status: "http", code: statusCode, key: sourceKey, name: name, apiUrl: apiUrl });
           return;
         }

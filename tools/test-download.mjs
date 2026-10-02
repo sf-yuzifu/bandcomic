@@ -9,11 +9,25 @@ const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
 const pageSource = read("../src/pages/download/download.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
 const storageSource = read("../src/components/storage.js");
 const imageSource = read("../src/components/imageUrl.js");
+const imageFileSource = read("../src/components/imageFile.js");
+const httpSource = read("../src/components/httpResponse.js");
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 const clone = (value) => JSON.parse(JSON.stringify(value));
 const noop = () => {};
 const outcome = (promise) => promise.then(() => null, (error) => error);
 const isAborted = (error) => assert.equal(error && error.message, "download aborted");
+
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jCz8AAAAASUVORK5CYII=", "base64");
+function imageBytes(label, bin = false) {
+  if (!bin) return Buffer.concat([PNG, Buffer.from(label)]);
+  // Same indexed-8 layout as JM/MangaDex/QQ/Bilibili/E-Hentai converters.
+  const width = 20, height = 10;
+  const bytes = Buffer.alloc(4 + 1024 + width * height);
+  bytes.writeUInt32LE((10 | (width << 10) | (height << 21)) >>> 0);
+  for (let i = 0; i < 256; i++) bytes[4 + i * 4 + 3] = 255;
+  bytes.write(label, 1028);
+  return bytes;
+}
 
 function harness({ cancellable = false, bin = false } = {}) {
   const requests = [], calls = [], pending = [], routes = [], toasts = [], deleted = [];
@@ -48,6 +62,14 @@ function harness({ cancellable = false, bin = false } = {}) {
       dispatch("readText", options, () => files.has(options.uri)
         ? options.success({ text: files.get(options.uri) }) : options.fail("missing", 301));
     },
+    readArrayBuffer(options) {
+      dispatch("readArrayBuffer", options, () => {
+        if (!files.has(options.uri)) { options.fail("missing", 301); return; }
+        const bytes = Buffer.from(files.get(options.uri));
+        const start = options.position || 0;
+        options.success({ buffer: new Uint8Array(bytes.subarray(start, start + options.length)) });
+      });
+    },
     writeText(options) {
       dispatch("writeText", options, () => {
         files.set(options.uri, options.text);
@@ -65,8 +87,11 @@ function harness({ cancellable = false, bin = false } = {}) {
       });
     },
     get(options) {
-      dispatch("get", options, () => dirs.has(options.uri)
-        ? options.success({ subFiles: scan(options.uri) }) : options.fail("missing", 301));
+      dispatch("get", options, () => {
+        if (dirs.has(options.uri)) options.success({ type: "dir", subFiles: scan(options.uri) });
+        else if (files.has(options.uri)) options.success({ type: "file", length: files.get(options.uri).length });
+        else options.fail("missing", 301);
+      });
     },
     move(options) {
       dispatch("move", options, () => {
@@ -104,9 +129,13 @@ function harness({ cancellable = false, bin = false } = {}) {
       FETCH_ERROR: { TIMEOUT: 28 },
     },
   };
-  const imageContext = vm.createContext({ global: appGlobal, URL });
+  const imageContext = vm.createContext({ global: appGlobal, URL, file, Promise, ArrayBuffer, Uint8Array });
+  vm.runInContext(httpSource.replace(/^export /gm, "") +
+    "\nglobal.$api.getHttpStatus = getHttpStatus; global.$api.isHttpSuccess = isHttpSuccess;", imageContext);
   vm.runInContext(imageSource.replace(/^export /gm, "") +
     "\nglobal.$img = { addImageParams, addCoverParams, appendCoverSuffix, appendLvglSuffix };", imageContext);
+  vm.runInContext(imageFileSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
+    "\nglobal.$imageFile = { isValidImageFile, deleteImageTemp };", imageContext);
   const context = vm.createContext({
     global: appGlobal, console: quiet, file, Promise,
     router: { replace: (route) => routes.push(route), back: () => routes.push({ back: true }) },
@@ -145,14 +174,15 @@ function harness({ cancellable = false, bin = false } = {}) {
     },
     list(request, id, count = 2, title = id) {
       request.pending = false;
-      request.success({ data: { title, images: Array.from({ length: count }, (_, index) => ({
+      request.success({ statusCode: 200, data: { title, images: Array.from({ length: count }, (_, index) => ({
         url: `https://images.test/${id}/${index + 1}`,
       })) } });
     },
-    image(request, content, uri = `internal://files/_icf_test_${++tempSeq}`) {
+    image(request, content, uri = `internal://files/_icf_test_${++tempSeq}`, response = { statusCode: 200 }) {
       request.pending = false;
-      files.set(uri, content);
-      request.success({ data: uri });
+      const bytes = Buffer.isBuffer(content) ? content : imageBytes(content, request.url.includes("ifLVGL=1"));
+      files.set(uri, bytes);
+      request.success({ ...response, data: uri });
       return uri;
     },
     fail(request, code = 28) { request.pending = false; request.fail("injected network error", code); },
@@ -205,7 +235,7 @@ for (const cancellable of [false, true]) {
       assert.equal(new URL(h.requests[3].url).pathname, "/B/2");
       h.image(h.requests[3], "B_PAGE_2");
       await tick();
-      assert.equal(h.files.get("internal://files/source_B/2"), "B_PAGE_2");
+      assert.deepEqual(h.files.get("internal://files/source_B/2"), imageBytes("B_PAGE_2"));
       assert.equal(h.books().find((book) => book.id === "source_A").chapters, undefined);
       assert.equal(h.books().find((book) => book.id === "source_B").chapters[0].page_count, 2);
       assert.equal(a.downloadError, "");
@@ -238,7 +268,7 @@ for (const oldFirst of [false, true]) {
     if (!oldFirst) await replyOld();
     assert.ok(h.deleted.includes(oldTemp));
     assert.equal(h.files.has("internal://files/source_A/1"), false);
-    assert.equal(h.files.get("internal://files/source_B/1"), "B_IMAGE");
+    assert.deepEqual(h.files.get("internal://files/source_B/1"), imageBytes("B_IMAGE"));
     assert.equal(a.page, 0);
     assert.equal(b.page, 1);
     b.onDestroy();
@@ -271,7 +301,7 @@ test("late A cover cannot mark B's cover done or skip B's cover request", async 
   assert.equal(b._downloadState.coverDone, true);
   h.image(h.requests[4], "B_PAGE_1");
   await tick();
-  assert.equal(h.files.get("internal://files/source_B/cover"), "B_COVER");
+  assert.deepEqual(h.files.get("internal://files/source_B/cover"), imageBytes("B_COVER"));
   assert.equal(h.books().find((book) => book.id === "source_B").chapters[0].downloaded, 1);
   b.onDestroy();
 });
@@ -350,7 +380,7 @@ test("cleanup ignores formal files and cleans only the stale request's own _icf_
   const formal = h.image(h.requests.at(-1), "FORMAL", "internal://files/source_B/1");
   await tick();
   assert.equal(h.deleted.length, 0);
-  assert.equal(h.files.get(formal), "FORMAL");
+  assert.deepEqual(h.files.get(formal), imageBytes("FORMAL"));
   assert.equal(h.files.get(other), "OTHER");
 });
 
@@ -373,7 +403,7 @@ for (const moveError of [undefined, 300]) {
     assert.equal(h.toasts.length, 0);
     assert.equal(h.routes.length, 0);
     if (moveError) assert.ok(h.deleted.includes(temp));
-    else assert.equal(h.files.get("internal://files/source_A/1"), "PAGE_1");
+    else assert.deepEqual(h.files.get("internal://files/source_A/1"), imageBytes("PAGE_1"));
   });
 }
 
@@ -463,7 +493,7 @@ test("destroying A after B has loaded cannot clear B's images or serial queue st
   assert.equal(new URL(h.requests[1].url).pathname, "/B/1");
   h.image(h.requests[1], "B_ONLY");
   await task;
-  assert.equal(h.files.get("internal://files/source_B/1"), "B_ONLY");
+  assert.deepEqual(h.files.get("internal://files/source_B/1"), imageBytes("B_ONLY"));
 });
 
 test("same instance reinitialization rejects the previous task by state identity", async () => {
@@ -490,7 +520,7 @@ test("serial bin download remains ordered, skips existing pages and downloads co
   const chapter1 = root + "/1　Chapter 1";
   h.dirs.add(root);
   h.dirs.add(chapter1);
-  h.files.set(chapter1 + "/1.bin", "EXISTING_1");
+  h.files.set(chapter1 + "/1.bin", imageBytes("EXISTING_1", true));
   const page = await h.mount({ cover: "https://images.test/cover" });
   page.selectedChapters = [1, 2];
   const batch = page.startBatchDownload();
@@ -520,10 +550,10 @@ test("serial bin download remains ordered, skips existing pages and downloads co
   await h.advance(1500);
   await batch;
   assert.equal(h.requests.length, 6);
-  assert.equal(h.files.get(chapter1 + "/1.bin"), "EXISTING_1");
-  assert.equal(h.files.get(chapter1 + "/2.bin"), "C1_PAGE_2");
-  assert.equal(h.files.get(root + "/2　Chapter 2/2.bin"), "C2_PAGE_2");
-  assert.equal(h.files.get(root + "/cover"), "COVER");
+  assert.deepEqual(h.files.get(chapter1 + "/1.bin"), imageBytes("EXISTING_1", true));
+  assert.deepEqual(h.files.get(chapter1 + "/2.bin"), imageBytes("C1_PAGE_2", true));
+  assert.deepEqual(h.files.get(root + "/2　Chapter 2/2.bin"), imageBytes("C2_PAGE_2", true));
+  assert.deepEqual(h.files.get(root + "/cover"), imageBytes("COVER"));
   assert.equal(h.books()[0].name, "Book A");
   assert.deepEqual(h.books()[0].chapters.map((chapter) => chapter.downloaded), [2, 2]);
   assert.equal(h.routes.length, 1);
@@ -566,4 +596,88 @@ test("failed page retries retain their quota and one serial supplemental attempt
   assert.equal(h.toasts.length, 2, "one network retry toast and one supplemental retry toast");
   assert.equal(page.page, 1);
   assert.equal(page._downloadState.pending.length, 0);
+});
+
+for (const status of [401, 403, 404]) {
+  test(`HTTP ${status} is rejected without saving; fast-fails without retries`, async () => {
+    const h = harness();
+    const page = await h.mount();
+    await loadList(h, page);
+    const task = outcome(page.downloadPage(1, "internal://files/source_A"));
+    await tick();
+    const temp = `internal://files/_icf_bad_${status}`;
+    h.image(h.requests.at(-1), Buffer.from("<html>error</html>"), temp, { statusCode: status });
+    const error = await task;
+    assert.match(error, /download\.downloadFailed/);
+    assert.equal(h.calls.some((call) => call.type === "move"), false);
+    assert.ok(h.deleted.includes(temp));
+    assert.equal(h.requests.length, 2, "deterministic 4xx fast-fails without 3 retries");
+  });
+}
+
+test("HTTP 500 retries using its quota and fails after exhaustion without saving", async () => {
+  const h = harness();
+  const page = await h.mount();
+  await loadList(h, page);
+  const task = outcome(page.downloadPage(1, "internal://files/source_A"));
+  await tick();
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const temp = `internal://files/_icf_500_${attempt}`;
+    h.image(h.requests.at(-1), Buffer.from("<html>500 error</html>"), temp, { statusCode: 500 });
+    await tick();
+    assert.ok(h.deleted.includes(temp));
+    if (attempt < 3) await h.advance(1000);
+  }
+  const error = await task;
+  assert.match(error, /download\.downloadFailed500/);
+  assert.equal(h.calls.some((call) => call.type === "move"), false);
+  assert.equal(h.requests.length, 5);
+});
+
+test("200 HTML login/error body is rejected as an invalid image and cleans the temp file", async () => {
+  const h = harness();
+  const page = await h.mount();
+  await loadList(h, page);
+  const task = outcome(page.downloadPage(1, "internal://files/source_A"));
+  await tick();
+  const temp = "internal://files/_icf_login";
+  h.image(h.requests.at(-1), Buffer.from("<html>login required</html>"), temp, { statusCode: 200 });
+  const error = await task;
+  assert.match(error, /error\.invalidResponse/);
+  assert.equal(h.calls.some((call) => call.type === "move"), false);
+  assert.ok(h.deleted.includes(temp));
+});
+
+test("corrupt existing image on disk is detected and re-downloaded with fresh content", async () => {
+  const h = harness();
+  const root = "internal://files/source_A";
+  h.dirs.add(root);
+  h.files.set(root + "/1", Buffer.from("<html>stale 404 error</html>"));
+  const page = await h.mount();
+  await loadList(h, page);
+  const task = page.downloadPage(1, root);
+  await tick();
+  assert.equal(h.requests.length, 2, "corrupt file triggers a download request");
+  h.image(h.requests.at(-1), "REPAIRED");
+  await task;
+  assert.deepEqual(h.files.get(root + "/1"), imageBytes("REPAIRED"));
+});
+
+test("existing valid image with read failure is preserved rather than overwritten or deleted", async () => {
+  const h = harness();
+  const root = "internal://files/source_A";
+  h.dirs.add(root);
+  h.files.set(root + "/1", imageBytes("VALID"));
+  const page = await h.mount();
+  await loadList(h, page);
+  h.hold("readArrayBuffer");
+  const task = outcome(page.downloadPage(1, root));
+  await tick();
+  assert.equal(h.pending.length, 1);
+  await h.finish("readArrayBuffer", 300);
+  const error = await task;
+  assert.match(error, /download\.downloadFailed300/);
+  assert.deepEqual(h.files.get(root + "/1"), imageBytes("VALID"));
+  assert.equal(h.calls.some((call) => call.type === "move"), false);
+  assert.equal(h.requests.length, 1);
 });

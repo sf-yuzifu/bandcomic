@@ -1,6 +1,7 @@
 import { safeJsonParse } from "./jsonUtils";
 import { base64ToBytes } from "./base64";
 import { getConnection, registerFetchHandler, registerActivityHandler } from "./interconnectHub";
+import { getHttpStatus, isHttpSuccess, createHttpError, isFetchTempUri } from "./httpResponse";
 
 const FETCH_TAG = "fetch";
 const FETCH_CHUNK_TAG = "fetch-chunk";
@@ -535,6 +536,13 @@ class InterconnFetchClient {
       const { resp, id } = payload;
       const req = this.requests.get(id);
       if (!req || req.settled) return;
+      // 文件在首个响应头处判状态，v3/v4 不接收/写盘错误正文，也不为其推进 ACK。
+      // JSON/text 仍交给业务层判断，源健康检测需要保留 HTTP 错误响应。
+      if (req.sink && !isHttpSuccess(resp)) {
+        req.stream = !!(resp && resp.stream);
+        req.reject(createHttpError(resp));
+        return;
+      }
       if (resp && (resp.stream || resp.chunked)) {
         if (req.header) {
           req.reject(new Error("duplicate fetch header"));
@@ -823,6 +831,7 @@ class InterconnFetchClient {
     // 完整 URL 不进帧——此前每个分片帧与 ACK 双向都背负一两百字符的 URL
     const id = "r" + ++_reqSeq;
     const resp = await this._sendFetch(id, url, options, sink, control);
+    if (sink && !isHttpSuccess(resp)) throw createHttpError(resp);
     if (resp.ok === false && !resp.status) {
       throw new Error(resp.statusText || "interconnect fetch failed");
     }
@@ -830,7 +839,7 @@ class InterconnFetchClient {
     if (body === null) {
       return {
         data: null,
-        statusCode: resp.status,
+        statusCode: getHttpStatus(resp),
         statusText: resp.statusText,
         headers: resp.headers,
         totalBytes: resp.totalBytes, // 分片头/流尾的总长，供调用方校验直写完整性
@@ -851,7 +860,7 @@ class InterconnFetchClient {
     }
     return {
       data: body,
-      statusCode: resp.status,
+      statusCode: getHttpStatus(resp),
       statusText: resp.statusText,
       headers: resp.headers,
     };
@@ -941,7 +950,19 @@ export default {
     const control = { cancelled: false, finished: false, abort: null };
     const doFetch = async () => {
       if (!preferBridge() && systemFetch) {
-        return systemFetch.fetch(params);
+        return systemFetch.fetch({
+          ...params,
+          success: (response) => {
+            const result = { ...response, statusCode: getHttpStatus(response) };
+            if (params.responseType === "file" && !isHttpSuccess(response)) {
+              if (isFetchTempUri(result.data)) deletePartialFile(result.data);
+              const error = createHttpError(response);
+              if (params.fail) params.fail(error.message, error.httpStatus);
+              return;
+            }
+            if (params.success) params.success(result);
+          },
+        });
       }
       const { url, method, header, body, responseType, success, fail, complete } = params;
       const options = {
@@ -1004,7 +1025,7 @@ export default {
           deletePartialFile(finalUri);
         }
         if (fail && typeof fail === "function") {
-          fail(err.message || err, 0);
+          fail(err.message || err, err.httpStatus || 0);
         }
         if (complete && typeof complete === "function") {
           complete();

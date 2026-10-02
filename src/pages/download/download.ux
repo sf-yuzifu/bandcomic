@@ -159,7 +159,8 @@ import prompt from "@system.prompt";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addImageParams, addCoverParams, appendCoverSuffix, appendLvglSuffix } = global.$img;
 const { updateComicMeta, isAlreadyExistsError, readComics } = global.$storage;
-const { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR } = global.$api;
+const { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR, getHttpStatus, isHttpSuccess } = global.$api;
+const { isValidImageFile, deleteImageTemp } = global.$imageFile;
 
 const { getTime } = global;
 
@@ -169,14 +170,6 @@ const MAX_FAILED_TOLERANCE = 3;
 
 const CHAPTER_WINDOW = 18;
 const DOWNLOAD_ABORTED = new Error("download aborted");
-
-// 只回收该请求返回的网桥临时文件；未知路径与正式漫画文件不属于此处清理范围。
-function deleteDownloadTemp(uri) {
-  if (typeof uri !== "string" || uri.indexOf("internal://files/_icf_") !== 0) return;
-  try {
-    file.delete({ uri: uri, fail: function () {} });
-  } catch (e) {}
-}
 
 function sanitizeFolderName(name) {
   if (!name) return name;
@@ -252,6 +245,7 @@ export default {
       scrollTopTriggered: false,
       scrollBottomTriggered: false,
       pending: [],
+      storageDirty: false,
     });
     this.showChapterSelect = this.total_chapters > 1;
     await this.initData();
@@ -321,7 +315,13 @@ export default {
         ...options,
         success: (response) => {
           if (!this.isDownloadActive(state) && options.responseType === "file") {
-            deleteDownloadTemp(response && response.data);
+            deleteImageTemp(response && response.data);
+          }
+          if (this.isDownloadActive(state) && !isHttpSuccess(response)) {
+            if (options.responseType === "file") deleteImageTemp(response && response.data);
+            const code = getHttpStatus(response) || 0;
+            reject({ code: code, data: "HTTP " + code });
+            return;
           }
           resolve(response);
         },
@@ -682,6 +682,12 @@ export default {
       }
     } catch (error) {
       if (!this.isDownloadActive(state)) return;
+      // 清掉旧坏页后即使补下载失败，也回写真实数量，避免继续保留“全部下载”的旧统计。
+      if (state.storageDirty) {
+        await this.syncComicStorageMeta(state);
+        if (!this.isDownloadActive(state)) return;
+        state.storageDirty = false;
+      }
       console.error("下载过程出错:", error);
       this.downloadError = error;
       this.processing = false;
@@ -840,7 +846,10 @@ export default {
             comic.downloaded_at = Date.now();
             return comic;
           }).then(
-            () => resolve(),
+            () => {
+              if (this.isDownloadActive(state)) state.storageDirty = false;
+              resolve();
+            },
             (e) => {
               if (!this.isDownloadActive(state)) {
                 reject(DOWNLOAD_ABORTED);
@@ -888,6 +897,10 @@ export default {
 
   retryOnFail(code, retryCount, options, state = this._downloadState) {
     if (!this.isDownloadActive(state)) return Promise.reject(DOWNLOAD_ABORTED);
+    // 不存在/认证失败等确定性 HTTP 错误无需连续重试；超时/限流仍保留原配额。
+    if (code >= 400 && code < 500 && code !== 408 && code !== 429) {
+      return Promise.reject(options.failMessage(code));
+    }
     console.debug(`${options.label}, code = ${code}, retryCount = ${retryCount}`);
 
     if (retryCount < MAX_RETRY) {
@@ -988,29 +1001,67 @@ export default {
     }, state);
   },
 
-  saveDownloadedFile(response, fileUri, state) {
+  validateImageFile(uri, allowLvgl, state) {
+    return this.downloadOperation((resolve, reject) => {
+      isValidImageFile(uri, allowLvgl, () => this.isDownloadActive(state)).then(resolve, reject);
+    }, state).catch((e) => {
+      this.checkDownloadActive(state);
+      throw this.$t("download.downloadFailed") + (e.code || 0);
+    });
+  },
+
+  async hasValidExistingImage(fileUri, allowLvgl, state) {
+    const exists = await this.fileExists(fileUri, state);
+    this.checkDownloadActive(state);
+    if (!exists) return false;
+    const valid = await this.validateImageFile(fileUri, allowLvgl, state);
+    this.checkDownloadActive(state);
+    if (valid) return true;
+    // 仅删除已确认头部无效的目标文件；读取失败会 reject，不误删可读旧图。
+    await this.downloadOperation((resolve, reject) => {
+      file.delete({
+        uri: fileUri,
+        success: () => resolve(),
+        fail: (data, code) => code === 301 ? resolve() : reject({ data: data, code: code }),
+      });
+    }, state).catch((e) => {
+      this.checkDownloadActive(state);
+      throw this.$t("download.downloadFailed") + (e.code || 0);
+    });
+    this.checkDownloadActive(state);
+    state.storageDirty = true;
+    return false;
+  },
+
+  async saveDownloadedFile(response, fileUri, state, allowLvgl) {
     const tempUri = response && response.data;
     // success 已返回、await 续体尚未运行时也可能退出，必须在 move 前再次校验。
     if (!this.isDownloadActive(state)) {
-      deleteDownloadTemp(tempUri);
-      return Promise.reject(DOWNLOAD_ABORTED);
+      deleteImageTemp(tempUri);
+      throw DOWNLOAD_ABORTED;
     }
-    if (!tempUri) return Promise.reject(this.$t("download.emptyImageData"));
-    return this.downloadOperation((resolve, reject) => {
-      file.move({
-        srcUri: tempUri,
-        dstUri: fileUri,
-        success: () => resolve(),
-        fail: (data, code) => {
-          deleteDownloadTemp(tempUri);
-          reject(
-            this.isDownloadActive(state)
-              ? this.$t("download.moveImageFailed", { code: code })
-              : DOWNLOAD_ABORTED
-          );
-        },
-      });
-    }, state);
+    if (!tempUri) throw this.$t("download.emptyImageData");
+    try {
+      if (!isHttpSuccess(response)) throw this.$t("error.invalidResponse");
+      const valid = await this.validateImageFile(tempUri, allowLvgl, state);
+      this.checkDownloadActive(state);
+      if (!valid) throw this.$t("error.invalidResponse");
+      await this.downloadOperation((resolve, reject) => {
+        file.move({
+          srcUri: tempUri,
+          dstUri: fileUri,
+          success: () => resolve(),
+          fail: (data, code) => {
+            deleteImageTemp(tempUri);
+            reject(this.isDownloadActive(state)
+              ? this.$t("download.moveImageFailed", { code: code }) : DOWNLOAD_ABORTED);
+          },
+        });
+      }, state);
+    } catch (e) {
+      deleteImageTemp(tempUri);
+      throw e;
+    }
   },
 
   async downloadPage(page, folderUri, retryCount = 0, state = this._downloadState) {
@@ -1021,10 +1072,11 @@ export default {
       parseInt(global.APP_SETTING.imageQuality, 10) || 50
     );
     const fileUri = `${folderUri}/${page}${global.APP_SETTING.imagePreTranscode ? ".bin" : ""}`;
-    const exists = await this.fileExists(fileUri, state);
+    const exists = await this.hasValidExistingImage(fileUri, !!global.APP_SETTING.imagePreTranscode, state);
     this.checkDownloadActive(state);
     if (exists) return;
 
+    state.storageDirty = true;
     let response;
     try {
       response = await this.requestDownload(
@@ -1051,7 +1103,7 @@ export default {
         state
       );
     }
-    await this.saveDownloadedFile(response, fileUri, state);
+    await this.saveDownloadedFile(response, fileUri, state, !!global.APP_SETTING.imagePreTranscode);
   },
 
   async downloadCover(folderUri, retryCount = 0, state = this._downloadState) {
@@ -1059,10 +1111,11 @@ export default {
     if (!this.cover) return;
     const fileUri = `${folderUri}/cover`;
     // 复用已有封面，路由传入的 cover 始终是源 URL。
-    const exists = await this.fileExists(fileUri, state);
+    const exists = await this.hasValidExistingImage(fileUri, false, state);
     this.checkDownloadActive(state);
     if (exists) return;
 
+    state.storageDirty = true;
     let response;
     try {
       response = await this.requestDownload(
@@ -1086,7 +1139,7 @@ export default {
         state
       );
     }
-    await this.saveDownloadedFile(response, fileUri, state);
+    await this.saveDownloadedFile(response, fileUri, state, false);
   },
 
   routeBack() {

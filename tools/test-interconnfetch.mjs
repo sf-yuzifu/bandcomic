@@ -11,10 +11,11 @@ const source = fs.readFileSync(
   "utf8"
 );
 const base64 = fs.readFileSync(new URL("../src/components/base64.js", import.meta.url), "utf8");
+const httpResponse = fs.readFileSync(new URL("../src/components/httpResponse.js", import.meta.url), "utf8");
 const CHUNK = 32768;
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-function harness(bufferType = "both") {
+function harness(bufferType = "both", direct = false) {
   const sent = [],
     calls = [],
     pending = [],
@@ -27,6 +28,7 @@ function harness(bufferType = "both") {
     activity = null;
   let inFlight = 0,
     maxInFlight = 0;
+  const nativeRequests = [];
   const bytesOf = (buffer) =>
     Buffer.from(buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer);
   const file = {
@@ -82,9 +84,10 @@ function harness(bufferType = "both") {
   const sandbox = {
     require: (name) => {
       if (name === "@system.file") return file;
+      if (name === "@system.fetch" && direct) return { fetch: (options) => { nativeRequests.push(options); } };
       throw new Error("unavailable");
     },
-    global: { APP_SETTING: { preferBridge: true } },
+    global: { APP_SETTING: { preferBridge: !direct } },
     process: { env: { NODE_ENV: "test" } },
     safeJsonParse: (text, fallback) => {
       try {
@@ -119,7 +122,7 @@ function harness(bufferType = "both") {
   };
   const context = vm.createContext(sandbox);
   vm.runInContext(
-    base64.replace(/^export /gm, "") +
+    httpResponse.replace(/^export /gm, "") + "\n" + base64.replace(/^export /gm, "") +
       "\n" +
       source.replace(/^import .*;\r?\n/gm, "").replace("export default {", "globalThis.api = {") +
       "\nglobalThis.hooks = { client: interconnClient, createFileWriter, caps: LOCAL_CAPS };",
@@ -133,6 +136,7 @@ function harness(bufferType = "both") {
     pending,
     deleted,
     files,
+    nativeRequests,
     logs,
     api: context.api,
     hooks: context.hooks,
@@ -175,6 +179,98 @@ function harness(bufferType = "both") {
   };
   return h;
 }
+
+for (const mode of ["v1", "v3", "v4"]) {
+  for (const status of [401, 403, 404, 500, 502]) {
+    test(`${mode}: HTTP ${status} is rejected at the header before any file write`, async () => {
+      const h = harness();
+      const events = [];
+      let complete = 0;
+      const task = h.api.fetch({ url: "https://example.test/error", responseType: "file",
+        success: () => events.push({ success: true }),
+        fail: (message, code) => events.push({ message, code }), complete: () => complete++ });
+      await tick();
+      const { id } = h.sent.find((message) => message.tag === "fetch");
+      const body = Buffer.from("<html>not an image</html>");
+      h.message({ tag: "fetch", id, resp: { ok: false, status, raw: true,
+        bodyEncoding: "base64", body: body.toString("base64"), ack: true,
+        ...(mode === "v3" ? { chunked: true, chunkCount: 1, chunkSize: CHUNK }
+          : mode === "v4" ? { stream: true } : {}) } });
+      await task;
+      h.message({ tag: mode === "v4" ? "fetch-stream" : "fetch-chunk", id, seq: 0,
+        data: body.toString("base64"), offset: 0 });
+      await tick();
+      assert.equal(events.length, 1);
+      assert.equal(events[0].code, status);
+      assert.match(events[0].message, new RegExp("HTTP " + status));
+      assert.equal(complete, 1);
+      assert.equal(h.calls.length, 0);
+      assert.equal(h.files.size, 0);
+      assert.equal(h.hooks.client.requests.size, 0);
+      if (mode === "v4") assert.ok(h.sent.some((message) => message.tag === "fetch-stream-cancel"));
+      assert.equal(h.sent.some((message) => /ack$/.test(message.tag)), false);
+    });
+  }
+}
+
+for (const status of [401, 403, 404, 500, 302, 304]) {
+  test(`native HTTP ${status}: code is recognized, cache file cleaned and complete stays single`, async () => {
+    const h = harness("both", true);
+    const events = [];
+    let complete = 0;
+    await h.api.fetch({ url: "https://example.test/error", responseType: "file",
+      success: () => events.push("success"), fail: (message, code) => events.push(code),
+      complete: () => complete++ });
+    const uri = "internal://cache/native_error";
+    h.files.set(uri, Buffer.from("<html>error</html>"));
+    h.nativeRequests[0].success({ code: status, data: uri });
+    h.nativeRequests[0].complete();
+    assert.deepEqual(events, [status]);
+    assert.deepEqual(h.deleted, [uri]);
+    assert.equal(h.files.size, 0);
+    assert.equal(complete, 1);
+  });
+}
+
+test("native final 200 after redirect passes through with both code and statusCode", async () => {
+  const h = harness("both", true);
+  const events = [];
+  await h.api.fetch({ url: "https://example.test/redirect", responseType: "file",
+    success: (response) => events.push(response), fail: () => assert.fail("unexpected failure") });
+  const uri = "internal://cache/image";
+  h.files.set(uri, Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
+  h.nativeRequests[0].success({ code: 200, data: uri });
+  assert.equal(events[0].code, 200);
+  assert.equal(events[0].statusCode, 200);
+  assert.equal(h.deleted.length, 0);
+});
+
+test("native HTTP JSON errors remain responses for health and detail validation", async () => {
+  const h = harness("both", true);
+  const events = [];
+  await h.api.fetch({ url: "https://example.test/config", responseType: "json",
+    success: (response) => events.push(response), fail: () => assert.fail("unexpected transport error") });
+  h.nativeRequests[0].success({ code: 500, data: { message: "error" } });
+  assert.equal(events[0].statusCode, 500);
+  assert.equal(events[0].data.message, "error");
+});
+
+test("bridge final 200 after redirect is accepted and followRedirects remains enabled", async () => {
+  const h = harness();
+  const events = [];
+  const task = h.api.fetch({ url: "https://example.test/redirect", responseType: "file",
+    success: (response) => events.push(response), fail: () => assert.fail("unexpected failure") });
+  await tick();
+  const request = h.sent.find((message) => message.tag === "fetch");
+  assert.equal(request.options.followRedirects, true);
+  const body = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]);
+  h.message({ tag: "fetch", id: request.id, resp: {
+    status: 200, ok: true, raw: true, bodyEncoding: "base64", body: body.toString("base64") } });
+  await h.drain();
+  await task;
+  assert.deepEqual(h.files.get(events[0].data), body);
+  assert.equal(events[0].statusCode, 200);
+});
 
 async function start(h, version = 4, extra = {}) {
   const events = [];

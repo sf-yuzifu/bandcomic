@@ -5,6 +5,7 @@ import { DEVICE_RESERVED_SPACE, getDeviceSupportLevel } from "./config/deviceCon
 import * as $storage from "./components/storage";
 import * as $api from "./components/api";
 import * as $img from "./components/imageUrl";
+import * as $imageFile from "./components/imageFile";
 import * as $json from "./components/jsonUtils";
 import * as $route from "./components/routerParams";
 import * as $set from "./components/settings";
@@ -23,6 +24,7 @@ import * as $boot from "./components/bootstrap";
 global.$storage = $storage;
 global.$api = $api;
 global.$img = $img;
+global.$imageFile = $imageFile;
 global.$json = $json;
 global.$route = $route;
 global.$set = $set;
