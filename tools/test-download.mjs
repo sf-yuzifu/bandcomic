@@ -1148,6 +1148,149 @@ test("offline: self-healing scan accurately counts valid pages without deducting
   assert.equal(offline.isComicIncomplete(updatedComics[0]), false, "3/3 无封面漫画不得误标部分下载未完成");
 });
 
+test("search: cache trimming protects current display range across mismatched server/client page sizes (P1-34)", async () => {
+  const searchSource = read("../src/pages/search/search.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+
+  let clientPageSize = 10;
+  const requests = [];
+
+  const appGlobal = {
+    APP_SETTING: {
+      get searchPageSize() { return clientPageSize; },
+      showCoverInSearch: false,
+    },
+    $img: { addCoverParams: (url) => url },
+    $route: { serializeParams: (p) => p },
+    $api: {
+      buildSearchUrl: (text, page) => `https://test/search?q=${text}&page=${page}`,
+      buildDetailUrl: (id) => `https://test/detail/${id}`,
+      getFetchErrorType: () => "network",
+      isComicDetailResponse: () => true,
+      apiFetch(options) {
+        requests.push(options);
+      },
+    },
+    $set: {
+      getSearchPageSize: () => clientPageSize,
+    },
+    $cover: {
+      loadCoverProxies: () => () => {},
+    },
+    getTime: () => "12:00",
+  };
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: { debug: noop, error: noop },
+    Promise,
+    router: { push: noop, replace: noop },
+    prompt: { showToast: noop },
+    setTimeout: (fn) => fn(),
+  });
+
+  vm.runInContext(
+    searchSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.searchDef = "),
+    context
+  );
+
+  function createSearch(params = {}) {
+    return Object.assign({}, context.searchDef, clone(context.searchDef.private), {
+      keyword: "test",
+      $t: (k) => k,
+      $element: () => ({ scrollTo: () => {} }),
+      $nextTick: (fn) => fn(),
+    }, params);
+  }
+
+  function mockServerPage(request, serverPage, itemsPerPage, hasMore = true) {
+    const results = Array.from({ length: itemsPerPage }, (_, i) => ({
+      comic_id: `comic_${serverPage}_${i + 1}`,
+      title: `Item ${serverPage}-${i + 1}`,
+      cover_url: `https://test/cover/${serverPage}/${i + 1}`,
+    }));
+    request.success({
+      data: {
+        page: serverPage,
+        has_more: hasMore,
+        results: results,
+      },
+    });
+    if (request.complete) request.complete();
+  }
+
+  // 场景 1：复现 bug 报告中的核心场景——服务端 32 条/页，客户端 10 条/页。
+  // 第 1 页拉取 serverPage 1 (32条，全局 0~31)
+  // 翻到第 4 页（startIndex = 30），需要拉取 serverPage 2 (32条，全局 32~63)
+  // 合并后 64 条 > MAX_CACHE(50)。
+  // 原实现：直接丢弃前 32 条，apiDroppedCount 变为 32，第 4 页切片起点 rawStart = 30 - 32 = -2，导致切片为空！
+  // 现实现：protectedStart = 30，下个 serverPage 起始点为 32 > 30，trimCache 必须受控停止丢弃，保留第 4 页所需的数据。
+  clientPageSize = 10;
+  requests.length = 0;
+  const search1 = createSearch();
+  search1.onInit();
+
+  assert.equal(requests.length, 1);
+  mockServerPage(requests.pop(), 1, 32, true);
+
+  // 初始第 1 页
+  assert.equal(search1.displayPage, 1);
+  assert.equal(search1.searchResults.length, 10);
+  assert.equal(search1.searchResults[0].gid, "comic_1_1");
+
+  // 翻到第 4 页（显示 31~40 项，对应全局下标 30~39）
+  search1.changeDisplayPage(4);
+  assert.equal(search1.displayPage, 4);
+  assert.equal(requests.length, 1, "触发拉取第 2 个服务端页");
+  mockServerPage(requests.pop(), 2, 32, true);
+
+  // 验证第 4 页数据切片非空，正确跨越 serverPage 1 的末尾 2 项和 serverPage 2 的起始 8 项！
+  assert.equal(search1.searchResults.length, 10, "第 4 页展示必须完整为 10 条，不能变空");
+  assert.equal(search1.searchResults[0].gid, "comic_1_31", "第 4 页第 1 项为 serverPage 1 的第 31 项");
+  assert.equal(search1.searchResults[1].gid, "comic_1_32", "第 4 页第 2 项为 serverPage 1 的第 32 项");
+  assert.equal(search1.searchResults[2].gid, "comic_2_1", "第 4 页第 3 项为 serverPage 2 的第 1 项");
+
+  // 场景 2：继续向前翻页至第 7 页（下标 60~69），需要拉取 serverPage 3 (32条，全局 64~95)
+  // 此时 protectedStart = 60，下个 serverPage 起始点为 32 <= 60，trimCache 正确淘汰 serverPage 1！
+  // apiDroppedCount 变为 32，缓存内保留 serverPage 2 & 3（下标 32~95）
+  search1.changeDisplayPage(7);
+  assert.equal(search1.displayPage, 7);
+  assert.equal(requests.length, 1, "翻到第 7 页触发拉取第 3 个服务端页");
+  mockServerPage(requests.pop(), 3, 32, true);
+
+  assert.equal(search1.searchResults.length, 10);
+  assert.equal(search1.searchResults[0].gid, "comic_2_29", "第 7 页第 1 项为全局第 61 项");
+
+  // 场景 3：回翻至已被淘汰的页（第 1 页，起始下标 0 < apiDroppedCount 32），基于 apiPageMap 重新拉取
+  search1.changeDisplayPage(1);
+  assert.equal(requests.length, 1, "回翻已淘汰页触发重新拉取");
+  mockServerPage(requests.pop(), 1, 32, true);
+  assert.equal(search1.displayPage, 1);
+  assert.equal(search1.searchResults.length, 10);
+  assert.equal(search1.searchResults[0].gid, "comic_1_1");
+
+  // 场景 4：多组合测试：服务端 20 条/页，客户端 7 条/页连续翻页到最后一页
+  clientPageSize = 7;
+  requests.length = 0;
+  const search2 = createSearch();
+  search2.onInit();
+  mockServerPage(requests.pop(), 1, 20, true);
+
+  // 连续翻页
+  for (let p = 2; p <= 6; p++) {
+    search2.changeDisplayPage(p);
+    while (requests.length > 0) {
+      const req = requests.pop();
+      const pageNum = parseInt(req.url.match(/page=(\d+)/)[1], 10);
+      mockServerPage(req, pageNum, 20, pageNum < 4);
+    }
+    assert.equal(search2.displayPage, p);
+    assert.ok(search2.searchResults.length > 0, `第 ${p} 页切片结果不得为空`);
+  }
+});
+
+
 
 
 

@@ -298,14 +298,21 @@ export default {
     });
   },
 
-  // 缓存超过上限时，按服务器页粒度丢弃最旧的数据
+  // 缓存超过上限时，按服务器页粒度丢弃最旧的数据；
+  // 必须保护当前待展示页所覆盖的数据范围，避免淘汰越界导致当前显示页数据被删
   trimCache() {
+    const protectedStart = (this.displayPage - 1) * getSearchPageSize();
     while (apiResults.length > MAX_CACHE) {
       const cached = apiPageMap.filter((entry) => entry.start >= apiDroppedCount);
       if (cached.length <= 1) {
         break;
       }
-      const dropCount = cached[1].start - apiDroppedCount - (cached[0].start - apiDroppedCount);
+      const nextStart = cached[1].start;
+      // 若丢弃该服务端页后，起始点将跨过当前展示页所需的起始下标，则停止丢弃（允许临时受控超限）
+      if (nextStart > protectedStart) {
+        break;
+      }
+      const dropCount = nextStart - apiDroppedCount;
       if (dropCount <= 0) {
         break;
       }
@@ -420,9 +427,10 @@ export default {
 
   // 更新显示列表的辅助函数
   updateSearchResults() {
-    const startIndex = (this.displayPage - 1) * getSearchPageSize() - apiDroppedCount;
-    const endIndex = startIndex + getSearchPageSize();
-    this.searchResults = apiResults.slice(startIndex, endIndex);
+    const rawStart = (this.displayPage - 1) * getSearchPageSize() - apiDroppedCount;
+    const startIndex = Math.max(0, rawStart);
+    const endIndex = Math.min(apiResults.length, startIndex + getSearchPageSize());
+    this.searchResults = rawStart < 0 ? [] : apiResults.slice(startIndex, endIndex);
     if (this.showCoverInSearch) {
       this.loadResultCovers();
     } else {
