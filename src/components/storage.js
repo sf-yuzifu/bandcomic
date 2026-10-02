@@ -269,3 +269,60 @@ export function addSearchHistory(keyword) {
 export function clearSearchHistory() {
   return writeJsonFile(SEARCH_HISTORY_URI, []);
 }
+
+// ---- 临时文件清理：清理 internal://files 下的非持久化、非目录孤儿文件 ----
+export function cleanTempFiles() {
+  return new Promise((resolve, reject) => {
+    file.list({
+      uri: "internal://files",
+      success: (data) => {
+        const files = data.fileList || [];
+        const filesToDelete = files.filter(function (item) {
+          if (item.type === "dir") return false;
+          const fileName = item.uri.split("/").pop();
+          // .bad 为损坏 JSON 自愈备份（P0-15），单代保留供恢复，不当临时文件清
+          if (fileName.endsWith(".bad")) return false;
+          // 持久化文件清单统一由 storage.PERSISTENT_FILES 维护（P2-36），
+          // 新增持久化文件登记后即不会被当临时文件清掉
+          if (PERSISTENT_FILES.includes(fileName)) return false;
+          // 注册 JSON 的原子写 .tmp 可能是在途写（P2-36）：跳过防清理竞态丢写；
+          // 崩溃遗留的同类 .tmp 会被下一次写覆盖，不额外占空间
+          if (fileName.endsWith(".tmp") && PERSISTENT_FILES.includes(fileName.slice(0, -4))) {
+            return false;
+          }
+          return true;
+        });
+
+        if (filesToDelete.length === 0) {
+          return resolve({ count: 0 });
+        }
+
+        let deletedCount = 0;
+        let finished = 0;
+        filesToDelete.forEach(function (item) {
+          file.delete({
+            uri: item.uri,
+            success: function () {
+              deletedCount++;
+              finished++;
+              if (finished === filesToDelete.length) {
+                resolve({ count: deletedCount, total: filesToDelete.length });
+              }
+            },
+            fail: function (errData, code) {
+              console.debug("删除临时文件失败: " + item.uri + ", code=" + code);
+              finished++;
+              if (finished === filesToDelete.length) {
+                resolve({ count: deletedCount, total: filesToDelete.length });
+              }
+            },
+          });
+        });
+      },
+      fail: function (errData, code) {
+        console.debug("列出临时文件失败, code=" + code);
+        reject({ errData, code });
+      },
+    });
+  });
+}

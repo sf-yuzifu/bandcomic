@@ -92,7 +92,6 @@
 import router from "@system.router";
 import prompt from "@system.prompt";
 import brightness from "@system.brightness";
-import file from "@system.file";
 
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { createDataBridge } = global.$bridge;
@@ -107,7 +106,6 @@ const {
   addSearchHistory,
   clearSearchHistory,
   setRecoveryNotifier,
-  PERSISTENT_FILES,
   FILE_ERROR,
 } = global.$storage;
 const { safeJsonParse } = global.$json;
@@ -265,44 +263,16 @@ export default {
   },
 
   cleanTempFiles() {
-    file.list({
-      uri: "internal://files",
-      success: (data) => {
-        const files = data.fileList || [];
-
-        const filesToDelete = files.filter(function (item) {
-          if (item.type === "dir") return false;
-          const fileName = item.uri.split("/").pop();
-          // .bad 为损坏 JSON 自愈备份（P0-15），单代保留供恢复，不当临时文件清
-          if (fileName.endsWith(".bad")) return false;
-          // 持久化文件清单统一由 storage.PERSISTENT_FILES 维护（P2-36），
-          // 新增持久化文件登记后即不会被当临时文件清掉
-          if (PERSISTENT_FILES.includes(fileName)) return false;
-          // 注册 JSON 的原子写 .tmp 可能是在途写（P2-36）：跳过防清理竞态丢写；
-          // 崩溃遗留的同类 .tmp 会被下一次写覆盖，不额外占空间
-          if (fileName.endsWith(".tmp") && PERSISTENT_FILES.includes(fileName.slice(0, -4))) {
-            return false;
-          }
-          return true;
-        });
-
-        if (filesToDelete.length > 0) {
-          filesToDelete.forEach(function (item) {
-            file.delete({
-              uri: item.uri,
-              fail: function (errData, code) {
-                console.debug("删除临时文件失败: " + item.uri + ", code=" + code);
-              },
-            });
-          });
-          // 静默清理，不弹 toast 打扰用户
-          console.debug("已清理临时文件: " + filesToDelete.length + " 个");
+    global.$storage
+      .cleanTempFiles()
+      .then((res) => {
+        if (res && res.count > 0) {
+          console.debug("已清理临时文件: " + res.count + " 个");
         }
-      },
-      fail: function (errData, code) {
-        console.debug("列出临时文件失败, code=" + code);
-      },
-    });
+      })
+      .catch((err) => {
+        console.debug("列出临时文件失败, code=" + (err && err.code));
+      });
   },
 
   checkAppUpdate() {

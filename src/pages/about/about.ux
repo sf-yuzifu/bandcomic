@@ -310,6 +310,26 @@
               @change="onPreferBridgeSwitchChange"
             ></switch>
           </div>
+          <div class="setting-item" @click="onClearTempFiles">
+            <div class="setting-item-content">
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-title"
+              >
+                {{ $t("settings.clearTemp") }}
+              </marquee>
+              <marquee
+                static
+                scrollamount="{{ 20 }}"
+                text-offset="{{ 20 }}"
+                class="setting-item-info"
+              >
+                {{ $t("settings.info.clearTemp") }}
+              </marquee>
+            </div>
+          </div>
         </div>
         <text
           static
@@ -330,7 +350,7 @@ import app from "@system.app";
 import prompt from "@system.prompt";
 
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
-const { writeSettings } = global.$storage;
+const { writeSettings, cleanTempFiles } = global.$storage;
 
 const { getTime } = global;
 
@@ -341,6 +361,7 @@ export default {
     time: "",
     preferBridgeChecked: false,
     isBand10Pro: false,
+    clearingTemp: false,
     pickerList1: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"],
     pickerList2: ["30", "35", "40", "45", "50", "55", "60", "65", "70"],
     pickerList3: [
@@ -451,6 +472,35 @@ export default {
         duration: 2000,
       });
     });
+  },
+
+  onClearTempFiles() {
+    if (this.clearingTemp) return;
+    this.clearingTemp = true;
+    cleanTempFiles()
+      .then((res) => {
+        this.clearingTemp = false;
+        if (res && res.count > 0) {
+          prompt.showToast({
+            message: this.$t("settings.clearTempSuccess", { count: res.count }),
+            duration: 2000,
+          });
+        } else {
+          prompt.showToast({
+            message: this.$t("settings.clearTempNone"),
+            duration: 2000,
+          });
+        }
+      })
+      .catch((err) => {
+        this.clearingTemp = false;
+        prompt.showToast({
+          message: this.$t("settings.clearTempFailed", {
+            code: err && err.code !== undefined ? err.code : "",
+          }),
+          duration: 2000,
+        });
+      });
   },
 };
 </script>
