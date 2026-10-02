@@ -27,11 +27,11 @@
       <scroll class="box" scroll-x="false" scroll-y="true" bounces="true">
         <div class="card">
           <image static class="logo" src="/common/logo.png"></image>
-          <text static class="main-title">{{ updateTitle }}</text>
-          <text static class="version">
+          <text class="main-title">{{ updateTitle }}</text>
+          <text class="version">
             {{ $t("update.currentVersion") }}{{ currentVersionName }}({{ currentVersionCode }})
           </text>
-          <text static class="version">
+          <text class="version">
             {{ $t("update.latestVersion") }}{{ latestVersionName }}({{ latestVersionCode }})
           </text>
           <text class="force" if="{{ forceUpdate }}">
@@ -40,23 +40,23 @@
           <div class="retry-btn" if="{{ forceUpdate }}" @click="retryCheck">
             <text class="retry-text">{{ retrying ? $t("update.checking") : $t("update.retry") }}</text>
           </div>
-          <text class="message" if.static="{{ message }}">{{ message }}</text>
+          <text class="message" if="{{ message }}">{{ message }}</text>
         </div>
 
         <div class="content-card">
           <text static class="section-title">{{ $t("update.changelog") }}</text>
-          <text class="content" for.static="{{ item in changelogList }}">
+          <text class="content" for="{{ item in changelogList }}">
             {{ item }}
           </text>
-          <text class="content" if.static="{{ changelogList.length == 0 }}">
+          <text class="content" if="{{ changelogList.length == 0 }}">
             {{ $t("update.noChangelog") }}
           </text>
         </div>
 
-        <div class="content-card" if.static="{{ downloadUrl }}">
+        <div class="content-card" if="{{ downloadUrl }}">
           <text static class="section-title">{{ $t("update.download") }}</text>
           <div class="qrcode-box">
-            <qrcode static class="download-qrcode" value="{{ downloadUrl }}"></qrcode>
+            <qrcode class="download-qrcode" value="{{ downloadUrl }}"></qrcode>
           </div>
           <text static class="qrcode-tip">{{ $t("update.scanTip") }}</text>
         </div>

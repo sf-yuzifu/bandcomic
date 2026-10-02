@@ -2107,6 +2107,114 @@ test("search: invalid response on page flip resets display page indicator withou
   assert.ok(toasts.length > 0, "用户收到错误 Toast 提示");
 });
 
+test("update: retryCheck dynamically updates version, changelog, download URL and qr code without stale static bindings (P1-41)", async () => {
+  const fullUpdateFile = read("../src/pages/update/update.ux");
+  const templateSource = fullUpdateFile.match(/<template>([\s\S]*?)<\/template>/)[1];
+  const updateScript = fullUpdateFile.match(/<script>([\s\S]*?)<\/script>/)[1];
+
+  // 1. 验证模板层：动态节点不得含有 static / if.static / for.static
+  assert.doesNotMatch(templateSource, /<text\s+static\s+class="main-title">/, "main-title 必须为动态绑定");
+  assert.doesNotMatch(templateSource, /<text\s+static\s+class="version">/, "version 必须为动态绑定");
+  assert.doesNotMatch(templateSource, /if\.static="\{\{\s*message\s*\}\}"/, "message 条件必须为动态 if");
+  assert.doesNotMatch(templateSource, /for\.static="\{\{\s*item\s+in\s+changelogList\s*\}\}"/, "changelog 遍历必须为动态 for");
+  assert.doesNotMatch(templateSource, /if\.static="\{\{\s*changelogList\.length\s*==\s*0\s*\}\}"/, "无日志提示必须为动态 if");
+  assert.doesNotMatch(templateSource, /if\.static="\{\{\s*downloadUrl\s*\}\}"/, "下载卡片必须为动态 if");
+  assert.doesNotMatch(templateSource, /<qrcode\s+static\s+class="download-qrcode"/, "二维码组件不得含有 static 标记");
+
+  // 验证固定静态节点仍保留 static
+  assert.match(templateSource, /<image\s+static\s+class="logo"/, "logo 保留 static 优化");
+  assert.match(templateSource, /<span\s+static>\{\{\s*\$t\("update\.title"\)\s*\}\}<\/span>/, "标题保留 static 优化");
+  assert.match(templateSource, /<text\s+static\s+class="qrcode-tip">/, "扫码提示保留 static 优化");
+
+  // 2. 验证组件逻辑层：连续重查与撤销返回
+  let checkUpdateResult = null;
+  let backCount = 0;
+  const toasts = [];
+
+  const appGlobal = {
+    screenShape: "rect",
+    updatePageShowing: true,
+    pendingUpdateInfo: {
+      forceUpdate: true,
+      currentVersionCode: 100,
+      currentVersionName: "1.0.0",
+      latestVersionCode: 101,
+      latestVersionName: "1.0.1",
+      title: "发现新版本 1.0.1",
+      message: "请更新",
+      changelog: "初始日志",
+      downloadUrl: "", // 初始空地址
+    },
+    getTime: () => "12:00",
+    checkUpdate: () => Promise.resolve(checkUpdateResult),
+  };
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: { debug: noop, error: noop },
+    Promise,
+    router: {
+      back: () => {
+        backCount++;
+      },
+    },
+    prompt: {
+      showToast: (t) => toasts.push(t),
+    },
+  });
+
+  vm.runInContext(
+    updateScript
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.updateDef = "),
+    context
+  );
+
+  const update = Object.assign({}, context.updateDef, clone(context.updateDef.private), {
+    $t: (k) => k,
+  });
+
+  // 初始加载
+  update.onInit();
+  assert.equal(update.currentVersionCode, 100);
+  assert.equal(update.latestVersionCode, 101);
+  assert.equal(update.downloadUrl, "");
+  assert.deepEqual(clone(update.changelogList), ["初始日志"]);
+  assert.equal(update.message, "请更新");
+
+  // 第一次重试检查：服务端下发了新修复的包信息与下载地址
+  checkUpdateResult = {
+    forceUpdate: true,
+    currentVersionCode: 100,
+    currentVersionName: "1.0.0",
+    latestVersionCode: 102,
+    latestVersionName: "1.0.2",
+    title: "紧急修复版本 1.0.2",
+    message: "新增离线下载修复",
+    changelog: ["修复下载崩溃", "提升通信稳定性"],
+    downloadUrl: "https://example.com/bandcomic-102.rpk",
+  };
+
+  update.retryCheck();
+  await tick();
+
+  assert.equal(update.latestVersionCode, 102, "最新版本号已更新为 102");
+  assert.equal(update.latestVersionName, "1.0.2", "最新版本名已更新为 1.0.2");
+  assert.equal(update.updateTitle, "紧急修复版本 1.0.2", "标题已更新");
+  assert.equal(update.message, "新增离线下载修复", "提示信息已更新");
+  assert.deepEqual(clone(update.changelogList), ["修复下载崩溃", "提升通信稳定性"], "日志列表已更新");
+  assert.equal(update.downloadUrl, "https://example.com/bandcomic-102.rpk", "下载地址已从空更新为有效 URL");
+
+  // 第二次重试检查：服务端撤回了更新（返回 null），更新页自动放行返回首页
+  checkUpdateResult = null;
+  update.retryCheck();
+  await tick();
+
+  assert.equal(appGlobal.updatePageShowing, false, "撤回更新后 updatePageShowing 复位为 false");
+  assert.equal(backCount, 1, "撤回更新后成功调用 router.back() 放行返回");
+});
+
+
 
 
 
