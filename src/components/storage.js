@@ -44,6 +44,7 @@ export const PERSISTENT_FILES = [
 // 在途/在用临时文件保护注册表（P1-37）：
 // 记录正在写入或当前受保护的临时文件 URI，cleanTempFiles 跳过清理
 const protectedTempFiles = new Set();
+const protectedDirs = new Set();
 
 export function protectTempFile(uri) {
   if (!uri || typeof uri !== "string") return () => {};
@@ -56,6 +57,20 @@ export function protectTempFile(uri) {
 export function isTempFileProtected(uri) {
   if (!uri || typeof uri !== "string") return false;
   return protectedTempFiles.has(uri);
+}
+
+export function protectDir(uriOrName) {
+  if (!uriOrName || typeof uriOrName !== "string") return () => {};
+  const name = uriOrName.split("/").pop();
+  protectedDirs.add(name);
+  return function unprotect() {
+    protectedDirs.delete(name);
+  };
+}
+
+export function isDirProtected(name) {
+  if (!name || typeof name !== "string") return false;
+  return protectedDirs.has(name);
 }
 
 // ---- 损坏 JSON 自愈（P0-15）----
@@ -532,8 +547,8 @@ export function cleanTempFiles() {
               const name = item.uri.split("/").pop();
               if (item.type === "dir") {
                 // 孤儿漫画目录清理（老版本删除残留或未管理目录补救）：
-                // 若该目录不是 comics.json 中登记的有效漫画，则作为孤儿残留目录清理
-                if (!validIds.has(name)) {
+                // 若该目录不是 comics.json 中登记的有效漫画，且不在活动导入保护中，则清理
+                if (!validIds.has(name) && !isDirProtected(name)) {
                   dirsToDelete.push(item);
                 }
                 return;

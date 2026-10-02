@@ -16,7 +16,7 @@ import { base64Encode, base64ToBytes } from "./base64";
 import { ensureUsingSourceValid, replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
 import { createStopWaitQueue } from "./stopWaitQueue";
 import { createWindowedSender } from "./windowedSender";
-import { handleGatewayBind } from "./gatewaySession";
+import { handleGatewayBind, handleImportHttpTask } from "./gatewaySession";
 
 // 封面推送读盘切片（手表→手机）：保持 6144 小切片求稳；
 // 反方向（插件→设备 fetch 分片）才用 24K，见 interconnfetch.js MAX_CHUNK_SIZE
@@ -1501,6 +1501,8 @@ export function createDataBridge(interConnect) {
       handleDeleteSource(parsed);
     } else if (msgType === "gateway_bind") {
       handleGatewayBind(parsed, interConnect);
+    } else if (msgType === "import_http_task") {
+      handleImportHttpTask(parsed, bridge);
     } else if (
       msgType === "import_comic_header" ||
       msgType === "import_comic_chunk" ||
@@ -1522,6 +1524,7 @@ export function createDataBridge(interConnect) {
     }
   };
 
+  bridge.updateComicsIndex = updateComicsIndex;
   bridge.onSourceConfigSaved = function () {};
 
   return bridge;

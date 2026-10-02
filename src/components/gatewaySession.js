@@ -1,5 +1,7 @@
 import { gatewayFetch, isNativeFetchSupported } from "./gatewayFetch";
 import { safeJsonParse } from "./jsonUtils";
+import { protectDir, isAlreadyExistsError } from "./storage";
+import { createDownloadState, downloadSingleImage } from "./downloadExecutor";
 
 let _gatewaySessionFileModule = null;
 try {
@@ -230,5 +232,202 @@ export async function handleGatewayBind(message, interConnect) {
       error: "连接本地服务失败: " + (err.message || String(err)),
     });
     showToast("本地服务连接失败: " + (err.message || String(err)));
+  }
+}
+
+/**
+ * 处理插件下发的 import_http_task 导入任务。
+ * 流程：
+ * 1. 经原生 HTTP 获取任务详情 (/control/tasks/<taskId>)；
+ * 2. 保护目标漫画目录免遭清理，按章节下载单张图片并校验；
+ * 3. 定期回报进度 (/control/tasks/<taskId>/progress)；
+ * 4. 全部落盘后写入 comics.json，汇报结果 (/control/tasks/<taskId>/result)。
+ */
+export async function handleImportHttpTask(message, bridge) {
+  const taskId = message.taskId;
+  const endpoint = message.endpoint || _boundEndpoint;
+  if (!taskId || !endpoint) {
+    console.warn("import_http_task 参数缺失: taskId=" + taskId + ", endpoint=" + endpoint);
+    return;
+  }
+
+  showToast("收到本地导入任务，正在准备下载...");
+
+  // 1. 获取任务详情
+  let task;
+  try {
+    const taskRes = await gatewayFetch({
+      url: endpoint + "/control/tasks/" + taskId,
+      method: "GET",
+      responseType: "text",
+    });
+    task = typeof taskRes.data === "string" ? safeJsonParse(taskRes.data, null) : taskRes.data;
+  } catch (err) {
+    console.error("获取任务详情失败: " + err.message);
+    showToast("获取任务失败：" + err.message);
+    return;
+  }
+
+  if (!task || !task.comicId) {
+    console.error("非法任务格式: " + JSON.stringify(task));
+    return;
+  }
+
+  const comicId = "local_" + task.comicId;
+  const comicName = task.name || "本地漫画";
+  const folderUri = "internal://files/" + comicId;
+  const chapters = Array.isArray(task.chapters) ? task.chapters : [];
+  const imageProfile = task.imageProfile || {};
+  const allowLvgl = !!imageProfile.ifLVGL;
+  const isSerial = chapters.length > 1;
+
+  // 保护该目录不被 cleanTempFiles 清理
+  const unprotectDir = protectDir(comicId);
+
+  // 确保目录存在
+  if (_gatewaySessionFileModule && typeof _gatewaySessionFileModule.mkdir === "function") {
+    await new Promise((resolve) => {
+      _gatewaySessionFileModule.mkdir({
+        uri: folderUri,
+        recursive: true,
+        success: resolve,
+        fail: (data, code) => (isAlreadyExistsError(code) ? resolve() : resolve()),
+      });
+    });
+  }
+
+  const state = createDownloadState({ comicId });
+  let savedFiles = {};
+  let totalSaved = 0;
+  let totalExpected = 0;
+
+  try {
+    // 2. 下载封面 (如果提供)
+    if (task.coverUrl) {
+      const coverUri = folderUri + "/cover";
+      try {
+        await downloadSingleImage({
+          url: task.coverUrl,
+          fileUri: coverUri,
+          allowLvgl: false,
+          fetchFn: gatewayFetch,
+          state,
+        });
+        savedFiles["cover"] = true;
+      } catch (e) {
+        console.warn("下载封面失败: " + e.message);
+      }
+    }
+
+    // 3. 逐章节下载
+    for (let ci = 0; ci < chapters.length; ci++) {
+      const chapter = chapters[ci];
+      const chNum = chapter.chapterNum || (ci + 1);
+      const chTitle = chapter.title || ("第" + chNum + "章");
+      const chDirName = isSerial ? `${chNum}　${chTitle}` : "";
+      const chapterDir = isSerial ? `${folderUri}/${chDirName}` : folderUri;
+
+      if (isSerial && _gatewaySessionFileModule && typeof _gatewaySessionFileModule.mkdir === "function") {
+        await new Promise((resolve) => {
+          _gatewaySessionFileModule.mkdir({
+            uri: chapterDir,
+            recursive: true,
+            success: resolve,
+            fail: (data, code) => (isAlreadyExistsError(code) ? resolve() : resolve()),
+          });
+        });
+      }
+
+      // 获取章节图片列表
+      let photoList;
+      try {
+        const photoRes = await gatewayFetch({
+          url: `${endpoint}/local/photo/${task.comicId}/chapter/${chNum}`,
+          method: "GET",
+          responseType: "text",
+        });
+        photoList = typeof photoRes.data === "string" ? safeJsonParse(photoRes.data, null) : photoRes.data;
+      } catch (e) {
+        console.error("获取章节图片列表失败: " + e.message);
+        continue;
+      }
+
+      const images = photoList && Array.isArray(photoList.images) ? photoList.images : [];
+      totalExpected += images.length;
+
+      for (let pi = 0; pi < images.length; pi++) {
+        const imgObj = images[pi];
+        const pageUrl = imgObj.url || imgObj;
+        const pageNum = pi + 1;
+        const pageFileName = `${pageNum}${allowLvgl ? ".bin" : ""}`;
+        const fileUri = `${chapterDir}/${pageFileName}`;
+        const relativeKey = isSerial ? `${chDirName}/${pageFileName}` : pageFileName;
+
+        try {
+          await downloadSingleImage({
+            url: pageUrl,
+            fileUri: fileUri,
+            allowLvgl: allowLvgl,
+            fetchFn: gatewayFetch,
+            state,
+          });
+          savedFiles[relativeKey] = true;
+          totalSaved++;
+
+          // 汇报进度给插件
+          gatewayFetch({
+            url: `${endpoint}/control/tasks/${taskId}/progress`,
+            method: "POST",
+            data: JSON.stringify({ page: totalSaved, total: totalExpected }),
+            responseType: "text",
+          }).catch(() => {});
+        } catch (e) {
+          console.warn(`下载第 ${pageNum} 页失败: ` + e.message);
+        }
+      }
+    }
+
+    // 4. 更新 comics.json 索引
+    if (bridge && typeof bridge.updateComicsIndex === "function") {
+      bridge.updateComicsIndex(
+        comicId,
+        comicName,
+        totalSaved,
+        isSerial,
+        chapters,
+        savedFiles,
+        Object.keys(savedFiles)
+      );
+    }
+
+    // 5. 汇报最终结果给插件
+    await gatewayFetch({
+      url: `${endpoint}/control/tasks/${taskId}/result`,
+      method: "POST",
+      data: JSON.stringify({
+        success: totalSaved > 0,
+        savedPages: totalSaved,
+        totalPages: totalExpected,
+      }),
+      responseType: "text",
+    });
+
+    showToast(`《${comicName}》导入成功！(${totalSaved}页)`);
+  } catch (err) {
+    console.error("任务执行异常: " + err.message);
+    gatewayFetch({
+      url: `${endpoint}/control/tasks/${taskId}/result`,
+      method: "POST",
+      data: JSON.stringify({
+        success: false,
+        savedPages: totalSaved,
+        totalPages: totalExpected,
+        error: err.message,
+      }),
+      responseType: "text",
+    }).catch(() => {});
+    showToast(`《${comicName}》导入中断：${err.message}`);
+  } finally {
+    unprotectDir();
   }
 }
