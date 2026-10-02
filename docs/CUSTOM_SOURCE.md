@@ -613,3 +613,15 @@ def photo_list(item_id, chapter):
     <img alt="Repo Card" src="https://example.invalid/api/pin/?username=sf-yuzifu&repo=venera-source-converter" />
   </picture>
 </a>
+
+## 16. 本地漫画源与 AstroBox 插件联动 (LocalUpload)
+
+AstroBox 同步器插件（API Level 4 起）内置了本地 HTTP 漫画源能力：
+- 漫画源标识：`LocalUpload`
+- 源类型：`local`
+- 服务地址：通过局域网 IPv4 动态绑定宿主端口（例如 `http://192.168.1.100:51963`）
+- 详情路径：`/local/album/<id>`
+- 章节图片路径：`/local/photo/<id>/chapter/<chapter>`
+- 搜索路径：`/local/search/<text>/<page>`
+- 支持设备（如小米手环 9 Pro）直接通过原生 fetch 进行章节图片的高速下载与离线落盘，规避蓝牙 Base64 分片传输开销。对于不支持原生 fetch 的设备（如手环 10 Pro），自动回退至传统分片互联通道。
+

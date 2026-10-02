@@ -56,6 +56,7 @@ function harness() {
     COMICS_URI: "comics.json",
     HISTORY_URI: "history.json",
     isAlreadyExistsError: (code) => code === 202,
+    isNativeFetchSupported: () => false,
     global: { APP_SETTING: {} }, Uint8Array, Int8Array, ArrayBuffer, Promise, Map: FrameMap,
     console: { debug: () => {} },
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; },

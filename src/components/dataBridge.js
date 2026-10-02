@@ -17,6 +17,7 @@ import { ensureUsingSourceValid, replaceIfDuplicate, mergeSourcesToGlobal } from
 import { createStopWaitQueue } from "./stopWaitQueue";
 import { createWindowedSender } from "./windowedSender";
 import { handleGatewayBind, handleImportHttpTask } from "./gatewaySession";
+import { isNativeFetchSupported } from "./gatewayFetch";
 
 // 封面推送读盘切片（手表→手机）：保持 6144 小切片求稳；
 // 反方向（插件→设备 fetch 分片）才用 24K，见 interconnfetch.js MAX_CHUNK_SIZE
@@ -1440,12 +1441,20 @@ export function createDataBridge(interConnect) {
     // 新会话打断可能在途的滑窗同步：旧会话帧序号对新 frontier 无意义
     stopSync();
     _pluginCaps = parsed && parsed.caps && typeof parsed.caps === "object" ? parsed.caps : null;
+    const nativeFetchCap =
+      typeof isNativeFetchSupported === "function" ? isNativeFetchSupported() : false;
     interConnect.send({
       data: {
         type: "hs_pong",
         session: parsed.session || "",
         settings: global.APP_SETTING || {},
-        caps: { importWindow: IMPORT_WINDOW, syncSession: true },
+        caps: {
+          importWindow: IMPORT_WINDOW,
+          syncSession: true,
+          nativeFetch: nativeFetchCap,
+          httpImport: nativeFetchCap,
+          gatewayProtocol: 1,
+        },
       },
       success: function () {},
       fail: function () {},
