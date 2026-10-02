@@ -57,7 +57,7 @@
           >
             <image
               class="result-image"
-              src="{{ $item.thumb || '/common/loading.png' }}"
+              src="{{ $item.thumbDisplay || $item.thumb || '/common/loading.png' }}"
               alt="/common/empty.png"
             ></image>
             <image static class="corner-mask" src="/common/coverMask.png"></image>
@@ -155,12 +155,14 @@ export default {
     errorMsg: "",
     time: "",
     showCoverInSearch: true,
+    cleanSeq: 0,
   },
 
   onInit() {
     this.destroyed = false;
     this.time = getTime();
     this.showCoverInSearch = isCoverSearchEnabled();
+    this.cleanSeq = (typeof global !== "undefined" && global.__tempFilesCleanSeq) || 0;
     apiResults = [];
     apiDroppedCount = 0;
     apiPageMap = [];
@@ -176,8 +178,16 @@ export default {
     // 不触发重绘、push 前清又与导航同帧竞争——改行数据字段 + splice 清除
     this.clearOpening();
     this.loadingDetail = false;
+    const currentCleanSeq = (typeof global !== "undefined" && global.__tempFilesCleanSeq) || 0;
+    const cleanOccurred = currentCleanSeq !== this.cleanSeq;
+    if (cleanOccurred) {
+      this.cleanSeq = currentCleanSeq;
+      // 临时文件被清理后，失效本地展示 URI 并重新触发代理补载（P1-37）
+      this.searchResults = this.searchResults.map((item) => ({ ...item, thumbDisplay: "" }));
+      apiResults = apiResults.map((item) => ({ ...item, thumbDisplay: "" }));
+    }
     const showCoverInSearch = isCoverSearchEnabled();
-    if (showCoverInSearch !== this.showCoverInSearch) {
+    if (showCoverInSearch !== this.showCoverInSearch || cleanOccurred) {
       this.showCoverInSearch = showCoverInSearch;
       if (showCoverInSearch) {
         this.loadResultCovers();
@@ -294,6 +304,7 @@ export default {
         gid: result.comic_id,
         title: result.title,
         thumb: result.cover_url ? addCoverParams(result.cover_url) : "",
+        thumbDisplay: "",
       };
     });
   },
@@ -458,7 +469,7 @@ export default {
       getName: (item) => `${global.API_SETTING.using}_${item.gid}_cover`,
       getSourceKey: () => global.API_SETTING.using,
       match: (row, item) => row.gid === item.gid && row.thumb === item.thumb,
-      merge: (item, uri) => ({ ...item, thumb: uri }),
+      merge: (item, uri) => ({ ...item, thumbDisplay: uri }),
       skipSame: true,
       onLocal: (item, updated) => {
         // 同步更新数据仓库，回翻页时不再重复代理

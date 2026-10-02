@@ -982,6 +982,13 @@ export default {
       // v3用seq×chunkSize，新v4用显式offset直写；旧v4缺偏移时按序append。
       // 收片窗口内保留接收/写盘重叠；已到达相邻片最多合并64KiB，写成功才推进ACK。
       const finalUri = responseType === "file" ? getTempUri(url) : null;
+      const unprotect =
+        finalUri &&
+        typeof global !== "undefined" &&
+        global.$storage &&
+        typeof global.$storage.protectTempFile === "function"
+          ? global.$storage.protectTempFile(finalUri)
+          : null;
       const writer = finalUri ? createFileWriter(finalUri) : null;
       try {
         if (writer && nativeWrite) throw new Error("previous file write still pending");
@@ -1030,6 +1037,8 @@ export default {
         if (complete && typeof complete === "function") {
           complete();
         }
+      } finally {
+        if (unprotect) unprotect();
       }
     };
     // 直连设备的 systemFetch 是回调式调用，doFetch 立即返回，排队开销可忽略

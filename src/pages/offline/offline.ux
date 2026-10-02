@@ -266,10 +266,18 @@ export default {
     currentTab: "offline",
     isLoadingHistory: false,
     enableSwipe: true,
+    cleanSeq: 0,
   },
 
   onShow() {
     this.time = getTime();
+    const currentCleanSeq = (typeof global !== "undefined" && global.__tempFilesCleanSeq) || 0;
+    if (currentCleanSeq !== this.cleanSeq) {
+      this.cleanSeq = currentCleanSeq;
+      allHistory = allHistory.map((item) => ({ ...item, coverLocal: "" }));
+      this.historyList = this.historyList.map((item) => ({ ...item, coverLocal: "" }));
+      this.loadHistoryCovers();
+    }
   },
 
   onInit() {
@@ -278,6 +286,7 @@ export default {
     allHistory = [];
     openedComicsIndex = -1;
     openedHistoryIndex = -1;
+    this.cleanSeq = (typeof global !== "undefined" && global.__tempFilesCleanSeq) || 0;
     if (global.deviceProduct) {
       this.enableSwipe = global.deviceProduct !== "Xiaomi Smart Band 9 Pro";
     } else {

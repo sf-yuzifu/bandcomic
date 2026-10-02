@@ -1558,6 +1558,104 @@ test("api: cross-source health check and history cover proxy use correct source 
   assert.equal(appGlobal.API_SETTING.using, "sourceA", "全流程全局 using 保持稳定");
 });
 
+test("cover: separation of original URL and display URI allows seamless re-fetching after temp cleanup (P1-37)", async () => {
+  const searchSource = read("../src/pages/search/search.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+
+  const appGlobal = {
+    APP_SETTING: {
+      searchPageSize: 10,
+      showCoverInSearch: true,
+    },
+    API_SETTING: {
+      using: "sourceA",
+      sourceA: { name: "Source A", apiUrl: "https://test.com" },
+    },
+    $img: { addCoverParams: (url) => url },
+    $route: { serializeParams: (p) => p },
+    $api: {
+      buildSearchUrl: (text, page) => `https://test/search?q=${text}&page=${page}`,
+      buildDetailUrl: (id) => `https://test/detail/${id}`,
+      getFetchErrorType: () => "network",
+      isComicDetailResponse: () => true,
+      apiFetch: () => {},
+    },
+    $set: {
+      getSearchPageSize: () => 10,
+    },
+    $cover: {
+      loadCoverProxies(list, options) {
+        list.forEach((item, idx) => {
+          const url = options.getUrl(item);
+          if (!url || !url.startsWith("http")) return;
+          const uri = `internal://files/_icf_proxy_${idx}_seq_${appGlobal.__tempFilesCleanSeq || 0}`;
+          const updated = options.merge(item, uri);
+          list.splice(idx, 1, updated);
+          if (options.onLocal) options.onLocal(item, updated);
+        });
+        return () => {};
+      },
+    },
+    getTime: () => "12:00",
+    __tempFilesCleanSeq: 0,
+  };
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: { debug: noop, error: noop },
+    Promise,
+    router: { push: noop, replace: noop },
+    prompt: { showToast: noop },
+    setTimeout: (fn) => fn(),
+  });
+
+  vm.runInContext(
+    searchSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.searchDef = "),
+    context
+  );
+
+  const search = Object.assign({}, context.searchDef, clone(context.searchDef.private), {
+    keyword: "test",
+    $t: (k) => k,
+    $element: () => ({ scrollTo: () => {} }),
+    $nextTick: (fn) => fn(),
+  });
+
+  // 1. 初始化并模拟搜索结果到达
+  search.onInit();
+  search.ComicHandleSearchSuccess({
+    data: {
+      page: 1,
+      has_more: false,
+      results: [
+        { comic_id: "c1", title: "Comic 1", cover_url: "https://test.com/c1.jpg" },
+        { comic_id: "c2", title: "Comic 2", cover_url: "https://test.com/c2.jpg" },
+      ],
+    },
+  });
+  search.fillCurrentPage();
+
+  assert.equal(search.searchResults.length, 2);
+  // 原始 thumb 完整保留为 HTTP 地址，展示 URI 在 thumbDisplay 中
+  assert.equal(search.searchResults[0].thumb, "https://test.com/c1.jpg", "原始 thumb 必须始终是 HTTP URL");
+  assert.equal(search.searchResults[0].thumbDisplay, "internal://files/_icf_proxy_0_seq_0");
+
+  // 2. 模拟用户在关于页点击清理临时文件：global.__tempFilesCleanSeq 递增
+  appGlobal.__tempFilesCleanSeq = 1;
+
+  // 3. 用户从关于页返回搜索页触发 onShow
+  search.onShow();
+
+  // 验证：检测到 cleanSeq 变化后，旧的已清理 thumbDisplay 被失效，并自动通过原始 HTTP URL 重新代理！
+  assert.equal(search.searchResults[0].thumb, "https://test.com/c1.jpg", "原始 URL 依然完好保留");
+  assert.equal(
+    search.searchResults[0].thumbDisplay,
+    "internal://files/_icf_proxy_0_seq_1",
+    "展示 URI 自动重新拉取并更新为有效文件"
+  );
+});
+
 
 
 

@@ -872,6 +872,71 @@ test("cleanTempFiles: removes orphan comic directories and temp files while pres
   assert.ok(!filesOnDisk.has("internal://files/_icf_temp_2"));
 });
 
+test("cleanTempFiles: preserves in-flight protected temp files and advances clean sequence (P1-37)", async () => {
+  const storageSrc = fs.readFileSync(new URL("../src/components/storage.js", import.meta.url), "utf8");
+  const filesOnDisk = new Map([
+    ["internal://files/comics.json", Buffer.from("[]")],
+    ["internal://files/_icf_abandoned", Buffer.from("abandoned")],
+    ["internal://files/_icf_writing_inflight", Buffer.from("inflight_data")],
+  ]);
+
+  const fileMock = {
+    readText(options) {
+      const data = filesOnDisk.get(options.uri);
+      if (data) options.success({ text: data.toString("utf8") });
+      else options.fail("not found", 301);
+    },
+    list(options) {
+      const fileList = [];
+      for (const uri of filesOnDisk.keys()) {
+        fileList.push({ uri, type: "file" });
+      }
+      options.success({ fileList });
+    },
+    delete(options) {
+      filesOnDisk.delete(options.uri);
+      options.success();
+    },
+    rmdir(options) {
+      options.success();
+    },
+  };
+
+  const appGlobal = {};
+
+  const context = vm.createContext({
+    global: appGlobal,
+    file: fileMock,
+    console: { debug: () => {} },
+    Promise,
+    Uint8Array,
+    ArrayBuffer,
+    Map,
+    Set,
+  });
+
+  vm.runInContext(storageSrc.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
+
+  // 1. 注册受保护的在途临时文件
+  const unprotect = context.protectTempFile("internal://files/_icf_writing_inflight");
+  assert.equal(context.isTempFileProtected("internal://files/_icf_writing_inflight"), true);
+
+  // 2. 执行清理
+  const res = await context.cleanTempFiles();
+  assert.equal(res.count, 1, "只清理了未受保护的废弃临时文件");
+  assert.ok(!filesOnDisk.has("internal://files/_icf_abandoned"), "废弃文件已被清理");
+  assert.ok(filesOnDisk.has("internal://files/_icf_writing_inflight"), "正在写入的在途文件受到严格保护未被误删");
+  assert.equal(appGlobal.__tempFilesCleanSeq, 1, "清理版本序列号成功递增");
+
+  // 3. 模拟写盘结束释放保护后，再次清理可被正常回收
+  unprotect();
+  assert.equal(context.isTempFileProtected("internal://files/_icf_writing_inflight"), false);
+  const res2 = await context.cleanTempFiles();
+  assert.equal(res2.count, 1);
+  assert.ok(!filesOnDisk.has("internal://files/_icf_writing_inflight"));
+  assert.equal(appGlobal.__tempFilesCleanSeq, 2);
+});
+
 test("writeJsonFileAtomic: retains original data when first move fails due to I/O error on non-existent or existing target", async () => {
   const storageSrc = fs.readFileSync(new URL("../src/components/storage.js", import.meta.url), "utf8");
   const filesOnDisk = new Map([

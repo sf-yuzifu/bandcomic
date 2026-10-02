@@ -41,6 +41,23 @@ export const PERSISTENT_FILES = [
   SEARCH_HISTORY_URI,
 ].map((uri) => uri.split("/").pop());
 
+// 在途/在用临时文件保护注册表（P1-37）：
+// 记录正在写入或当前受保护的临时文件 URI，cleanTempFiles 跳过清理
+const protectedTempFiles = new Set();
+
+export function protectTempFile(uri) {
+  if (!uri || typeof uri !== "string") return () => {};
+  protectedTempFiles.add(uri);
+  return function unprotect() {
+    protectedTempFiles.delete(uri);
+  };
+}
+
+export function isTempFileProtected(uri) {
+  if (!uri || typeof uri !== "string") return false;
+  return protectedTempFiles.has(uri);
+}
+
 // ---- 损坏 JSON 自愈（P0-15）----
 // 通知回调由页面注入（confirmGuard"页面传入 $t 译文"同款）：storage 层无页面 $t
 let recoveryNotifier = null;
@@ -530,11 +547,15 @@ export function cleanTempFiles() {
               if (name.endsWith(".bak") && PERSISTENT_FILES.includes(name.slice(0, -4))) {
                 return;
               }
+              if (isTempFileProtected(item.uri)) return;
               filesToDelete.push(item);
             });
 
             const totalItems = filesToDelete.length + dirsToDelete.length;
             if (totalItems === 0) {
+              if (typeof global !== "undefined") {
+                global.__tempFilesCleanSeq = (global.__tempFilesCleanSeq || 0) + 1;
+              }
               return resolve({ count: 0 });
             }
 
@@ -544,6 +565,9 @@ export function cleanTempFiles() {
             function checkDone() {
               finished++;
               if (finished === totalItems) {
+                if (typeof global !== "undefined") {
+                  global.__tempFilesCleanSeq = (global.__tempFilesCleanSeq || 0) + 1;
+                }
                 resolve({ count: deletedCount, total: totalItems });
               }
             }
@@ -592,10 +616,17 @@ export function cleanTempFiles() {
               if (fileName.endsWith(".tmp") && PERSISTENT_FILES.includes(fileName.slice(0, -4))) {
                 return false;
               }
+              if (fileName.endsWith(".bak") && PERSISTENT_FILES.includes(fileName.slice(0, -4))) {
+                return false;
+              }
+              if (isTempFileProtected(item.uri)) return false;
               return true;
             });
 
             if (filesToDelete.length === 0) {
+              if (typeof global !== "undefined") {
+                global.__tempFilesCleanSeq = (global.__tempFilesCleanSeq || 0) + 1;
+              }
               return resolve({ count: 0 });
             }
 
@@ -608,6 +639,9 @@ export function cleanTempFiles() {
                   deletedCount++;
                   finished++;
                   if (finished === filesToDelete.length) {
+                    if (typeof global !== "undefined") {
+                      global.__tempFilesCleanSeq = (global.__tempFilesCleanSeq || 0) + 1;
+                    }
                     resolve({ count: deletedCount, total: filesToDelete.length });
                   }
                 },
@@ -615,6 +649,9 @@ export function cleanTempFiles() {
                   console.debug("删除临时文件失败: " + item.uri + ", code=" + code);
                   finished++;
                   if (finished === filesToDelete.length) {
+                    if (typeof global !== "undefined") {
+                      global.__tempFilesCleanSeq = (global.__tempFilesCleanSeq || 0) + 1;
+                    }
                     resolve({ count: deletedCount, total: filesToDelete.length });
                   }
                 },

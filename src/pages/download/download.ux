@@ -1046,12 +1046,23 @@ export default {
 
   async saveDownloadedFile(response, fileUri, state, allowLvgl) {
     const tempUri = response && response.data;
+    const unprotect =
+      tempUri &&
+      typeof global !== "undefined" &&
+      global.$storage &&
+      typeof global.$storage.protectTempFile === "function"
+        ? global.$storage.protectTempFile(tempUri)
+        : null;
     // success 已返回、await 续体尚未运行时也可能退出，必须在 move 前再次校验。
     if (!this.isDownloadActive(state)) {
+      if (unprotect) unprotect();
       deleteImageTemp(tempUri);
       throw DOWNLOAD_ABORTED;
     }
-    if (!tempUri) throw this.$t("download.emptyImageData");
+    if (!tempUri) {
+      if (unprotect) unprotect();
+      throw this.$t("download.emptyImageData");
+    }
     try {
       if (!isHttpSuccess(response)) throw this.$t("error.invalidResponse");
       const valid = await this.validateImageFile(tempUri, allowLvgl, state);
@@ -1072,6 +1083,8 @@ export default {
     } catch (e) {
       deleteImageTemp(tempUri);
       throw e;
+    } finally {
+      if (unprotect) unprotect();
     }
   },
 

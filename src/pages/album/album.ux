@@ -133,13 +133,20 @@ export default {
     time: "",
     size: { width: 200, height: 200 },
     loading: true,
+    cleanSeq: 0,
   },
 
   onShow() {
     this.time = getTime();
+    const currentCleanSeq = (typeof global !== "undefined" && global.__tempFilesCleanSeq) || 0;
+    if (currentCleanSeq !== this.cleanSeq) {
+      this.cleanSeq = currentCleanSeq;
+      this.loadCoverDisplay();
+    }
   },
 
   onInit() {
+    this.cleanSeq = (typeof global !== "undefined" && global.__tempFilesCleanSeq) || 0;
     const parsed = parseParams({
       name: this.name,
       item_id: this.item_id,
@@ -152,6 +159,10 @@ export default {
       total_chapters: this.total_chapters,
     });
     Object.assign(this, parsed);
+    this.loadCoverDisplay();
+  },
+
+  loadCoverDisplay() {
     this.size.width = (screenSize.width * 3) / 4;
     this.size.height = this.size.width * (4 / 3);
     if (this.cover) {
