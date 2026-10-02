@@ -187,8 +187,15 @@ import device from "@system.device";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { serializeParams } = global.$route;
 const { addCoverParams } = global.$img;
-const { readComics, updateComicMeta, readHistory, updateJsonFile, HISTORY_URI, COMICS_URI } =
-  global.$storage;
+const {
+  readComics,
+  updateComicMeta,
+  readHistory,
+  updateJsonFile,
+  HISTORY_URI,
+  COMICS_URI,
+  FILE_ERROR,
+} = global.$storage;
 const { getSearchPageSize } = global.$set;
 const { loadCoverProxies } = global.$cover;
 const { createConfirmGuard } = global;
@@ -835,9 +842,18 @@ export default {
           },
         });
       },
-      fail: () => {
-        console.debug(`文件夹不存在，直接删除索引`);
-        this.updateComicsIndex(id);
+      fail: (data, code) => {
+        if (
+          code === 301 ||
+          (typeof FILE_ERROR !== "undefined" && code === FILE_ERROR.NOT_FOUND)
+        ) {
+          console.debug(`文件夹不存在，直接删除索引`);
+          this.updateComicsIndex(id);
+        } else {
+          console.debug(`检查文件夹失败, code=${code}`);
+          prompt.showToast({ message: "访问文件失败，请重试" });
+          this.loadingComic();
+        }
       },
     });
   },
@@ -859,8 +875,16 @@ export default {
         };
         flatten(data.subFiles || []);
 
+        let failCount = 0;
         const deleteNext = (index) => {
           if (index >= allFiles.length) {
+            if (failCount > 0) {
+              console.debug(`部分文件删除失败: ${failCount} 个，保留索引`);
+              prompt.showToast({ message: "部分文件删除失败，请重试" });
+              this.loadingComic();
+              return;
+            }
+
             file.rmdir({
               uri: folderUri,
               recursive: true,
@@ -868,8 +892,18 @@ export default {
                 this.updateComicsIndex(id);
               },
               fail: () => {
-                console.debug(`清理空目录失败，直接更新索引`);
-                this.updateComicsIndex(id);
+                file.access({
+                  uri: folderUri,
+                  success: () => {
+                    console.debug(`清理空目录失败，且目录仍在，保留索引`);
+                    prompt.showToast({ message: "清理目录失败，请重试" });
+                    this.loadingComic();
+                  },
+                  fail: () => {
+                    console.debug(`目录已不存在，直接更新索引`);
+                    this.updateComicsIndex(id);
+                  },
+                });
               },
             });
             return;
@@ -882,6 +916,7 @@ export default {
             },
             fail: (data, code) => {
               console.debug(`删除文件失败: ${allFiles[index]}, code=${code}`);
+              failCount++;
               deleteNext(index + 1);
             },
           });
@@ -890,8 +925,17 @@ export default {
         deleteNext(0);
       },
       fail: (data, code) => {
-        console.debug(`列出文件失败, code=${code}，直接更新索引`);
-        this.updateComicsIndex(id);
+        if (
+          code === 301 ||
+          (typeof FILE_ERROR !== "undefined" && code === FILE_ERROR.NOT_FOUND)
+        ) {
+          console.debug(`列出文件失败(文件夹不存在)，直接更新索引`);
+          this.updateComicsIndex(id);
+        } else {
+          console.debug(`列出文件失败, code=${code}，不删除索引`);
+          prompt.showToast({ message: "读取文件失败，请重试" });
+          this.loadingComic();
+        }
       },
     });
   },

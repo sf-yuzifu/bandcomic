@@ -270,59 +270,194 @@ export function clearSearchHistory() {
   return writeJsonFile(SEARCH_HISTORY_URI, []);
 }
 
-// ---- 临时文件清理：清理 internal://files 下的非持久化、非目录孤儿文件 ----
+// ---- 临时文件清理：清理 internal://files 下的孤立临时文件及无索引关联的孤儿漫画目录（老版本残留补救） ----
 export function cleanTempFiles() {
   return new Promise((resolve, reject) => {
-    file.list({
-      uri: "internal://files",
-      success: (data) => {
-        const files = data.fileList || [];
-        const filesToDelete = files.filter(function (item) {
-          if (item.type === "dir") return false;
-          const fileName = item.uri.split("/").pop();
-          // .bad 为损坏 JSON 自愈备份（P0-15），单代保留供恢复，不当临时文件清
-          if (fileName.endsWith(".bad")) return false;
-          // 持久化文件清单统一由 storage.PERSISTENT_FILES 维护（P2-36），
-          // 新增持久化文件登记后即不会被当临时文件清掉
-          if (PERSISTENT_FILES.includes(fileName)) return false;
-          // 注册 JSON 的原子写 .tmp 可能是在途写（P2-36）：跳过防清理竞态丢写；
-          // 崩溃遗留的同类 .tmp 会被下一次写覆盖，不额外占空间
-          if (fileName.endsWith(".tmp") && PERSISTENT_FILES.includes(fileName.slice(0, -4))) {
-            return false;
-          }
-          return true;
-        });
-
-        if (filesToDelete.length === 0) {
-          return resolve({ count: 0 });
-        }
-
-        let deletedCount = 0;
-        let finished = 0;
-        filesToDelete.forEach(function (item) {
-          file.delete({
-            uri: item.uri,
-            success: function () {
-              deletedCount++;
-              finished++;
-              if (finished === filesToDelete.length) {
-                resolve({ count: deletedCount, total: filesToDelete.length });
+    // 递归删除目录辅助函数（优先 rmdir recursive，失败则逐文件递归清空后再 rmdir）
+    function removeOrphanDir(dirUri, onDone) {
+      file.rmdir({
+        uri: dirUri,
+        recursive: true,
+        success: function () {
+          onDone(true);
+        },
+        fail: function () {
+          file.get({
+            uri: dirUri,
+            recursive: true,
+            success: function (data) {
+              const allFiles = [];
+              function collect(entries) {
+                for (let i = 0; i < entries.length; i++) {
+                  const entry = entries[i];
+                  if (entry.type === "dir" && entry.subFiles) {
+                    collect(entry.subFiles);
+                  } else if (entry.type !== "dir") {
+                    allFiles.push(entry.uri);
+                  }
+                }
               }
+              collect(data.subFiles || []);
+              let idx = 0;
+              function next() {
+                if (idx >= allFiles.length) {
+                  file.rmdir({
+                    uri: dirUri,
+                    recursive: true,
+                    success: function () {
+                      onDone(true);
+                    },
+                    fail: function () {
+                      onDone(false);
+                    },
+                  });
+                  return;
+                }
+                file.delete({
+                  uri: allFiles[idx++],
+                  success: next,
+                  fail: next,
+                });
+              }
+              next();
             },
-            fail: function (errData, code) {
-              console.debug("删除临时文件失败: " + item.uri + ", code=" + code);
-              finished++;
-              if (finished === filesToDelete.length) {
-                resolve({ count: deletedCount, total: filesToDelete.length });
-              }
+            fail: function () {
+              onDone(false);
             },
           });
+        },
+      });
+    }
+
+    readComics()
+      .then(function (comicsList) {
+        const validIds = new Set(
+          (Array.isArray(comicsList) ? comicsList : [])
+            .map(function (c) {
+              return c && c.id != null ? String(c.id) : "";
+            })
+            .filter(Boolean)
+        );
+
+        file.list({
+          uri: "internal://files",
+          success: function (data) {
+            const files = data.fileList || [];
+            const filesToDelete = [];
+            const dirsToDelete = [];
+
+            files.forEach(function (item) {
+              const name = item.uri.split("/").pop();
+              if (item.type === "dir") {
+                // 孤儿漫画目录清理（老版本删除残留或未管理目录补救）：
+                // 若该目录不是 comics.json 中登记的有效漫画，则作为孤儿残留目录清理
+                if (!validIds.has(name)) {
+                  dirsToDelete.push(item);
+                }
+                return;
+              }
+
+              if (name.endsWith(".bad")) return;
+              if (PERSISTENT_FILES.includes(name)) return;
+              if (name.endsWith(".tmp") && PERSISTENT_FILES.includes(name.slice(0, -4))) {
+                return;
+              }
+              filesToDelete.push(item);
+            });
+
+            const totalItems = filesToDelete.length + dirsToDelete.length;
+            if (totalItems === 0) {
+              return resolve({ count: 0 });
+            }
+
+            let deletedCount = 0;
+            let finished = 0;
+
+            function checkDone() {
+              finished++;
+              if (finished === totalItems) {
+                resolve({ count: deletedCount, total: totalItems });
+              }
+            }
+
+            // 清理孤立临时文件
+            filesToDelete.forEach(function (item) {
+              file.delete({
+                uri: item.uri,
+                success: function () {
+                  deletedCount++;
+                  checkDone();
+                },
+                fail: function (errData, code) {
+                  console.debug("删除临时文件失败: " + item.uri + ", code=" + code);
+                  checkDone();
+                },
+              });
+            });
+
+            // 清理孤儿漫画目录
+            dirsToDelete.forEach(function (item) {
+              removeOrphanDir(item.uri, function (ok) {
+                if (ok) deletedCount++;
+                checkDone();
+              });
+            });
+          },
+          fail: function (errData, code) {
+            console.debug("列出临时文件失败, code=" + code);
+            reject({ errData: errData, code: code });
+          },
         });
-      },
-      fail: function (errData, code) {
-        console.debug("列出临时文件失败, code=" + code);
-        reject({ errData, code });
-      },
-    });
+      })
+      .catch(function () {
+        // 读取 comics.json 失败时回退至只清理普通文件，防止误删有效漫画
+        console.debug("读取 comics.json 失败，仅清理普通临时文件");
+        file.list({
+          uri: "internal://files",
+          success: function (data) {
+            const files = data.fileList || [];
+            const filesToDelete = files.filter(function (item) {
+              if (item.type === "dir") return false;
+              const fileName = item.uri.split("/").pop();
+              if (fileName.endsWith(".bad")) return false;
+              if (PERSISTENT_FILES.includes(fileName)) return false;
+              if (fileName.endsWith(".tmp") && PERSISTENT_FILES.includes(fileName.slice(0, -4))) {
+                return false;
+              }
+              return true;
+            });
+
+            if (filesToDelete.length === 0) {
+              return resolve({ count: 0 });
+            }
+
+            let deletedCount = 0;
+            let finished = 0;
+            filesToDelete.forEach(function (item) {
+              file.delete({
+                uri: item.uri,
+                success: function () {
+                  deletedCount++;
+                  finished++;
+                  if (finished === filesToDelete.length) {
+                    resolve({ count: deletedCount, total: filesToDelete.length });
+                  }
+                },
+                fail: function (errData, code) {
+                  console.debug("删除临时文件失败: " + item.uri + ", code=" + code);
+                  finished++;
+                  if (finished === filesToDelete.length) {
+                    resolve({ count: deletedCount, total: filesToDelete.length });
+                  }
+                },
+              });
+            });
+          },
+          fail: function (errData, code) {
+            console.debug("列出临时文件失败, code=" + code);
+            reject({ errData: errData, code: code });
+          },
+        });
+      });
   });
 }

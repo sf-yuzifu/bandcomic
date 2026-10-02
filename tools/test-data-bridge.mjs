@@ -110,9 +110,17 @@ function harness() {
         options.success();
       }
     } else if (method === "access") {
-      options.success();
+      if (h.accessFault && h.accessFault(options)) {
+        options.fail("I/O error", 300);
+      } else {
+        options.success();
+      }
     } else if (method === "rmdir") {
-      options.success();
+      if (h.rmdirFault && h.rmdirFault(options)) {
+        options.fail("I/O error", 300);
+      } else {
+        options.success();
+      }
     } else {
       const length = problem === "short" ? options.length - 1 : options.length;
       options.success({ buffer: Uint8Array.from(bytes.subarray(options.position, options.position + length)).buffer });
@@ -745,4 +753,112 @@ test("import: multi-chapter mode accurately tracks downloaded count per chapter 
   // 提示：共3个章节文件，完成2个，1个失败
   assert.ok(h.toasts.some((s) => s.includes("(2/3文件，1个失败)")));
 });
+
+test("delete_comic: rmdir failure retains comic in index and reports error toast", async () => {
+  const h = harness();
+  h.message({ type: "import_comic_header", name: "KeepBook", files: ["cover", "1"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "KeepBook", file: "cover", index: 0, total: 1, data: "YWJj" });
+  h.message({ type: "import_comic_chunk", name: "KeepBook", file: "1", index: 0, total: 1, data: "YWJj" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "KeepBook" });
+  await h.drainIO();
+  assert.equal(h.books.length, 1);
+
+  // 注入 rmdir 失败（模拟 I/O 故障）
+  h.rmdirFault = () => true;
+
+  h.message({ type: "delete_comic", name: "KeepBook" });
+  await h.drainIO();
+
+  // 校验：索引不能被移除，应保留管理入口
+  assert.equal(h.books.length, 1, "rmdir 失败时不应删除索引");
+  assert.ok(h.toasts.some((s) => s.includes("删除失败，请重试")));
+});
+
+test("delete_comic: successful rmdir or missing directory removes index", async () => {
+  const h = harness();
+  h.message({ type: "import_comic_header", name: "DelBook", files: ["cover", "1"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "DelBook", file: "cover", index: 0, total: 1, data: "YWJj" });
+  h.message({ type: "import_comic_chunk", name: "DelBook", file: "1", index: 0, total: 1, data: "YWJj" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "DelBook" });
+  await h.drainIO();
+  assert.equal(h.books.length, 1);
+
+  h.message({ type: "delete_comic", name: "DelBook" });
+  await h.drainIO();
+
+  assert.equal(h.books.length, 0, "成功删除后索引应被移除");
+  assert.ok(h.toasts.some((s) => s.includes("已删除: DelBook")));
+});
+
+test("cleanTempFiles: removes orphan comic directories and temp files while preserving registered ones", async () => {
+  const storageSrc = fs.readFileSync(new URL("../src/components/storage.js", import.meta.url), "utf8");
+  const filesOnDisk = new Map([
+    ["internal://files/comics.json", Buffer.from(JSON.stringify([{ id: "valid_comic_1", name: "Valid" }]))],
+    ["internal://files/settings.json", Buffer.from("{}")],
+    ["internal://files/_icf_temp_1", Buffer.from("temp1")],
+    ["internal://files/_icf_temp_2", Buffer.from("temp2")],
+  ]);
+  const dirsOnDisk = new Set([
+    "internal://files/valid_comic_1",
+    "internal://files/orphan_comic_old",
+  ]);
+
+  const fileMock = {
+    readText(options) {
+      const data = filesOnDisk.get(options.uri);
+      if (data) options.success({ text: data.toString("utf8") });
+      else options.fail("not found", 301);
+    },
+    list(options) {
+      const fileList = [];
+      for (const uri of filesOnDisk.keys()) {
+        fileList.push({ uri, type: "file" });
+      }
+      for (const uri of dirsOnDisk) {
+        fileList.push({ uri, type: "dir" });
+      }
+      options.success({ fileList });
+    },
+    delete(options) {
+      filesOnDisk.delete(options.uri);
+      options.success();
+    },
+    rmdir(options) {
+      dirsOnDisk.delete(options.uri);
+      options.success();
+    },
+  };
+
+  const context = vm.createContext({
+    file: fileMock,
+    console: { debug: () => {} },
+    Promise,
+    Uint8Array,
+    ArrayBuffer,
+    Map,
+    Set,
+  });
+
+  vm.runInContext(storageSrc.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
+
+  const res = await context.cleanTempFiles();
+
+  // 清理了 2 个 _icf_ 临时文件 + 1 个孤儿目录 = 共 3 项
+  assert.equal(res.count, 3);
+  // 孤儿目录被删除了
+  assert.ok(!dirsOnDisk.has("internal://files/orphan_comic_old"));
+  // 有效漫画目录依然保留
+  assert.ok(dirsOnDisk.has("internal://files/valid_comic_1"));
+  // 持久化文件依然保留
+  assert.ok(filesOnDisk.has("internal://files/comics.json"));
+  assert.ok(filesOnDisk.has("internal://files/settings.json"));
+  // 临时文件被删除
+  assert.ok(!filesOnDisk.has("internal://files/_icf_temp_1"));
+  assert.ok(!filesOnDisk.has("internal://files/_icf_temp_2"));
+});
+
 

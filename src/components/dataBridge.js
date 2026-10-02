@@ -8,6 +8,7 @@ import {
   updateJsonFile,
   COMICS_URI,
   SOURCES_URI,
+  FILE_ERROR,
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
@@ -1323,15 +1324,24 @@ export function createDataBridge(interConnect) {
               success: function () {
                 updateComicsIndexAfterDelete(target.id, comicName);
               },
-              fail: function () {
-                console.debug("递归删除失败，直接更新索引");
-                updateComicsIndexAfterDelete(target.id, comicName);
+              fail: function (data, code) {
+                console.debug("递归删除失败, code=" + code);
+                prompt.showToast({ message: "删除失败，请重试" });
               },
             });
           },
-          fail: function () {
-            console.debug("文件夹不存在，直接更新索引");
-            updateComicsIndexAfterDelete(target.id, comicName);
+          fail: function (data, code) {
+            // 明确目录不存在（如 301 / NOT_FOUND）时才直接更新索引；其余 I/O 故障保留索引
+            if (
+              code === 301 ||
+              (typeof FILE_ERROR !== "undefined" && code === FILE_ERROR.NOT_FOUND)
+            ) {
+              console.debug("文件夹不存在，直接更新索引");
+              updateComicsIndexAfterDelete(target.id, comicName);
+            } else {
+              console.debug("检查文件夹失败, code=" + code);
+              prompt.showToast({ message: "删除失败，请重试" });
+            }
           },
         });
       },
