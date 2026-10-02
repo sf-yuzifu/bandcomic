@@ -35,12 +35,22 @@ function harness() {
   const file = {
     get(options) { h.getCalls++; h.io.push({ method: "get", options }); },
     readArrayBuffer(options) { h.readCalls++; h.io.push({ method: "read", options }); },
+    mkdir(options) { h.io.push({ method: "mkdir", options }); },
+    writeArrayBuffer(options) { h.io.push({ method: "write", options }); },
+    access(options) { h.io.push({ method: "access", options }); },
+    rmdir(options) { h.io.push({ method: "rmdir", options }); },
   };
   const sandbox = {
     prompt: { showToast: (options) => h.toasts.push(options.message) }, file,
     readComics: () => h.readComics ? h.readComics() : Promise.resolve(h.books),
     readSources: () => h.readSources ? h.readSources() : Promise.resolve(h.sources),
     safeJsonParse: (value, fallback) => { try { return JSON.parse(value); } catch { return fallback; } },
+    updateJsonFile: (uri, fallback, fn) => {
+      h.books = fn(JSON.parse(JSON.stringify(h.books)));
+      return Promise.resolve(h.books);
+    },
+    COMICS_URI: "comics.json",
+    isAlreadyExistsError: (code) => code === 202,
     global: { APP_SETTING: {} }, Uint8Array, Int8Array, ArrayBuffer, Promise, Map: FrameMap,
     console: { debug: () => {} },
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; },
@@ -85,10 +95,20 @@ function harness() {
     const { method, options } = h.io.shift();
     const bytes = h.files.get(options.uri);
     const problem = fault || (h.readFault && h.readFault(method, options));
-    if (problem === "fail" || (options.uri.endsWith("/cover") && !bytes)) {
+    if (problem === "fail" || (options.uri && options.uri.endsWith("/cover") && method === "get" && !bytes)) {
       options.fail("missing", 301);
     } else if (method === "get") {
       options.success(options.recursive ? { subFiles: [] } : { length: bytes.length });
+    } else if (method === "mkdir") {
+      options.success();
+    } else if (method === "write") {
+      const buf = options.buffer instanceof ArrayBuffer ? new Uint8Array(options.buffer) : options.buffer;
+      h.files.set(options.uri, Buffer.from(buf));
+      options.success();
+    } else if (method === "access") {
+      options.success();
+    } else if (method === "rmdir") {
+      options.success();
     } else {
       const length = problem === "short" ? options.length - 1 : options.length;
       options.success({ buffer: Uint8Array.from(bytes.subarray(options.position, options.position + length)).buffer });
@@ -452,3 +472,179 @@ test("finite sender compatibility, empty source, bounded prefetch and slow produ
   await tick();
   assert.equal(sender.isFinished(), true);
 });
+
+test("import: late mkdir callback from cancelled import cannot mark new import ready", async () => {
+  const h = harness();
+  // 先发一个旧导入 Old，但不让 mkdir 立即完成
+  h.message({ type: "import_comic_header", name: "Old", files: ["cover", "1"] });
+  const oldMkdir = h.io.find((op) => op.method === "mkdir");
+  assert.ok(oldMkdir);
+  h.io.length = 0; // 清空队列表以便准确追踪
+
+  // 发起新导入 New
+  h.message({ type: "import_comic_header", name: "New", files: ["cover", "1"] });
+  const newMkdir = h.io.find((op) => op.method === "mkdir");
+  assert.ok(newMkdir);
+
+  // New 发送一个分片，此时 New 的目录尚未 ready，应处于 pendingWrites
+  h.message({ type: "import_comic_chunk", name: "New", file: "1", index: 0, total: 1, data: "YWJj" });
+  assert.ok(!h.io.some((op) => op.method === "write"));
+
+  // 此时旧导入的 mkdir 迟到回调执行
+  oldMkdir.options.success();
+  await tick();
+
+  // 校验：旧 mkdir 不能导致 New 目录提前就绪，因此不能触发任何文件写入
+  assert.ok(!h.io.some((op) => op.method === "write"), "旧 mkdir 不能推进新会话的写操作");
+
+  // New 自身的 mkdir 真正成功
+  newMkdir.options.success();
+  await tick();
+
+  // New 的待写队列才被冲刷并启动写盘
+  assert.ok(h.io.some((op) => op.method === "write"), "新 mkdir 成功后待写队列正常冲刷");
+});
+
+test("import: old chunks and old done are discarded and cannot contaminate new session", async () => {
+  const h = harness();
+  // 建立导入 Old
+  h.message({ type: "import_comic_header", name: "Old", files: ["cover", "1"] });
+  await h.drainIO();
+
+  // 切换为导入 New
+  h.message({ type: "import_comic_header", name: "New", files: ["cover", "1"] });
+  await h.drainIO();
+
+  // 来自 Old 的分片到达
+  h.message({
+    type: "import_comic_chunk",
+    name: "Old",
+    file: "1",
+    index: 0,
+    total: 1,
+    data: Buffer.from("OLD_DATA").toString("base64"),
+  });
+  await tick();
+
+  // 来自 Old 的 done 到达
+  h.message({ type: "import_comic_done", name: "Old" });
+  await tick();
+
+  // 校验：不能生成任何属于 Old 的写入
+  const filesArray = [...h.files.keys()];
+  assert.equal(filesArray.length, 0, "旧分片已被丢弃，没有文件落盘");
+  assert.equal(h.books.length, 0, "旧 done 被丢弃，未把新导入提前登记为完成");
+
+  // 正常传入 New 的分片与 done
+  h.message({
+    type: "import_comic_chunk",
+    name: "New",
+    file: "1",
+    index: 0,
+    total: 1,
+    data: Buffer.from("NEW_DATA").toString("base64"),
+  });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", name: "New" });
+  await h.drainIO();
+
+  assert.equal(h.books.length, 1);
+  assert.equal(h.books[0].name, "New");
+  const written = [...h.files.values()][0];
+  assert.equal(written.toString(), "NEW_DATA");
+});
+
+test("import: handshake cancels in-flight import session and drops late chunks", async () => {
+  const h = harness();
+  h.message({ type: "import_comic_header", name: "Old", files: ["cover", "1"] });
+  await h.drainIO();
+
+  // 握手重入
+  h.handshake();
+  await tick();
+
+  // 之后到达的 Old 分片与 done 应被丢弃
+  h.message({ type: "import_comic_chunk", name: "Old", file: "1", index: 0, total: 1, data: "YWJj" });
+  h.message({ type: "import_comic_done", name: "Old" });
+  await tick();
+
+  assert.equal(h.files.size, 0);
+  assert.equal(h.books.length, 0);
+});
+
+test("import: same name consecutive import isolates sessions and drops old session chunks", async () => {
+  const h = harness();
+  // 第一次导入同名漫画，带 sessionId: "session_1"
+  h.message({
+    type: "import_comic_header",
+    name: "SameComic",
+    sessionId: "session_1",
+    files: ["cover", "1"],
+  });
+  const firstMkdir = h.io.find((op) => op.method === "mkdir");
+  assert.ok(firstMkdir);
+  h.io.length = 0;
+
+  // 第二次导入同名漫画，带 sessionId: "session_2"
+  h.message({
+    type: "import_comic_header",
+    name: "SameComic",
+    sessionId: "session_2",
+    files: ["cover", "1"],
+  });
+  const secondMkdir = h.io.find((op) => op.method === "mkdir");
+  assert.ok(secondMkdir);
+
+  // session_2 到达分片，处于待写队列
+  h.message({
+    type: "import_comic_chunk",
+    name: "SameComic",
+    sessionId: "session_2",
+    file: "1",
+    index: 0,
+    total: 1,
+    data: Buffer.from("SESSION_2").toString("base64"),
+  });
+  assert.ok(!h.io.some((op) => op.method === "write"));
+
+  // 迟到的 session_1 mkdir 回调触发
+  firstMkdir.options.success();
+  await tick();
+  assert.ok(!h.io.some((op) => op.method === "write"), "旧会话的 mkdir 不能提前冲刷新会话");
+
+  // 迟到的 session_1 分片与 done 到达
+  h.message({
+    type: "import_comic_chunk",
+    name: "SameComic",
+    sessionId: "session_1",
+    file: "1",
+    index: 0,
+    total: 1,
+    data: Buffer.from("SESSION_1").toString("base64"),
+  });
+  h.message({
+    type: "import_comic_done",
+    name: "SameComic",
+    sessionId: "session_1",
+  });
+  await tick();
+  assert.equal(h.books.length, 0, "旧会话 done 不能完成新会话");
+
+  // session_2 mkdir 成功
+  secondMkdir.options.success();
+  await tick();
+  await h.drainIO();
+
+  // session_2 done
+  h.message({
+    type: "import_comic_done",
+    name: "SameComic",
+    sessionId: "session_2",
+  });
+  await h.drainIO();
+
+  assert.equal(h.books.length, 1);
+  const written = [...h.files.values()][0];
+  assert.equal(written.toString(), "SESSION_2");
+});
+

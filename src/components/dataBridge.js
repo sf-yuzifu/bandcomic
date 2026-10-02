@@ -626,17 +626,53 @@ export function createDataBridge(interConnect) {
   }
 
   let _importState = null;
+  let _importSessionSeq = 0;
+
+  // 清理导入会话占用的临时目录与残存文件（重入打断、握手取消或失效废弃时调用）
+  function cleanupImportDir(targetDirUri) {
+    if (!targetDirUri) return;
+    try {
+      file.access({
+        uri: targetDirUri,
+        success: function () {
+          file.rmdir({
+            uri: targetDirUri,
+            recursive: true,
+            success: function () {},
+            fail: function () {},
+          });
+        },
+        fail: function () {},
+      });
+    } catch (e) {
+      // 捕获异常避免阻断后续流程
+    }
+  }
+
+  // 取消或废弃当前的导入状态
+  function cancelCurrentImport(reason) {
+    if (!_importState) return;
+    const oldState = _importState;
+    oldState.cancelled = true;
+    _importState = null;
+    if (reason) {
+      console.debug("取消导入会话 [" + oldState.sessionId + "]: " + reason);
+    }
+    // 清理未完成半成品目录
+    cleanupImportDir(oldState.dirUri);
+  }
 
   // 启动一个文件的异步落盘：回调只认捕获的 state（不碰全局 _importState），
-  // done 先到时收尾会等 inflightWrites 归零，回调不会再撞上 null
+  // 会话已取消则丢弃落盘结果，不推进后续索引
   function startImportWrite(state, uri, data) {
     state.inflightWrites++;
     writeBinaryFromBase64(
       uri,
       data,
       function () {
-        state.completedFiles++;
         state.inflightWrites--;
+        if (state.cancelled) return;
+        state.completedFiles++;
         if (state.completedFiles % 5 === 0 || state.completedFiles === state.totalFiles) {
           prompt.showToast({
             message: "接收 " + state.completedFiles + "/" + state.totalFiles,
@@ -646,9 +682,10 @@ export function createDataBridge(interConnect) {
         maybeFinalizeImport(state);
       },
       function () {
+        state.inflightWrites--;
+        if (state.cancelled) return;
         state.completedFiles++;
         state.failedFiles++;
-        state.inflightWrites--;
         maybeFinalizeImport(state);
       }
     );
@@ -656,7 +693,7 @@ export function createDataBridge(interConnect) {
 
   // done 已收到且所有写入（在途 + 待写）都完成后才真正收尾
   function maybeFinalizeImport(state) {
-    if (!state || !state.doneReceived) return;
+    if (!state || state.cancelled || !state.doneReceived) return;
     if (!state.dirReady) return;
     if (state.pendingWrites.length > 0) return;
     if (state.inflightWrites > 0) return;
@@ -664,6 +701,7 @@ export function createDataBridge(interConnect) {
   }
 
   function finalizeImport(state) {
+    if (state.cancelled) return;
     const failed = state.failedFiles || 0;
 
     updateComicsIndex(
@@ -723,6 +761,11 @@ export function createDataBridge(interConnect) {
 
     const comicId = "local_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
     const dirUri = "internal://files/" + comicId;
+    const sessionId = parsed.sessionId || parsed.session || comicId;
+    const sessionGeneration = ++_importSessionSeq;
+
+    // 若已有正在进行的导入会话，取消旧会话并清理半成品，确保新导入互斥
+    cancelCurrentImport("收到新的导入头部 (" + comicName + ")");
 
     let pageCount = 0;
     const isSerial = mode === "multi";
@@ -739,10 +782,13 @@ export function createDataBridge(interConnect) {
       pageCount = totalFileCount;
     }
 
-    _importState = {
+    const state = {
       comicId: comicId,
       dirUri: dirUri,
       comicName: comicName,
+      sessionId: sessionId,
+      sessionGeneration: sessionGeneration,
+      cancelled: false,
       mode: mode,
       files: [],
       chapters: chapters,
@@ -762,15 +808,16 @@ export function createDataBridge(interConnect) {
       gnext: 0,
       gtotal: 0,
     };
+    _importState = state;
     if (typeof parsed.wchunks === "number") {
-      _importState.gbuf = {};
-      _importState.gtotal = parsed.wchunks;
+      state.gbuf = {};
+      state.gtotal = parsed.wchunks;
     }
 
     if (mode === "single") {
       files.forEach(function (f) {
-        _importState.files.push(f);
-        _importState.totalFiles++;
+        state.files.push(f);
+        state.totalFiles++;
       });
     } else if (chapters) {
       chapters.forEach(function (ch, ci) {
@@ -779,25 +826,25 @@ export function createDataBridge(interConnect) {
         const chapFiles = ch.files || [];
         chapFiles.forEach(function (f) {
           const fileKey = chapName + "/" + f;
-          _importState.files.push(fileKey);
-          _importState.totalFiles++;
+          state.files.push(fileKey);
+          state.totalFiles++;
         });
       });
       // 多章模式书级封面：插件独立于 chapters 发送（用户可选，可能没有），
       // 加入验收清单避免分片被当未知拒收，但不计入文件数（见 handleImportComicChunk）
-      _importState.files.push("cover");
+      state.files.push("cover");
     }
 
     prompt.showToast({
-      message: "开始接收: " + comicName + " (" + _importState.totalFiles + "文件)",
+      message: "开始接收: " + comicName + " (" + state.totalFiles + "文件)",
     });
 
     function flushPendingWrites() {
-      const state = _importState;
-      if (!state || !state.pendingWrites) return;
+      if (state.cancelled || !state.pendingWrites) return;
       const pending = state.pendingWrites;
       state.pendingWrites = [];
       pending.forEach(function (w) {
+        if (state.cancelled) return;
         if (w.isCover) {
           // 封面不参与文件计数
           writeBinaryFromBase64(
@@ -814,8 +861,7 @@ export function createDataBridge(interConnect) {
 
     // 目录就绪计数归零：dirReady 置位，冲刷待写队列，并尝试收尾
     function onOneDirReady() {
-      const state = _importState;
-      if (!state) return;
+      if (state.cancelled) return;
       state.pendingDirs--;
       if (state.pendingDirs > 0) return;
       state.dirReady = true;
@@ -825,8 +871,7 @@ export function createDataBridge(interConnect) {
 
     // 根目录就绪后再建章节目录（recursive:false 要求父目录存在，否则章节 mkdir 会失败丢文件）
     function onRootDirReady() {
-      const state = _importState;
-      if (!state) return;
+      if (state.cancelled) return;
       if (state.mode === "multi" && state.chapters && state.chapters.length > 0) {
         state.pendingDirs = state.chapters.length;
         state.chapters.forEach(function (ch, ci) {
@@ -870,8 +915,13 @@ export function createDataBridge(interConnect) {
 
     // 头部就绪确认：插件收到后才开始发分片。
     // 部分平台（如安卓）消息可能乱序，分片先于头部到达会被丢弃
+    const ackData = { type: "import_header_ack", name: comicName };
+    if (parsed.sessionId || parsed.session) {
+      ackData.sessionId = sessionId;
+      ackData.session = sessionId;
+    }
     interConnect.send({
-      data: { type: "import_header_ack", name: comicName },
+      data: ackData,
       success: function () {},
       fail: function (data, code) {
         console.debug("import_header_ack 发送失败:", code);
@@ -961,9 +1011,14 @@ export function createDataBridge(interConnect) {
   }
 
   // 滑窗会话的累计 ACK：ack = 下一个仍缺失的连续 gseq
-  function sendImportCumAck(comicName, ack) {
+  function sendImportCumAck(comicName, ack, sessionId) {
+    const data = { type: "import_chunk_ack", name: comicName, ack: ack };
+    if (sessionId) {
+      data.sessionId = sessionId;
+      data.session = sessionId;
+    }
     interConnect.send({
-      data: { type: "import_chunk_ack", name: comicName, ack: ack },
+      data: data,
       success: function () {},
       fail: function () {},
     });
@@ -973,9 +1028,10 @@ export function createDataBridge(interConnect) {
   // （增量 ACK 是发送方窗口不死锁的硬性前提）；重复片只回 ACK 不落数据
   function handleImportChunkWindowed(parsed, comicName) {
     const state = _importState;
+    if (!state || state.cancelled) return;
     const gseq = parsed.gseq;
     if (gseq < state.gnext || state.gbuf[gseq] !== undefined) {
-      sendImportCumAck(comicName, state.gnext);
+      sendImportCumAck(comicName, state.gnext, state.sessionId);
       return;
     }
     state.gbuf[gseq] = parsed;
@@ -986,25 +1042,33 @@ export function createDataBridge(interConnect) {
       // 未知 fileKey 也照常推进前沿（只不落盘），否则发送方窗口停滞
       consumeImportChunk(frame.file || "", frame.index, frame.total, frame.data || "");
     }
-    sendImportCumAck(comicName, state.gnext);
+    sendImportCumAck(comicName, state.gnext, state.sessionId);
   }
 
   function handleImportComicChunk(parsed) {
-    if (!_importState) {
-      console.debug("收到分片但没有 importState");
+    if (!_importState || _importState.cancelled) {
+      console.debug("收到分片但没有有效的 importState");
       return;
     }
 
+    const state = _importState;
     const comicName = parsed.name || "";
+    const incomingSession = parsed.sessionId || parsed.session || "";
 
-    if (comicName !== _importState.comicName) {
-      // 漫画名含特殊字符时传输中可能被转义导致不一致
-      // _importState 是单例，本身即代表当前唯一导入会话，名不匹配只告警不丢弃
-      console.debug("分片漫画名不匹配: " + comicName + " vs " + _importState.comicName);
+    // 会话隔离检查：若分片带有 session 字段，严格比对；若未带 session，则核对漫画名
+    if (incomingSession && incomingSession !== state.sessionId) {
+      console.debug(
+        "分片 session 不匹配，丢弃: " + incomingSession + " vs " + state.sessionId
+      );
+      return;
+    }
+    if (comicName && comicName !== state.comicName) {
+      console.debug("分片漫画名不匹配，丢弃: " + comicName + " vs " + state.comicName);
+      return;
     }
 
     // 滑窗会话（头部带 wchunks 且帧带 gseq）
-    if (_importState.gbuf && typeof parsed.gseq === "number") {
+    if (state.gbuf && typeof parsed.gseq === "number") {
       handleImportChunkWindowed(parsed, comicName);
       return;
     }
@@ -1012,30 +1076,45 @@ export function createDataBridge(interConnect) {
     // 旧版逐片停等路径：每片回逐片 ACK（未知文件/重复片也回，防插件超时重传死循环）
     const fileKey = parsed.file || "";
     consumeImportChunk(fileKey, parsed.index, parsed.total, parsed.data || "");
+    const chunkAck = {
+      type: "import_chunk_ack",
+      name: comicName,
+      file: fileKey,
+      index: parsed.index,
+    };
+    if (state.sessionId) {
+      chunkAck.sessionId = state.sessionId;
+      chunkAck.session = state.sessionId;
+    }
     interConnect.send({
-      data: {
-        type: "import_chunk_ack",
-        name: comicName,
-        file: fileKey,
-        index: parsed.index,
-      },
+      data: chunkAck,
     });
   }
 
   function handleImportComicDone(parsed) {
-    if (!_importState) return;
+    if (!_importState || _importState.cancelled) return;
 
+    const state = _importState;
     const comicName = parsed.name || "";
-    if (comicName !== _importState.comicName) {
-      // 与分片同理：名不匹配只告警，按当前导入会话完成收尾
-      console.debug("完成消息漫画名不匹配: " + comicName + " vs " + _importState.comicName);
+    const incomingSession = parsed.sessionId || parsed.session || "";
+
+    // 会话隔离检查：若 done 消息带有 session，严格比对；未带 session 则严格比对漫画名
+    if (incomingSession && incomingSession !== state.sessionId) {
+      console.debug(
+        "完成消息 session 不匹配，丢弃: " + incomingSession + " vs " + state.sessionId
+      );
+      return;
+    }
+    if (comicName && comicName !== state.comicName) {
+      console.debug("完成消息漫画名不匹配，丢弃: " + comicName + " vs " + state.comicName);
+      return;
     }
 
     // 只标记 done 到达：base64 落盘是异步的，可能还有在途/待写文件，
-    // 等 maybeFinalizeImport 确认全部写完才收尾，否则回调访问 _importState 会 TypeError、
+    // 等 maybeFinalizeImport 确认全部写完才收尾，否则回调访问 state 会 TypeError、
     // 失败统计也会漏记在途写入
-    _importState.doneReceived = true;
-    maybeFinalizeImport(_importState);
+    state.doneReceived = true;
+    maybeFinalizeImport(state);
   }
 
   function writeBinaryFromBase64(fileUri, base64Data, onSuccess, onFail) {
@@ -1246,10 +1325,7 @@ export function createDataBridge(interConnect) {
   // 顺带交换能力：存下插件 caps（syncWindow 决定方向 B 走滑窗还是旧停等），
   // 并在 hs_pong 里声明本端导入接收窗口（importWindow）
   function handleHandshakePing(parsed) {
-    if (_importState) {
-      console.debug("新握手会话，清理未完成的导入状态");
-      _importState = null;
-    }
+    cancelCurrentImport("新握手会话建立");
     // 新会话打断可能在途的滑窗同步：旧会话帧序号对新 frontier 无意义
     stopSync();
     _pluginCaps = parsed && parsed.caps && typeof parsed.caps === "object" ? parsed.caps : null;
