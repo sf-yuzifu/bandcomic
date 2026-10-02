@@ -2008,6 +2008,105 @@ test("photo: first successful image display creates history snapshot and writes 
   );
 });
 
+test("search: invalid response on page flip resets display page indicator without misaligning content (P1-40)", async () => {
+  const searchSource = read("../src/pages/search/search.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+
+  const requests = [];
+  const toasts = [];
+
+  const appGlobal = {
+    APP_SETTING: {
+      searchPageSize: 10,
+      showCoverInSearch: false,
+    },
+    $img: { addCoverParams: (url) => url },
+    $route: { serializeParams: (p) => p },
+    $api: {
+      buildSearchUrl: (text, page) => `https://test/search?q=${text}&page=${page}`,
+      buildDetailUrl: (id) => `https://test/detail/${id}`,
+      getFetchErrorType: () => "network",
+      isComicDetailResponse: () => true,
+      apiFetch(options) {
+        requests.push(options);
+      },
+    },
+    $set: {
+      getSearchPageSize: () => 10,
+    },
+    $cover: {
+      loadCoverProxies: () => () => {},
+    },
+    getTime: () => "12:00",
+  };
+
+  const context = vm.createContext({
+    global: appGlobal,
+    console: { debug: noop, error: noop },
+    Promise,
+    router: { push: noop, replace: noop },
+    prompt: { showToast: (t) => toasts.push(t) },
+    setTimeout: (fn) => fn(),
+  });
+
+  vm.runInContext(
+    searchSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.searchDef = "),
+    context
+  );
+
+  function createSearch() {
+    return Object.assign({}, context.searchDef, clone(context.searchDef.private), {
+      keyword: "test",
+      $t: (k) => k,
+      $element: () => ({ scrollTo: () => {} }),
+      $nextTick: (fn) => fn(),
+    });
+  }
+
+  // 1. 初始搜索第一页成功（10条数据）
+  const search = createSearch();
+  search.onInit();
+
+  assert.equal(requests.length, 1);
+  const req1 = requests.pop();
+  req1.success({
+    data: {
+      page: 1,
+      has_more: true,
+      results: Array.from({ length: 10 }, (_, i) => ({
+        comic_id: `comic_1_${i + 1}`,
+        title: `Item 1-${i + 1}`,
+        cover_url: `https://test/cover/1/${i + 1}`,
+      })),
+    },
+  });
+  if (req1.complete) req1.complete();
+
+  assert.equal(search.displayPage, 1);
+  assert.equal(search.searchResults.length, 10);
+  assert.equal(search.searchResults[0].gid, "comic_1_1");
+
+  // 2. 翻到第 2 页，触发网络请求拉取 serverPage 2
+  search.changeDisplayPage(2);
+  assert.equal(search.displayPage, 2);
+  assert.equal(requests.length, 1);
+
+  // 模拟服务端返回非法的对象结构（没有 results 数组，例如鉴权失败 JSON 或空响应）
+  const req2 = requests.pop();
+  req2.success({
+    data: { error: "need login" }, // 非法响应
+  });
+  if (req2.complete) req2.complete();
+
+  // 验证：displayPage 必须从 2 自动回退至实际内容所在页 1，Toast 给出提示！
+  assert.equal(search.displayPage, 1, "非法响应后指示器必须自动回退至内容实际所在页码 1");
+  assert.equal(search.searchResults.length, 10, "展示内容保持第 1 页内容");
+  assert.equal(search.searchResults[0].gid, "comic_1_1");
+  assert.equal(search.loadingMore, false);
+  assert.ok(toasts.length > 0, "用户收到错误 Toast 提示");
+});
+
 
 
 

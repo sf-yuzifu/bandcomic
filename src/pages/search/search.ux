@@ -261,6 +261,7 @@ export default {
     if (!data || !Array.isArray(data.results)) {
       this.error = true;
       this.errorMsg = this.$t("error.invalidResponse");
+      this.failPageFlip(this.errorMsg);
       return;
     }
 
@@ -412,10 +413,7 @@ export default {
           this.trimCache();
           ok = true;
         } else {
-          prompt.showToast({
-            message: this.$t("error.invalidResponse"),
-            duration: 3000,
-          });
+          this.failPageFlip(this.$t("error.invalidResponse"));
         }
       },
       fail: (data, code) => {
