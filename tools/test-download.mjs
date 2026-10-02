@@ -1290,6 +1290,112 @@ test("search: cache trimming protects current display range across mismatched se
   }
 });
 
+test("ime: square screen null check on candidate element prevents crash in en/num modes (P1-35)", async () => {
+  const imeSource = read("../src/pages/ime/ime.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+
+  let scrollCalled = 0;
+
+  const context = vm.createContext({
+    global: {
+      __imeText: "initial",
+      __imeLabel: "Search",
+      screenShape: "rect",
+    },
+    console: { debug: noop, error: noop },
+    Promise,
+    router: { back: noop },
+    vibrator: { vibrate: noop },
+    device: {
+      getInfo: ({ success }) => success({ windowWidth: 336 }),
+    },
+    SimpleInputMethod: {
+      getHanzi: (word) => [["你", "好"], word],
+    },
+  });
+
+  vm.runInContext(
+    imeSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.imeDef = "),
+    context
+  );
+
+  function createIme(screentype = "rect") {
+    const candidateElement = {
+      scrollTo: () => {
+        scrollCalled++;
+      },
+    };
+
+    const instance = Object.assign({}, context.imeDef, clone(context.imeDef.private), {
+      screentype,
+      $element: (id) => {
+        if (id === "cvalWaiting") {
+          // 方屏下，非中文或数字模式该元素不存在
+          if (instance.screentype === "rect" && (instance.lang !== "cn" || instance.numFlag)) {
+            return null;
+          }
+          return candidateElement;
+        }
+        return null;
+      },
+      adjustScreenWidth: () => {},
+      onVibrate: noop,
+    });
+    return instance;
+  }
+
+  // 1. 方屏（rect）中文模式：元素存在，候选词复位正常调用 scrollTo
+  const rectIme = createIme("rect");
+  rectIme.onInit();
+  rectIme.cval = "ni";
+  rectIme.resetReslutList();
+  assert.ok(scrollCalled > 0, "中文模式下元素存在，正常调用 scrollTo");
+
+  // 2. 方屏（rect）切换至英文模式：元素在模板中不存在（$element 返回 null）
+  // 按键输入、删除、清空等操作均调用 resetReslutList，不得抛出 TypeError
+  rectIme.onBtnClick("lang");
+  assert.equal(rectIme.lang, "en");
+
+  assert.doesNotThrow(() => {
+    rectIme.onSelect("H");
+    rectIme.onSelect("I");
+    rectIme.onBtnClick("space");
+    rectIme.onBtnClick("D");
+    rectIme.onBtnClick("AC");
+  }, "英文模式下候选元素为空，所有按键均不得抛错");
+
+  // 3. 方屏（rect）切换至数字模式：元素在模板中同样不存在
+  rectIme.onBtnClick("lang"); // 回到 cn
+  rectIme.onBtnClick("switchNum");
+  assert.equal(rectIme.numFlag, true);
+
+  assert.doesNotThrow(() => {
+    rectIme.onBtnClick("1");
+    rectIme.onBtnClick("2");
+    rectIme.onBtnClick("D");
+    rectIme.onBtnClick("AC");
+    rectIme.resetReslutList();
+  }, "数字模式下候选元素为空，所有操作均不得抛错");
+
+  // 4. 反复切换模式
+  assert.doesNotThrow(() => {
+    rectIme.onBtnClick("switchChar");
+    rectIme.onBtnClick("lang");
+    rectIme.onBtnClick("lang");
+    rectIme.onBtnClick("switchNum");
+  });
+
+  // 5. 圆屏（circle）回归验证
+  const circleIme = createIme("circle");
+  circleIme.onInit();
+  assert.doesNotThrow(() => {
+    circleIme.onBtnClick("lang");
+    circleIme.onBtnClick("AC");
+    circleIme.resetReslutList();
+  }, "圆屏模式无回归");
+});
+
 
 
 

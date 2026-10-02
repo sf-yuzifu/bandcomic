@@ -1107,18 +1107,21 @@ export default {
     this.lastWaitingStr = "";
   },
   resetReslutList() {
-    if (this.screentype != "circle") {
-      this.$element("cvalWaiting").scrollTo({
-        top: 0,
-        left: 0,
-        behavior: "smooth",
-      });
+    if (this.screentype !== "circle") {
+      const el = this.$element("cvalWaiting");
+      if (el && typeof el.scrollTo === "function") {
+        el.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: "smooth",
+        });
+      }
     }
     let watingStr = "";
     if (this.lastWaitingStr && this.lastWaitingStr[this.waitingIndex]) {
       watingStr = this.lastWaitingStr[this.waitingIndex];
     }
-    if (!(this.cval + watingStr) || this.lang != "cn") {
+    if (!(this.cval + watingStr) || this.lang !== "cn") {
       this.resultList = [];
       this.setResultListAll();
       return;
