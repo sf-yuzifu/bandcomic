@@ -170,13 +170,13 @@ export default {
           return replaceIfDuplicate(list, data);
         }).then(
           () => {
+            mergeSourcesToGlobal(Object.keys(data).map((key) => ({ [key]: data[key] })));
             if (this.destroyed) return;
             // HTTPS 降级 HTTP 成功时延长 toast 并明示安全风险，避免用户忽略
             prompt.showToast({
               message: this.$t(protocol === "http" ? "edit.completeHttp" : "edit.complete"),
               duration: protocol === "http" ? 3000 : 2000,
             });
-            mergeSourcesToGlobal(Object.keys(data).map((key) => ({ [key]: data[key] })));
             this.API_SETTING = global.API_SETTING;
           },
           ({ data: errData, code }) => {
@@ -222,12 +222,14 @@ export default {
       return list.filter((item) => Object.keys(item)[0] !== source);
     }).then(
       () => {
-        prompt.showToast({ message: this.$t("edit.del") });
         delete global.API_SETTING[source];
         ensureUsingSourceValid();
+        if (this.destroyed) return;
+        prompt.showToast({ message: this.$t("edit.del") });
         this.API_SETTING = global.API_SETTING;
       },
       ({ data }) => {
+        if (this.destroyed) return;
         prompt.showToast({
           message: this.$t("edit.unknownDelError") + data,
         });

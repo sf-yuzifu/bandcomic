@@ -617,9 +617,9 @@ export default {
       return list.filter((item) => Object.keys(item)[0] !== key);
     }).then(
       () => {
-        if (this.destroyed) return;
         delete global.API_SETTING[key];
         ensureUsingSourceValid();
+        if (this.destroyed) return;
         prompt.showToast({ message: this.$t("oobe.source.removed"), duration: 2000 });
         this.buildSourceList();
       },

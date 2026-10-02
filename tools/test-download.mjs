@@ -1656,6 +1656,173 @@ test("cover: separation of original URL and display URI allows seamless re-fetch
   );
 });
 
+test("source: global state synchronizes on disk write completion even if page was destroyed (P1-38)", async () => {
+  const editSource = read("../src/pages/edit/edit.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+  const oobeSource = read("../src/pages/oobe/oobe.ux").match(/<script>([\s\S]*?)<\/script>/)[1];
+  const storageSource = read("../src/components/storage.js");
+  const apiSource = read("../src/components/api.js");
+
+  const filesOnDisk = new Map([
+    ["internal://files/sources.json", Buffer.from(JSON.stringify([{ sourceOld: { name: "Old Source", apiUrl: "https://old.com" } }]))],
+  ]);
+
+  const fileMock = {
+    readText(options) {
+      const data = filesOnDisk.get(options.uri);
+      if (data) options.success({ text: data.toString("utf8") });
+      else options.fail("not found", 301);
+    },
+    writeText(options) {
+      filesOnDisk.set(options.uri, Buffer.from(options.text, "utf8"));
+      options.success();
+    },
+    access(options) {
+      if (filesOnDisk.has(options.uri)) options.success();
+      else options.fail("missing", 301);
+    },
+    move(options) {
+      filesOnDisk.set(options.dstUri, filesOnDisk.get(options.srcUri));
+      filesOnDisk.delete(options.srcUri);
+      options.success();
+    },
+    delete(options) {
+      filesOnDisk.delete(options.uri);
+      if (options.success) options.success();
+    },
+  };
+
+  const appGlobal = {
+    userAgent: () => "TestUA",
+    API_SETTING: {
+      using: "sourceOld",
+      sourceOld: { name: "Old Source", apiUrl: "https://old.com" },
+    },
+    cookie: {},
+  };
+
+  const storageContext = vm.createContext({
+    global: appGlobal,
+    file: fileMock,
+    console: { debug: noop, error: noop },
+    Promise,
+    Uint8Array,
+    ArrayBuffer,
+    Map,
+    Set,
+  });
+
+  vm.runInContext(
+    storageSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace(/^export /gm, "") +
+      "\nglobalThis.storage = { updateJsonFile, SOURCES_URI, FILE_ERROR };",
+    storageContext
+  );
+
+  const apiContext = vm.createContext({
+    global: appGlobal,
+    fetch: {
+      fetch: (options) => {
+        if (options.url.includes("/config")) {
+          options.success({
+            data: JSON.stringify({
+              newSource: { name: "New Source", apiUrl: "https://new.com" },
+            }),
+          });
+        }
+        return Promise.resolve();
+      },
+    },
+    Promise,
+    URL,
+    encodeURIComponent,
+    console: { debug: noop, error: noop },
+  });
+
+  vm.runInContext(
+    apiSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace(/^export \{.*?\} from .*?(;\r?\n|\r?\n)/gm, "")
+      .replace(/^export /gm, "") +
+      "\nglobalThis.api = { mergeSourcesToGlobal, ensureUsingSourceValid, replaceIfDuplicate, getFetchErrorType, apiFetch };",
+    apiContext
+  );
+
+  appGlobal.$storage = storageContext.storage;
+  appGlobal.$api = apiContext.api;
+  appGlobal.$json = { safeJsonParse: (str, fallback) => { try { return JSON.parse(str); } catch (e) { return fallback; } } };
+  appGlobal.createConfirmGuard = () => () => true;
+
+  const toasts = [];
+  const editContext = vm.createContext({
+    global: appGlobal,
+    console: { debug: noop, error: noop },
+    Promise,
+    router: { back: noop, push: noop },
+    prompt: { showToast: (t) => toasts.push(t) },
+  });
+
+  vm.runInContext(
+    editSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.editDef = "),
+    editContext
+  );
+
+  // 1. 测试添加源：写盘在途时页面被销毁（destroyed=true）
+  const editPage = Object.assign({}, editContext.editDef, clone(editContext.editDef.private), {
+    context: "new.com",
+    $t: (k) => k,
+  });
+  editPage.onInit();
+
+  // 触发拉取并写入 sources.json
+  editPage.fetchSourceConfig("https");
+  // 模拟在落盘完成回调触发前用户退出页面
+  editPage.onDestroy();
+  assert.equal(editPage.destroyed, true);
+
+  await tick();
+  await tick();
+
+  // 校验：虽然页面已销毁，全局 API_SETTING 必须已经成功合并新源！
+  assert.ok(appGlobal.API_SETTING.newSource, "即使页面销毁，全局内存依然同步合并了新源配置");
+  assert.equal(appGlobal.API_SETTING.newSource.name, "New Source");
+
+  // 2. 测试 OOBE 删除源：写盘在途时页面被销毁
+  const oobeContext = vm.createContext({
+    global: appGlobal,
+    console: { debug: noop, error: noop },
+    Promise,
+    router: { back: noop, push: noop },
+    prompt: { showToast: (t) => toasts.push(t) },
+  });
+
+  vm.runInContext(
+    oobeSource
+      .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
+      .replace("export default ", "globalThis.oobeDef = "),
+    oobeContext
+  );
+
+  const oobePage = Object.assign({}, oobeContext.oobeDef, clone(oobeContext.oobeDef.private), {
+    sourceList: [{ key: "sourceOld", buildin: false }],
+    $t: (k) => k,
+  });
+
+  oobePage.removeSource("sourceOld");
+  // 模拟在删除落盘期间页面销毁
+  oobePage.onDestroy();
+  assert.equal(oobePage.destroyed, true);
+
+  await tick();
+  await tick();
+
+  // 校验：全局 API_SETTING 必须已经删除 sourceOld，且 using 自动校准
+  assert.equal(appGlobal.API_SETTING.sourceOld, undefined, "即使页面销毁，被删除源也成功从全局内存清除");
+  assert.equal(appGlobal.API_SETTING.using, "newSource", "using 槽位已被安全校正指向可用源");
+});
+
 
 
 
