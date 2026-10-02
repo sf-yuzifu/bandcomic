@@ -168,24 +168,14 @@ const MAX_RETRY = 3;
 const MAX_FAILED_TOLERANCE = 3;
 
 const CHAPTER_WINDOW = 18;
+const DOWNLOAD_ABORTED = new Error("download aborted");
 
-let ImageCache = [];
-
-// 以下状态与 UI 无关（不参与模板绑定），放模块级减少 viewModel 的 observer/数据
-// 代理开销；模块级变量跨页面实例共享，需 onInit/onDestroy 重置。
-// name/cover 为路由参数、is_serial 为 initData 派生值，未声明也可经 this.xxx 收到/赋值
-// （同 this.destroyed 既有用法），移出 private 后只是失去响应式，均不参与渲染，安全
-let failedChapters = []; // 下载失败的章节号列表
-let coverDone = false; // 连载封面是否已下载成功
-let retryNotified = false; // 本次下载运行是否已提示过重试（P1-17①，防 toast 风暴）
-let currentChapterIndex = 0; // 下载队列当前章节下标
-let loadingMore = false; // 章节网格翻页窗口切换中（防重复触发）
-let scrollTopTriggered = false; // 触顶已预触发一次（二次触发才翻页）
-let scrollBottomTriggered = false; // 触底已预触发一次（二次触发才翻页）
-let originalName = ""; // 连载漫画原名（chapterName 随章节变化，登记用原名）
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+// 只回收该请求返回的网桥临时文件；未知路径与正式漫画文件不属于此处清理范围。
+function deleteDownloadTemp(uri) {
+  if (typeof uri !== "string" || uri.indexOf("internal://files/_icf_") !== 0) return;
+  try {
+    file.delete({ uri: uri, fail: function () {} });
+  } catch (e) {}
 }
 
 function sanitizeFolderName(name) {
@@ -226,33 +216,123 @@ export default {
   },
 
   onDestroy() {
-    // 页面销毁后中止下载链：各异步环节检查该标志，
-    // 避免僵尸回调继续下载、toast 串台或 router.replace 劫持导航
+    this.cancelDownload();
+  },
+
+  onBackPress() {
+    this.cancelDownload();
+    return false;
+  },
+
+  cancelDownload() {
     this.destroyed = true;
-    ImageCache = [];
-    failedChapters = [];
+    const state = this._downloadState;
+    if (!state) return;
+    // 同时结束页面的等待 Promise：底层取消排队任务时可能不再调用 success/fail。
+    const pending = state.pending.splice(0);
+    pending.forEach((cancel) => cancel());
+    state.imageCache = [];
+    state.failedChapters = [];
   },
 
   async onInit() {
+    this.cancelDownload();
     this.destroyed = false;
-    // 模块级状态跨页面实例共享，进页重置
-    failedChapters = [];
-    coverDone = false;
-    currentChapterIndex = 0;
-    loadingMore = false;
-    scrollTopTriggered = false;
-    scrollBottomTriggered = false;
+    // 不放 private，避免图片列表的响应式开销；每个实例拥有独立的运行状态。
+    // 异步链捕获 state 身份，实例重新初始化后旧链也不能继续。
+    const state = (this._downloadState = {
+      comicId: global.API_SETTING.using + "_" + this.id,
+      originalName: this.name,
+      imageCache: [],
+      failedChapters: [],
+      coverDone: false,
+      retryNotified: false,
+      currentChapterIndex: 0,
+      loadingMore: false,
+      scrollTopTriggered: false,
+      scrollBottomTriggered: false,
+      pending: [],
+    });
     this.showChapterSelect = this.total_chapters > 1;
     await this.initData();
+    if (!this.isDownloadActive(state)) return;
     if (!(this.is_serial && this.total_chapters > 1)) {
       // 错误已在 startDownloadProcess 内反映到 downloadError UI
-      this.startDownloadProcess().catch(() => {});
+      this.startDownloadProcess(state).catch(() => {});
     }
+  },
+
+  isDownloadActive(state) {
+    return !this.destroyed && !!state && state === this._downloadState;
+  },
+
+  checkDownloadActive(state) {
+    if (!this.isDownloadActive(state)) throw DOWNLOAD_ABORTED;
+  },
+
+  // 统一登记等待操作，退出时立即 reject 并尝试底层取消。原生 IO 无法撤回，
+  // 迟到回调仍需守卫；它只能完成自己的操作，不能推进下载或修改新实例。
+  downloadOperation(start, state) {
+    return new Promise((resolve, reject) => {
+      if (!this.isDownloadActive(state)) {
+        reject(DOWNLOAD_ABORTED);
+        return;
+      }
+      let settled = false;
+      let cancelNative;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        const index = state.pending.indexOf(cancel);
+        if (index !== -1) state.pending.splice(index, 1);
+        if (this.isDownloadActive(state)) callback(value);
+        else reject(DOWNLOAD_ABORTED);
+      };
+      const cancel = () => {
+        finish(reject, DOWNLOAD_ABORTED);
+        if (cancelNative) {
+          try {
+            cancelNative();
+          } catch (e) {}
+        }
+      };
+      state.pending.push(cancel);
+      try {
+        cancelNative = start(
+          (value) => finish(resolve, value),
+          (error) => finish(reject, error)
+        );
+      } catch (e) {
+        finish(reject, e);
+      }
+    });
+  },
+
+  waitForDownload(ms, state) {
+    return this.downloadOperation((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      return () => clearTimeout(timer);
+    }, state);
+  },
+
+  requestDownload(options, state) {
+    return this.downloadOperation((resolve, reject) => {
+      const task = apiFetch({
+        ...options,
+        success: (response) => {
+          if (!this.isDownloadActive(state) && options.responseType === "file") {
+            deleteDownloadTemp(response && response.data);
+          }
+          resolve(response);
+        },
+        fail: (data, code) => reject({ data: data, code: code }),
+      });
+      return task && typeof task.cancel === "function" ? () => task.cancel() : null;
+    }, state);
   },
 
   async initData() {
     this.is_serial = this.total_chapters > 1;
-    originalName = this.name;
     this.displayStart = 0;
     this.displayEnd = Math.min(CHAPTER_WINDOW, this.total_chapters);
     if (this.is_serial) {
@@ -274,13 +354,14 @@ export default {
   // syncComicStorageMeta 要等队列完整结束后才回写）；总页数取元数据登记的 API 页数。
   // 两个 IO 无依赖，并行发起
   async markDownloadedChapters() {
-    const comicId = global.API_SETTING.using + "_" + this.id;
+    const state = this._downloadState;
+    const comicId = state.comicId;
     const results = await Promise.all([
       readComics().catch(() => []),
       this.scanLocalChapterPages(comicId),
     ]);
     // 页面已销毁（IO 期间退出）则不再 patch
-    if (this.destroyed) return;
+    if (!this.isDownloadActive(state)) return;
     const comics = results[0];
     const scannedPages = results[1];
     const comic = (Array.isArray(comics) ? comics : []).find((c) => c.id === comicId);
@@ -353,42 +434,48 @@ export default {
   },
 
   onScrollTop() {
-    if (this.displayStart === 0 || loadingMore) {
-      scrollTopTriggered = false;
+    const state = this._downloadState;
+    if (!this.isDownloadActive(state)) return;
+    if (this.displayStart === 0 || state.loadingMore) {
+      state.scrollTopTriggered = false;
       return;
     }
-    if (!scrollTopTriggered) {
-      scrollTopTriggered = true;
+    if (!state.scrollTopTriggered) {
+      state.scrollTopTriggered = true;
       return;
     }
-    scrollTopTriggered = false;
-    scrollBottomTriggered = false;
-    loadingMore = true;
+    state.scrollTopTriggered = false;
+    state.scrollBottomTriggered = false;
+    state.loadingMore = true;
     this.displayStart = Math.max(0, this.displayStart - CHAPTER_WINDOW);
     // 窗口长度恒 min(CHAPTER_WINDOW, total)：首窗不满时向尾部取满，保证可滚动
     this.displayEnd = Math.min(this.displayStart + CHAPTER_WINDOW, this.total_chapters);
-    loadingMore = false;
+    state.loadingMore = false;
   },
 
   onScrollBottom() {
-    if (this.displayEnd >= this.total_chapters || loadingMore) {
-      scrollBottomTriggered = false;
+    const state = this._downloadState;
+    if (!this.isDownloadActive(state)) return;
+    if (this.displayEnd >= this.total_chapters || state.loadingMore) {
+      state.scrollBottomTriggered = false;
       return;
     }
-    if (!scrollBottomTriggered) {
-      scrollBottomTriggered = true;
+    if (!state.scrollBottomTriggered) {
+      state.scrollBottomTriggered = true;
       return;
     }
-    scrollTopTriggered = false;
-    scrollBottomTriggered = false;
-    loadingMore = true;
+    state.scrollTopTriggered = false;
+    state.scrollBottomTriggered = false;
+    state.loadingMore = true;
     this.displayEnd = Math.min(this.displayEnd + CHAPTER_WINDOW, this.total_chapters);
     // 末窗不足一页时向前回填取满，保证窗口内容始终超高可滚动回翻
     this.displayStart = Math.max(0, this.displayEnd - CHAPTER_WINDOW);
-    loadingMore = false;
+    state.loadingMore = false;
   },
 
   async startBatchDownload() {
+    const state = this._downloadState;
+    if (!this.isDownloadActive(state) || !this.showChapterSelect) return;
     if (this.selectedChapters.length === 0) {
       prompt.showToast({
         message: this.$t("download.selectAtLeastOne"),
@@ -397,41 +484,45 @@ export default {
       return;
     }
     this.showChapterSelect = false;
-    failedChapters = [];
-    coverDone = false;
+    state.failedChapters = [];
+    state.coverDone = false;
     this.queuePosition = "";
-    currentChapterIndex = 0;
-    await this.downloadNextChapter();
+    state.currentChapterIndex = 0;
+    try {
+      await this.downloadNextChapter(state);
+    } catch (e) {
+      if (this.isDownloadActive(state)) throw e;
+    }
   },
 
-  async downloadNextChapter() {
-    if (this.destroyed) return;
-    if (currentChapterIndex >= this.selectedChapters.length) {
+  async downloadNextChapter(state = this._downloadState) {
+    if (!this.isDownloadActive(state)) return;
+    if (state.currentChapterIndex >= this.selectedChapters.length) {
       // 队列结束，回写一次真实存储元数据（含失败章节的实际已下载页数）
-      await this.syncComicStorageMeta();
-      if (this.destroyed) return;
+      await this.syncComicStorageMeta(state);
+      if (!this.isDownloadActive(state)) return;
       // 整批下载结束，清掉大对象后主动收一次 GC
-      ImageCache = [];
+      state.imageCache = [];
       if (typeof global !== "undefined" && global.runGC) global.runGC();
-      if (failedChapters.length === 0) {
+      if (state.failedChapters.length === 0) {
         this.processing = true;
         prompt.showToast({
           message: this.$t("download.allComplete"),
           duration: 2000,
         });
-        await sleep(1000);
-        if (this.destroyed) return;
+        await this.waitForDownload(1000, state);
+        if (!this.isDownloadActive(state)) return;
         router.replace({
           uri: "/pages/offline",
         });
       } else {
-        this.showSummaryView();
+        this.showSummaryView(state);
       }
       return;
     }
 
-    this.chapter = this.selectedChapters[currentChapterIndex];
-    this.queuePosition = "(" + (currentChapterIndex + 1) + "/" + this.selectedChapters.length + ")";
+    this.chapter = this.selectedChapters[state.currentChapterIndex];
+    this.queuePosition = "(" + (state.currentChapterIndex + 1) + "/" + this.selectedChapters.length + ")";
     this.chapterName = "";
     this.processing = false;
     this.page = 0;
@@ -441,11 +532,11 @@ export default {
     this.downloadError = "";
 
     try {
-      await this.startDownloadProcess();
+      await this.startDownloadProcess(state);
     } catch (error) {
-      if (this.destroyed) return;
+      if (!this.isDownloadActive(state)) return;
       console.error(`章节 ${this.chapter} 下载失败:`, error);
-      failedChapters.push(this.chapter);
+      state.failedChapters.push(this.chapter);
       // 队列模式不用整屏错误 UI，toast 提示原因后继续下一章
       this.downloadError = "";
       const reason = typeof error === "string" ? error : String(error);
@@ -453,36 +544,38 @@ export default {
         message: this.$t("download.chapterFailed", { chapter: this.chapter, reason: reason }),
         duration: 2500,
       });
-      await sleep(500);
+      await this.waitForDownload(500, state);
     }
 
-    // currentChapterIndex 已移模块级（跨实例共享），自增前必须确认页面未销毁，
-    // 防止旧实例僵尸回调污染新实例的队列位置
-    if (this.destroyed) return;
-    currentChapterIndex++;
-    await sleep(500);
-    await this.downloadNextChapter();
+    if (!this.isDownloadActive(state)) return;
+    state.currentChapterIndex++;
+    await this.waitForDownload(500, state);
+    await this.downloadNextChapter(state);
   },
 
-  showSummaryView() {
+  showSummaryView(state = this._downloadState) {
+    if (!this.isDownloadActive(state)) return;
     this.queuePosition = "";
     // 复用原本的失败 UI：fail 图标 + downloadError 文案，用户自行返回
-    if (failedChapters.length === this.selectedChapters.length) {
+    if (state.failedChapters.length === this.selectedChapters.length) {
       this.downloadError = this.$t("download.allFailed");
     } else {
       this.downloadError = this.$t("download.summaryWithFailed", {
-        success: this.selectedChapters.length - failedChapters.length,
+        success: this.selectedChapters.length - state.failedChapters.length,
         total: this.selectedChapters.length,
-        chapters: failedChapters.join("、"),
+        chapters: state.failedChapters.join("、"),
       });
     }
   },
 
-  async startDownloadProcess() {
+  async startDownloadProcess(state = this._downloadState) {
     try {
-      await this.ensureComicRegistered();
-      await this.createFolderAndDownload();
+      this.checkDownloadActive(state);
+      await this.ensureComicRegistered(state);
+      this.checkDownloadActive(state);
+      await this.createFolderAndDownload(state);
     } catch (error) {
+      if (!this.isDownloadActive(state)) return;
       console.debug(`下载过程出错: ${error}`);
       this.downloadError = error;
       this.processing = false;
@@ -492,20 +585,25 @@ export default {
 
   // 把漫画登记进 comics.json（串行队列内读-改-写 + 原子落盘）：
   // 已存在则合并（保留 chapters/size/downloaded_at 等元数据），不存在则新建
-  ensureComicRegistered() {
+  ensureComicRegistered(state = this._downloadState) {
+    this.checkDownloadActive(state);
     const newComic = {
-      name: this.is_serial ? originalName : this.name,
+      name: this.is_serial ? state.originalName : this.name,
       page_count: this.page_count,
-      id: global.API_SETTING.using + "_" + this.id,
+      id: state.comicId,
       is_serial: this.is_serial,
     };
-    return updateComicMeta(newComic.id, (comic) => ({
-      ...comic,
-      ...newComic,
-      // 连载每章登记时 this.page_count 已被重置为 0，不能用 0 覆盖旧值；
-      // 真实页数由 syncChapterMeta 写入 chapters[].page_count
-      page_count: this.page_count || comic.page_count || 0,
-    })).catch((e) => {
+    return updateComicMeta(newComic.id, (comic) => {
+      // updater 在存储队列中延后执行；退出后不得再写索引。
+      this.checkDownloadActive(state);
+      return {
+        ...comic,
+        ...newComic,
+        // 连载每章登记时页数重置为 0，真实页数由 syncChapterMeta 登记。
+        page_count: newComic.page_count || comic.page_count || 0,
+      };
+    }).catch((e) => {
+      this.checkDownloadActive(state);
       if (e && e.parseError) {
         throw this.$t("download.parseIndexFailed");
       }
@@ -513,40 +611,47 @@ export default {
     });
   },
 
-  async createFolderAndDownload() {
+  async createFolderAndDownload(state = this._downloadState) {
     try {
+      this.checkDownloadActive(state);
       this.processing = false;
       this.page = 0;
       this.downloadError = "";
-      retryNotified = false;
+      state.retryNotified = false;
 
       let folderUri;
       let coverUri;
 
-      await this.fetchImageList();
+      await this.fetchImageList(0, state);
+      this.checkDownloadActive(state);
 
       // 先把当前章节登记进元数据，下载中断时离线页可据此判断未完成
-      await this.syncChapterMeta();
+      await this.syncChapterMeta(state);
+      this.checkDownloadActive(state);
 
       if (this.is_serial) {
-        const mainFolderUri = `internal://files/${global.API_SETTING.using + "_" + this.id}`;
-        await this.createFolder(mainFolderUri);
+        const mainFolderUri = `internal://files/${state.comicId}`;
+        await this.createFolder(mainFolderUri, state);
+        this.checkDownloadActive(state);
         const chapterName = sanitizeFolderName(this.chapterName || this.name);
         folderUri = `${mainFolderUri}/${this.chapter}　${chapterName}`;
         coverUri = mainFolderUri;
       } else {
-        folderUri = `internal://files/${global.API_SETTING.using + "_" + this.id}`;
+        folderUri = `internal://files/${state.comicId}`;
         coverUri = folderUri;
       }
-      await this.createFolder(folderUri);
+      await this.createFolder(folderUri, state);
+      this.checkDownloadActive(state);
 
       // 封面失败不判整本失败（P1-17②）：与连载对称降级——单本 toast 警告后继续
       // 下正文（书架封面 empty.png 兜底），连载静默吞、下一章还会重试
-      if (!coverDone) {
+      if (!state.coverDone) {
         try {
-          await this.downloadCover(coverUri);
-          coverDone = true;
+          await this.downloadCover(coverUri, 0, state);
+          this.checkDownloadActive(state);
+          state.coverDone = true;
         } catch (e) {
+          this.checkDownloadActive(state);
           console.debug(`封面下载失败: ${e}`);
           if (!this.is_serial) {
             prompt.showToast({ message: String(e), duration: 2000 });
@@ -554,13 +659,14 @@ export default {
         }
       }
 
-      await this.downloadPages(folderUri);
+      await this.downloadPages(folderUri, state);
+      this.checkDownloadActive(state);
 
       if (!this.is_serial) {
-        await this.syncComicStorageMeta();
-        if (this.destroyed) return;
-        // 整本下载完成，ImageCache 等大对象不再使用，主动收一次 GC
-        ImageCache = [];
+        await this.syncComicStorageMeta(state);
+        this.checkDownloadActive(state);
+        // 整本下载完成，图片列表等大对象不再使用，主动收一次 GC
+        state.imageCache = [];
         if (typeof global !== "undefined" && global.runGC) global.runGC();
         this.processing = true;
         prompt.showToast({
@@ -568,13 +674,14 @@ export default {
           duration: 2000,
         });
 
-        await sleep(1000);
-        if (this.destroyed) return;
+        await this.waitForDownload(1000, state);
+        this.checkDownloadActive(state);
         router.replace({
           uri: "/pages/offline",
         });
       }
     } catch (error) {
+      if (!this.isDownloadActive(state)) return;
       console.error("下载过程出错:", error);
       this.downloadError = error;
       this.processing = false;
@@ -585,21 +692,23 @@ export default {
   // 按顺序逐页下载：手环设备性能有限，并发请求只会更卡；
   // 个别页失败先记账不中断，其余页下完后串行补一次，仍失败才抛出；
   // 失败页数超过阈值视为网络/服务器整体故障，直接抛首个错误不再补
-  async downloadPages(folderUri) {
+  async downloadPages(folderUri, state = this._downloadState) {
     let completed = 0;
     const failedPages = [];
 
     for (let p = 1; p <= this.page_count; p++) {
-      if (this.destroyed) return;
+      this.checkDownloadActive(state);
       try {
-        await this.downloadPage(p, folderUri);
+        await this.downloadPage(p, folderUri, 0, state);
+        this.checkDownloadActive(state);
         this.page = ++completed;
       } catch (e) {
+        this.checkDownloadActive(state);
         failedPages.push({ page: p, error: e });
       }
     }
 
-    if (this.destroyed) return;
+    this.checkDownloadActive(state);
     if (failedPages.length === 0) {
       return;
     }
@@ -611,21 +720,25 @@ export default {
       duration: 2000,
     });
     for (const item of failedPages) {
+      this.checkDownloadActive(state);
       // 补拉沿用已耗尽的重试配额（P1-17③）：只再试一次，仍失败才抛出——
       // 不再从 0 重计又获得 3 次重试，与"串行补一次"注释语义一致
-      await this.downloadPage(item.page, folderUri, MAX_RETRY);
+      await this.downloadPage(item.page, folderUri, MAX_RETRY, state);
+      this.checkDownloadActive(state);
       this.page = ++completed;
     }
   },
 
   // 把当前章节登记到 comics.json 元数据（下载前调用，downloaded 保留旧值）
-  syncChapterMeta() {
-    const comicId = global.API_SETTING.using + "_" + this.id;
+  syncChapterMeta(state = this._downloadState) {
+    this.checkDownloadActive(state);
+    const comicId = state.comicId;
     const chapterNum = this.is_serial ? this.chapter : 0;
     const chapterName = this.is_serial ? this.chapterName || this.name : "";
     const pageCount = this.page_count;
     return updateComicMeta(comicId, (comic) => {
-      comic.name = this.is_serial ? originalName : this.name;
+      this.checkDownloadActive(state);
+      comic.name = this.is_serial ? state.originalName : this.name;
       comic.is_serial = this.is_serial;
       if (this.is_serial) {
         if (this.total_chapters) {
@@ -652,21 +765,28 @@ export default {
       }
       return comic;
     }).catch((e) => {
+      this.checkDownloadActive(state);
       console.debug(`章节元数据登记失败: ${e && e.code}`);
     });
   },
 
   // 下载结束后扫描一次目录，回写真实占用大小和各章已下载页数
-  syncComicStorageMeta() {
-    const comicId = global.API_SETTING.using + "_" + this.id;
+  syncComicStorageMeta(state = this._downloadState) {
+    this.checkDownloadActive(state);
+    const comicId = state.comicId;
     const folderUri = `internal://files/${comicId}`;
-    return new Promise((resolve) => {
+    return this.downloadOperation((resolve, reject) => {
       file.get({
         uri: folderUri,
         recursive: true,
         success: (data) => {
+          if (!this.isDownloadActive(state)) {
+            reject(DOWNLOAD_ABORTED);
+            return;
+          }
           const subFiles = data.subFiles || [];
           updateComicMeta(comicId, (comic) => {
+            this.checkDownloadActive(state);
             let size = 0;
             const scanned = [];
             if (this.is_serial) {
@@ -722,28 +842,39 @@ export default {
           }).then(
             () => resolve(),
             (e) => {
+              if (!this.isDownloadActive(state)) {
+                reject(DOWNLOAD_ABORTED);
+                return;
+              }
               console.debug(`存储元数据回写失败: ${e && e.code}`);
               resolve();
             }
           );
         },
         fail: (data, code) => {
+          if (!this.isDownloadActive(state)) {
+            reject(DOWNLOAD_ABORTED);
+            return;
+          }
           console.debug(`扫描漫画目录失败, code = ${code}`);
           resolve();
         },
       });
-    });
+    }, state);
   },
 
-  createFolder(folderUri) {
-    return new Promise((resolve, reject) => {
+  createFolder(folderUri, state = this._downloadState) {
+    return this.downloadOperation((resolve, reject) => {
       file.mkdir({
         uri: folderUri,
         success: () => {
-          console.debug(`创建文件夹成功: ${folderUri}`);
           resolve();
         },
         fail: (data, code) => {
+          if (!this.isDownloadActive(state)) {
+            reject(DOWNLOAD_ABORTED);
+            return;
+          }
           if (isAlreadyExistsError(code)) {
             console.debug("文件夹已存在");
             resolve();
@@ -752,11 +883,11 @@ export default {
           }
         },
       });
-    });
+    }, state);
   },
 
-  retryOnFail(code, retryCount, options) {
-    if (this.destroyed) return Promise.reject("aborted");
+  retryOnFail(code, retryCount, options, state = this._downloadState) {
+    if (!this.isDownloadActive(state)) return Promise.reject(DOWNLOAD_ABORTED);
     console.debug(`${options.label}, code = ${code}, retryCount = ${retryCount}`);
 
     if (retryCount < MAX_RETRY) {
@@ -768,8 +899,8 @@ export default {
       );
       // 重试 toast 每次下载运行只发一条（P1-17①）：弱网逐页重试连发成风暴、
       // 多章排队互相顶掉；最终失败另有 downloadError 展示出口
-      if (!retryNotified) {
-        retryNotified = true;
+      if (!state.retryNotified) {
+        state.retryNotified = true;
         prompt.showToast({
           message: this.$t(isTimeout ? "download.downloadTimeout" : "download.networkErrorRetry", {
             count: retryCount + 1,
@@ -777,7 +908,10 @@ export default {
           duration: 1500,
         });
       }
-      return sleep(1000).then(() => options.retry(retryCount + 1));
+      return this.waitForDownload(1000, state).then(() => {
+        this.checkDownloadActive(state);
+        return options.retry(retryCount + 1);
+      });
     }
 
     return Promise.reject(
@@ -785,179 +919,178 @@ export default {
     );
   },
 
-  fetchImageList(retryCount = 0) {
-    return new Promise((resolve, reject) => {
-      apiFetch({
-        url: buildPhotoUrl(this.id, this.chapter),
-        responseType: "json",
-        success: (response) => {
-          const body = response.data;
-          let urls = null;
-          if (
-            body &&
-            body.images_data &&
-            body.images_data.data &&
-            Array.isArray(body.images_data.data.picture)
-          ) {
-            urls = body.images_data.data.picture
-              .filter((img) => img && img.url)
-              .map((img) => getCurrentSource().apiUrl + img.url);
-            if (body.chapter_info && body.chapter_info.title) {
-              this.chapterName = body.chapter_info.title;
-            }
-          } else if (body && Array.isArray(body.images)) {
-            urls = body.images.filter((img) => img && img.url).map((img) => img.url);
-            if (body.title) {
-              this.chapterName = body.title;
-            }
-          }
-          if (!urls) {
-            this.retryOnFail(0, retryCount, {
-              label: "获取图片列表失败",
-              retry: (count) => this.fetchImageList(count),
-              timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
-              failMessage: () => this.$t("error.invalidResponse"),
-            })
-              .then(resolve)
-              .catch(reject);
-            return;
-          }
-          ImageCache = urls;
-          this.page_count = ImageCache.length;
-          resolve();
+  async fetchImageList(retryCount = 0, state = this._downloadState) {
+    this.checkDownloadActive(state);
+    const apiUrl = getCurrentSource().apiUrl;
+    let response;
+    try {
+      response = await this.requestDownload(
+        { url: buildPhotoUrl(this.id, this.chapter), responseType: "json" },
+        state
+      );
+    } catch (e) {
+      this.checkDownloadActive(state);
+      return this.retryOnFail(
+        e.code,
+        retryCount,
+        {
+          label: "获取图片列表失败",
+          retry: (count) => this.fetchImageList(count, state),
+          timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
+          failMessage: (errCode) => this.$t("download.fetchListFailed", { code: errCode }),
         },
-        fail: (data, code) => {
-          this.retryOnFail(code, retryCount, {
-            label: "获取图片列表失败",
-            retry: (count) => this.fetchImageList(count),
-            timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
-            failMessage: (errCode) => this.$t("download.fetchListFailed", { code: errCode }),
-          })
-            .then(resolve)
-            .catch(reject);
+        state
+      );
+    }
+    this.checkDownloadActive(state);
+    const body = response.data;
+    let urls = null;
+    if (
+      body &&
+      body.images_data &&
+      body.images_data.data &&
+      Array.isArray(body.images_data.data.picture)
+    ) {
+      urls = body.images_data.data.picture
+        .filter((img) => img && img.url)
+        .map((img) => apiUrl + img.url);
+      if (body.chapter_info && body.chapter_info.title) {
+        this.chapterName = body.chapter_info.title;
+      }
+    } else if (body && Array.isArray(body.images)) {
+      urls = body.images.filter((img) => img && img.url).map((img) => img.url);
+      if (body.title) this.chapterName = body.title;
+    }
+    if (!urls) {
+      return this.retryOnFail(
+        0,
+        retryCount,
+        {
+          label: "获取图片列表失败",
+          retry: (count) => this.fetchImageList(count, state),
+          timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
+          failMessage: () => this.$t("error.invalidResponse"),
         },
-      });
-    });
+        state
+      );
+    }
+    state.imageCache = urls;
+    this.page_count = urls.length;
   },
 
-  downloadPage(page, folderUri, retryCount = 0) {
-    let imageUrl;
+  fileExists(fileUri, state) {
+    return this.downloadOperation((resolve) => {
+      file.access({
+        uri: fileUri,
+        success: () => resolve(true),
+        fail: () => resolve(false),
+      });
+    }, state);
+  },
 
-    return new Promise((resolve, reject) => {
-      imageUrl = ImageCache[page - 1];
-      imageUrl = addImageParams(
-        imageUrl,
-        parseInt(global.APP_SETTING.imageSize, 10) || 480,
-        parseInt(global.APP_SETTING.imageQuality, 10) || 50
-      );
+  saveDownloadedFile(response, fileUri, state) {
+    const tempUri = response && response.data;
+    // success 已返回、await 续体尚未运行时也可能退出，必须在 move 前再次校验。
+    if (!this.isDownloadActive(state)) {
+      deleteDownloadTemp(tempUri);
+      return Promise.reject(DOWNLOAD_ABORTED);
+    }
+    if (!tempUri) return Promise.reject(this.$t("download.emptyImageData"));
+    return this.downloadOperation((resolve, reject) => {
+      file.move({
+        srcUri: tempUri,
+        dstUri: fileUri,
+        success: () => resolve(),
+        fail: (data, code) => {
+          deleteDownloadTemp(tempUri);
+          reject(
+            this.isDownloadActive(state)
+              ? this.$t("download.moveImageFailed", { code: code })
+              : DOWNLOAD_ABORTED
+          );
+        },
+      });
+    }, state);
+  },
 
-      const fileUri = `${folderUri}/${page}${global.APP_SETTING.imagePreTranscode ? ".bin" : ""}`;
+  async downloadPage(page, folderUri, retryCount = 0, state = this._downloadState) {
+    this.checkDownloadActive(state);
+    const imageUrl = addImageParams(
+      state.imageCache[page - 1],
+      parseInt(global.APP_SETTING.imageSize, 10) || 480,
+      parseInt(global.APP_SETTING.imageQuality, 10) || 50
+    );
+    const fileUri = `${folderUri}/${page}${global.APP_SETTING.imagePreTranscode ? ".bin" : ""}`;
+    const exists = await this.fileExists(fileUri, state);
+    this.checkDownloadActive(state);
+    if (exists) return;
 
-      const startFetch = () => {
-        apiFetch({
+    let response;
+    try {
+      response = await this.requestDownload(
+        {
           url: appendLvglSuffix(
             imageUrl,
-            `${global.API_SETTING.using}_${this.id}${
-              this.chapter ? "_ch" + this.chapter : ""
-            }_p${page}`
+            `${state.comicId}${this.chapter ? "_ch" + this.chapter : ""}_p${page}`
           ),
           responseType: "file",
-          success: (response) => {
-            if (response.data) {
-              file.move({
-                srcUri: response.data,
-                dstUri: fileUri,
-                success: () => {
-                  console.debug(`图片保存成功: ${fileUri}`);
-                  resolve();
-                },
-                fail: (data, code) => {
-                  reject(this.$t("download.moveImageFailed", { code: code }));
-                },
-              });
-            } else {
-              reject(this.$t("download.emptyImageData"));
-            }
-          },
-          fail: (data, code) => {
-            this.retryOnFail(code, retryCount, {
-              label: "下载图片失败",
-              retry: (count) => this.downloadPage(page, folderUri, count),
-              timeoutMessage: this.$t("download.downloadTimeoutFailed"),
-              failMessage: (errCode) => this.$t("download.downloadFailed") + errCode,
-            })
-              .then(resolve)
-              .catch(reject);
-          },
-        });
-      };
-
-      file.access({
-        uri: fileUri,
-        success: () => {
-          console.debug(`图片已存在，跳过下载: ${fileUri}`);
-          resolve();
         },
-        fail: () => {
-          startFetch();
+        state
+      );
+    } catch (e) {
+      this.checkDownloadActive(state);
+      return this.retryOnFail(
+        e.code,
+        retryCount,
+        {
+          label: "下载图片失败",
+          retry: (count) => this.downloadPage(page, folderUri, count, state),
+          timeoutMessage: this.$t("download.downloadTimeoutFailed"),
+          failMessage: (errCode) => this.$t("download.downloadFailed") + errCode,
         },
-      });
-    });
+        state
+      );
+    }
+    await this.saveDownloadedFile(response, fileUri, state);
   },
 
-  downloadCover(folderUri, retryCount = 0) {
-    return new Promise((resolve, reject) => {
-      const fileUri = `${folderUri}/cover`;
-      if (!this.cover) {
-        resolve();
-        return;
-      }
+  async downloadCover(folderUri, retryCount = 0, state = this._downloadState) {
+    this.checkDownloadActive(state);
+    if (!this.cover) return;
+    const fileUri = `${folderUri}/cover`;
+    // 复用已有封面，路由传入的 cover 始终是源 URL。
+    const exists = await this.fileExists(fileUri, state);
+    this.checkDownloadActive(state);
+    if (exists) return;
 
-      const downloadFromSource = () => {
-        const imageUrl = addCoverParams(this.cover);
-        apiFetch({
-          url: appendCoverSuffix(imageUrl, `${global.API_SETTING.using}_${this.id}_cover`),
+    let response;
+    try {
+      response = await this.requestDownload(
+        {
+          url: appendCoverSuffix(addCoverParams(this.cover), `${state.comicId}_cover`),
           responseType: "file",
-          success: (response) => {
-            if (response.data) {
-              file.move({
-                srcUri: response.data,
-                dstUri: fileUri,
-                success: () => {
-                  console.debug(`封面保存成功: ${fileUri}`);
-                  resolve();
-                },
-                fail: (data, code) => {
-                  reject(this.$t("download.moveImageFailed", { code: code }));
-                },
-              });
-            } else {
-              reject(this.$t("download.emptyImageData"));
-            }
-          },
-          fail: (data, code) => {
-            this.retryOnFail(code, retryCount, {
-              label: "下载封面失败",
-              retry: (count) => this.downloadCover(folderUri, count),
-              timeoutMessage: this.$t("download.coverTimeoutFailed"),
-              failMessage: (errCode) => this.$t("download.coverFailed", { code: errCode }),
-            })
-              .then(resolve)
-              .catch(reject);
-          },
-        });
-      };
-
-      // 复用已下载的封面，避免重复请求；路由传入的 cover 始终是源 URL。
-      file.access({
-        uri: fileUri,
-        success: () => resolve(),
-        fail: downloadFromSource,
-      });
-    });
+        },
+        state
+      );
+    } catch (e) {
+      this.checkDownloadActive(state);
+      return this.retryOnFail(
+        e.code,
+        retryCount,
+        {
+          label: "下载封面失败",
+          retry: (count) => this.downloadCover(folderUri, count, state),
+          timeoutMessage: this.$t("download.coverTimeoutFailed"),
+          failMessage: (errCode) => this.$t("download.coverFailed", { code: errCode }),
+        },
+        state
+      );
+    }
+    await this.saveDownloadedFile(response, fileUri, state);
   },
 
   routeBack() {
+    this.cancelDownload();
     router.back();
   },
 };
