@@ -619,11 +619,19 @@ def photo_list(item_id, chapter):
 AstroBox 同步器插件（API Level 4 起）内置了本地 HTTP 漫画源能力：
 - 漫画源标识：`LocalUpload`
 - 源类型：`local`
-- 服务地址：通过局域网 IPv4 动态绑定宿主端口（例如 `http://192.168.1.100:51963`）
+- 服务地址：上传时优先自动绑定宿主回环地址与实际动态端口（例如 `http://127.0.0.1:51963`）；失败或超时后尝试已保存的备用宿主 IPv4
 - 详情路径：`/local/album/<id>`
 - 章节图片路径：`/local/photo/<id>/chapter/<chapter>`
 - 搜索路径：`/local/search/<text>/<page>`
 - 支持设备（如小米手环 9 Pro）直接通过原生 fetch 进行章节图片的高速下载与离线落盘，规避蓝牙 Base64 分片传输开销。对于不支持原生 fetch 的设备（如手环 10 Pro），自动回退至传统分片互联通道。
+
+### 地址绑定
+
+- 当前 Windows AstroBox + 小米手环 9 Pro 组合已由用户确认 `127.0.0.1` 可通过原生网络转发访问宿主 HTTP 服务（2026-10-03）；每次连接仍由设备验证 `/control/health` 的实例身份并下载图片探针。
+- 默认无需填写 IP。插件「连接设置」可填写备用宿主 IPv4（无需端口），并保存在 `http-address.txt`；旧版保存地址迁移为备用地址，不覆盖回环优先策略。
+- 回环失败/超时后仅尝试一次备用地址，新尝试使用独立会话；迟到应答和旧超时不能确认或结束新连接。设备明确不支持原生 fetch 时不尝试备用 HTTP 地址。
+- `/config` 的 `apiUrl`、详情封面、章节正文 URL 和任务通知统一使用本次验证成功的 endpoint。修改备用配置不改变已绑定地址或正在执行的下载。
+- 动态端口随服务重启重新获取；这些临时地址不作为永久漫画源写入快应用配置。
 
 ### 下载与命名约定
 
@@ -633,4 +641,17 @@ AstroBox 同步器插件（API Level 4 起）内置了本地 HTTP 漫画源能�
 4. 在线下载和本地 HTTP 下载共用图片参数 helper、串行下载、文件头校验及 `file.move`。网关只适配原生 fetch 与任务回报，不另设 `file.copy` 或图片重命名链路。
 5. 最终目录内的封面固定为 **`cover`**；JPEG/PNG 正文固定为 **`1`、`2`、…**（无扩展名），LVGL 正文为 **`1.bin`、`2.bin`、…**。多章目录仍为 `<真实章号>　<规范化章名>`（全角空格）。临时文件的独立名称不影响最终命名。
 6. 封面参数为 `width=80`、任务质量和可选 `ifPNG=1`，不带 `ifLVGL`；正文按任务固定设置追加参数，遵循第 8、9 节。
+
+## 17. 数据浏览的 HTTP 回传
+
+这是「手环 → AstroBox 插件」的数据同步扩展，与标准漫画源的搜索/详情/图片接口独立。新版两端通过 `hs_ping/hs_pong.caps.httpDataSync: 1` 协商；数据浏览最低 `versionCode` 仍为 `318`，旧版本没有此能力字段时沿用互联协议。
+
+1. 插件通过 `request_data` 下发唯一 `session` 和 `http` 配置：`protocol: 1`、候选 `endpoints`、`instanceId`、`chunkBytes: 16384`、`maxCoverBytes: 2097152`。
+2. 手环核对 `/control/health` 的实例身份与 `httpDataSync`，向 `/control/sync/<session>/probe` POST 原始字节 `[0,1,127,128,255,0,42,13,10]`。探针失败时，在列表提交前通知插件切回互联。
+3. `POST /control/sync/<session>/metadata` 依次发送 `kind: header`（`comicCount/sourceCount`）、`kind: comics/sources`（`offset/items`）、`kind: done`。单批最多 16 条，UTF-8 请求体上限 64KiB；漫画条目携带 `id/name/page_count/chapters`，源条目携带 `name/apiUrl`。
+4. 按漫画 ID 找到本地封面，以列表序号定位 `PUT /control/sync/<session>/covers/<index>?offset=<位置>&total=<总长度>`。`Content-Type: application/octet-stream`，正文直接为 `ArrayBuffer`，每块最多 16KiB，始终串行；`Uint8Array` 必须按实际视图范围截取 backing buffer。
+5. 无封面、短读、超过 2MiB 或解码拒绝时，`POST .../skip` 携带 `id/reason`。插件只保留一张在途封面，缩略图边界 100×200，解码内存和累计缩略图也有预算；不把全部原图保存在 UI。
+6. `POST .../complete` 由插件核对完整列表与每本封面的成功/跳过结果。批次、分块、完成请求重复提交幂等；修改过的重复数据、非法偏移、未完成就声明完成、过期 session 都会拒绝。
+
+开始提交列表后固定 HTTP 通道，失败时明确报错；不会同时启动互联回传。10 Pro、旧快应用、新快应用配旧插件均保留旧互联路径。删除操作继续使用已有控制消息。二进制 POST 与真实封面上传仍需按设备/固件真机验证，自动化通过不代替真机结果。
 

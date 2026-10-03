@@ -4,7 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { test } from "node:test";
 
-const modules = ["base64.js", "stopWaitQueue.js", "windowedSender.js", "dataBridge.js"].map(
+const modules = ["base64.js", "stopWaitQueue.js", "windowedSender.js", "httpDataSync.js", "dataBridge.js"].map(
   (name) => fs.readFileSync(new URL("../src/components/" + name, import.meta.url), "utf8")
 );
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -15,7 +15,7 @@ function harness() {
     books: [], files: new Map(), sources: [], io: [], sent: [], toasts: [],
     readCalls: 0, getCalls: 0, peakFrames: 0, peakChars: 0,
     maps: [], afterSend: null, readFault: null, readComics: null, readSources: null,
-    onLegacy: null,
+    onLegacy: null, native: false, httpFetch: null,
   };
   const timers = new Map();
   let now = 0, timerId = 0;
@@ -56,7 +56,8 @@ function harness() {
     COMICS_URI: "comics.json",
     HISTORY_URI: "history.json",
     isAlreadyExistsError: (code) => code === 202,
-    isNativeFetchSupported: () => false,
+    isNativeFetchSupported: () => h.native,
+    gatewayFetch: (params) => h.httpFetch(params),
     global: { APP_SETTING: {} }, Uint8Array, Int8Array, ArrayBuffer, Promise, Map: FrameMap,
     console: { debug: () => {} },
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; },
@@ -80,7 +81,7 @@ function harness() {
   h.message = (frame) => h.bridge.handleMessage({ data: JSON.stringify(frame) });
   h.handshake = (caps = { syncWindow: 4, syncSession: true }) =>
     h.message({ type: "hs_ping", session: "handshake", caps });
-  h.request = (session = "current") => h.message({ type: "request_data", session });
+   h.request = (session = "current", http) => h.message({ type: "request_data", session, http });
   h.ack = (ack, session = "current") => h.message({ type: "sync_ack", ack, session });
   h.advance = async (ms) => {
     const target = now + ms;
@@ -189,6 +190,57 @@ function receiver(h, session = "current") {
   h.afterSend = r.accept;
   return r;
 }
+
+const httpConfig = { protocol: 1, endpoints: ["http://127.0.0.1:51963"], instanceId: "host" };
+
+test("dataBridge negotiates HTTP and sends metadata IDs plus binary covers without QAIC data frames", async () => {
+  const h = harness();
+  h.native = true;
+  h.load(2, 20000);
+  h.books.forEach((book) => { book.name = "同名漫画"; });
+  const requests = [];
+  h.httpFetch = async (params) => {
+    requests.push(params);
+    return { statusCode: 200, data: params.url.endsWith("/control/health")
+      ? { service: "bandcomic-local-http", instanceId: "host", capabilities: { httpDataSync: 1 } } : { ok: true } };
+  };
+  h.handshake({ syncWindow: 4, syncSession: true, httpDataSync: 1 });
+  assert.equal(h.sent[0].caps.httpDataSync, 1);
+  h.request("current", httpConfig);
+  await h.drainIO();
+  assert.ok(requests.at(-1).url.endsWith("/complete"));
+  assert.ok(!h.sent.some((f) => f.type === "cover_data_chunk" || f.type === "app_data_comic"));
+  for (let index = 0; index < 2; index++) {
+    const chunks = requests.filter((p) => p.url.includes("/covers/" + index + "?"));
+    assert.deepEqual(Buffer.concat(chunks.map((p) => Buffer.from(p.data))), h.files.get("internal://files/Book" + index + "/cover"));
+  }
+});
+
+test("dataBridge falls back before data when the native binary preflight fails", async () => {
+  const h = harness();
+  h.native = true;
+  h.load(2);
+  h.httpFetch = async () => { throw new Error("native POST unsupported"); };
+  h.handshake({ syncWindow: 4, syncSession: true, httpDataSync: 1 });
+  const r = receiver(h);
+  h.request("current", httpConfig);
+  await h.drainIO();
+  assert.equal(r.done, true);
+  assert.equal(r.covers.size, 2);
+  assert.ok(h.sent.some((f) => f.type === "data_sync_transport" && f.session === "current"));
+});
+
+test("HTTP config cannot force a non-native device onto the HTTP data channel", async () => {
+  const h = harness();
+  h.load(1);
+  h.httpFetch = () => { throw new Error("must not use HTTP"); };
+  h.handshake({ syncWindow: 4, syncSession: true, httpDataSync: 1 });
+  const r = receiver(h);
+  h.request("current", httpConfig);
+  await h.drainIO();
+  assert.equal(h.sent[0].caps.httpDataSync, 0);
+  assert.equal(r.done, true);
+});
 
 test("list starts before cover reads; 200 covers keep at most eight frames while ACKs stop", async () => {
   const h = harness();
@@ -1251,7 +1303,5 @@ test("import: failed/cancelled duplicate import does not corrupt old comic (P1-3
   assert.equal(h.books[0].id, oldId);
   assert.ok(h.files.has("internal://files/" + oldId + "/1"), "未成功的导入绝不能损坏旧漫画文件");
 });
-
-
 
 

@@ -18,6 +18,7 @@ import { createStopWaitQueue } from "./stopWaitQueue";
 import { createWindowedSender } from "./windowedSender";
 import { handleGatewayBind, handleImportHttpTask } from "./gatewaySession";
 import { isNativeFetchSupported } from "./gatewayFetch";
+import { sendHttpData } from "./httpDataSync";
 
 // 封面推送读盘切片（手表→手机）：保持 6144 小切片求稳；
 // 反方向（插件→设备 fetch 分片）才用 24K，见 interconnfetch.js MAX_CHUNK_SIZE
@@ -85,6 +86,7 @@ export function createDataBridge(interConnect) {
   let _pluginCaps = null; // 插件 hs_ping 携带的能力（syncWindow 等），无则走旧停等协议
   let _syncSeq = 0;
   let _syncWireSession = null;
+  let _syncHttpRequest = null;
   let _coverReadBusy = false; // 原生读无法取消：迟到回调返回前不叠加新的封面读
 
   function stopSync() {
@@ -96,6 +98,7 @@ export function createDataBridge(interConnect) {
     bridge.onAppDataAck = null;
     _coverQueue = [];
     _syncWireSession = null;
+    _syncHttpRequest = null;
   }
 
   // 单张封面的发送动作：file.get 拿大小 → 逐切片连发（片间节流 COVER_PACING_MS），
@@ -441,6 +444,35 @@ export function createDataBridge(interConnect) {
   // 按插件握手能力分发：声明了 syncWindow 走滑窗新协议，否则旧停等
   function dispatchAppData(comics, sourceList, seq) {
     if (seq !== _syncSeq) return;
+    if (_syncHttpRequest) {
+      const request = _syncHttpRequest;
+      sendHttpData(request, comics, sourceList, _coverQueue, {
+        readFile: readCoverFile,
+        isCurrent: () => seq === _syncSeq,
+      }).then(async (result) => {
+        if (seq !== _syncSeq) return;
+        if (result.fallback) {
+          prompt.showToast({ message: "HTTP未成功: " + result.error });
+          _syncHttpRequest = null;
+          await new Promise((resolve, reject) => interConnect.send({
+            data: { type: "data_sync_transport", session: request.session, transport: "interconnect", reason: result.error },
+            success: resolve, fail: reject,
+          }));
+          if (seq === _syncSeq) dispatchAppData(comics, sourceList, seq);
+        } else {
+          _coverQueue = [];
+          prompt.showToast({ message: "数据发送完成" });
+        }
+      }).catch((error) => {
+        if (seq !== _syncSeq) return;
+        _coverQueue = [];
+        prompt.showToast({ message: "HTTP异常: " + (error.message || error) });
+        interConnect.send({ data: { type: "data_sync_result", session: request.session,
+          success: false, error: String(error.message || error) }, fail() {} });
+        prompt.showToast({ message: "发送中断，请重试" });
+      });
+      return;
+    }
     const win =
       _pluginCaps && typeof _pluginCaps.syncWindow === "number" ? _pluginCaps.syncWindow : 0;
     if (win > 0) {
@@ -474,13 +506,16 @@ export function createDataBridge(interConnect) {
     );
   }
 
-  function sendAppData(session) {
+  function sendAppData(session, http) {
     stopSync();
     const seq = _syncSeq;
     _syncWireSession =
       _pluginCaps && _pluginCaps.syncSession === true && typeof session === "string"
         ? session
         : null;
+    if (_pluginCaps && _pluginCaps.httpDataSync === 1 && isNativeFetchSupported() && http) {
+      _syncHttpRequest = { session, http };
+    }
     _coverDoneSent = false;
     readComics().then(
       function (comicsList) {
@@ -503,6 +538,7 @@ export function createDataBridge(interConnect) {
           const pushMeta = function (pageCount, chapterCount) {
             if (seq !== _syncSeq) return;
             comics.push({
+              id: c.id || "",
               name: c.name || "",
               page_count: pageCount,
               chapters: chapterCount,
@@ -1453,6 +1489,7 @@ export function createDataBridge(interConnect) {
           syncSession: true,
           nativeFetch: nativeFetchCap,
           httpImport: nativeFetchCap,
+          httpDataSync: nativeFetchCap ? 1 : 0,
           gatewayProtocol: 1,
         },
       },
@@ -1503,7 +1540,7 @@ export function createDataBridge(interConnect) {
     } else if (msgType === "cookie") {
       handleCookieMessage(parsed);
     } else if (msgType === "request_data") {
-      sendAppData(parsed.session);
+      sendAppData(parsed.session, parsed.http);
     } else if (msgType === "delete_comic") {
       handleDeleteComic(parsed);
     } else if (msgType === "delete_source") {

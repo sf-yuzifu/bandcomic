@@ -33,7 +33,7 @@ export function isNativeFetchSupported() {
  * @param {string} params.url
  * @param {string} [params.method="GET"]
  * @param {Object} [params.header={}]
- * @param {string|Object} [params.data]
+ * @param {string|Object|ArrayBuffer} [params.data]
  * @param {string} [params.responseType="text"] - "text" 或 "file"
  * @param {Function} [params.success]
  * @param {Function} [params.fail]

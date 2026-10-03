@@ -1,8 +1,6 @@
 <div align="center">
-   <br>
    <img src="docs/preview.png" alt="腕上漫画" >
-
-   <br>
+   <br />
    <a href='https://gitee.com/sf-yuzifu/bandcomic/stargazers'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/star.svg?theme=white' alt='Gitee stars' /></a>
    <a href='https://gitee.com/sf-yuzifu/bandcomic/members'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/fork.svg?theme=white' alt='Gitee forks' /></a>
    <a href='https://github.com/sf-yuzifu/bandcomic/stargazers'><img alt="GitHub stars" src="https://img.shields.io/github/stars/sf-yuzifu/bandcomic?style=social"></a>
@@ -91,10 +89,11 @@ moe.yzf.comic
 - 同步漫画源配置
 - 上传漫画源 Cookie
 - 管理本地漫画
+- 数据浏览回传支持双通道：新版客户端可通过原生 HTTP 分批发送列表和封面二进制，旧客户端及无原生 fetch 的设备继续使用互联回传
 - 删除本地漫画
 - 删除漫画源
 - 将本地漫画文件导入设备（支持 AstroBox V4 原生 HTTP 下载通道与传统互联双通道）
-  - **支持原生 fetch 的设备（如小米手环 9 Pro）**：通过绑定的宿主本地 HTTP 服务，使用原生 fetch 逐页下载，免除 Base64 拼接开销；
+  - **支持原生 fetch 的设备（如小米手环 9 Pro）**：插件上传时优先自动绑定宿主回环地址 `127.0.0.1:<动态端口>`，通过原生 fetch 逐页下载，免除 Base64 拼接开销；正常使用无需手填 IP，备用 IPv4 可在插件「连接设置」中配置；
   - **不支持原生 fetch 的设备（如小米手环 10 Pro）**：自动回退使用传统分片互联导入。
 
 ## 自定义漫画源
