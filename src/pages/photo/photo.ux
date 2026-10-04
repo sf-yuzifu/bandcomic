@@ -290,7 +290,7 @@ let brightSyncVal = -1;
 const HISTORY_FLUSH_INTERVAL = 5;
 
 // 圆屏 arc-container 四周内缩 12px（见模板 arc-container 内联 style），滚动视口真实宽高随之 -12。
-// 横向触边守卫必须按真实视口宽算（见 onScroll）；触底判定则刻意不减（见 atBottom 注释）
+// 触边计算按屏幕形状选择视口宽高；方屏使用整屏尺寸，不应用圆屏内缩量（见 onScroll）。
 const ARC_VIEWPORT_INSET = 12;
 // Keep a short back/forward cache around the current page; the displayed image
 // remains in `this.images` and is not counted here.
@@ -1307,12 +1307,13 @@ export default {
             ? global.screenSize.width - ARC_VIEWPORT_INSET
             : global.screenSize.width;
         if (val.scrollX + viewportW > width) return;
-        // 触底判定刻意用整屏高（圆屏比真实视口高 12px，即真实底部前 12px 命中）：
-        // 该点会被 bounces 过冲-回弹往复穿过两次，恰好满足下方"到达边缘两次才翻页"；
-        // 改判真实底部严格相等后过冲回弹常跳过精确值，双次命中凑不齐，滚边翻页失效
-        // （2026-09-27 实机回归，P2-34 回退，勿再"修正"触底判定的 12px 提前量）。
-        // scrollY === 0 同理勿动
-        const atBottom = val.scrollY + global.screenSize.height - ARC_VIEWPORT_INSET === height;
+        // 方屏视口是整屏高；统一减 12px 会让正常页底无法命中，必须额外过冲 12px。
+        // 圆屏沿用现有内缩高度；上下触边仍精确相等，避免整段回弹都计入两次触边。
+        const viewportH =
+          global.screenShape === "circle"
+            ? global.screenSize.height - ARC_VIEWPORT_INSET
+            : global.screenSize.height;
+        const atBottom = val.scrollY + viewportH === height;
         const atTop = val.scrollY === 0;
         if (!atBottom && !atTop) return;
         const edge = atBottom ? "bottom" : "top";

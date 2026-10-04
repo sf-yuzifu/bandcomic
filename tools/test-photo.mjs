@@ -12,7 +12,8 @@ const noop = () => {};
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 async function harness({ local = true, serial = true, pageCount = 3, bin = false,
-  missing = [], preload = false, history = [] } = {}) {
+  missing = [], preload = false, history = [], shape = "rect",
+  screenSize = { width: 480, height: 480 }, scrollHeight = screenSize.height * 2 } = {}) {
   const files = new Set(), accesses = [], requests = [];
   let savedHistory = clone(history);
   const chapters = [["第一章", pageCount, 5, "chapter-v1"], ["第二章", 2, 9, "chapter-v2"]];
@@ -58,7 +59,8 @@ async function harness({ local = true, serial = true, pageCount = 3, bin = false
     },
     API_SETTING: { using: "test", test: {} },
     APP_SETTING: { imageSize: "480", imageQuality: "50", imagePreload: preload },
-    screenSize: { width: 480, height: 480 },
+    screenShape: shape,
+    screenSize,
     getTime: () => "12:00",
   };
   const context = vm.createContext({
@@ -89,7 +91,13 @@ async function harness({ local = true, serial = true, pageCount = 3, bin = false
     page_count: local && serial ? 0 : pageCount,
     total_chapters: serial ? chapters.length : 0,
     downloadChapter: JSON.stringify(chapters),
-    $element: () => ({ scrollTo: noop }),
+    $element: () => ({
+      scrollTo: noop,
+      getScrollRect: (options) => options.success({
+        width: screenSize.width - (shape === "circle" ? 12 : 0),
+        height: scrollHeight,
+      }),
+    }),
     $t: (key) => key,
   });
   page.onInit();
@@ -213,4 +221,89 @@ test("photo: an inflated legacy history page is clamped to the chapter metadata 
   h.page.onHide();
   assert.equal(h.history()[0].page, 3);
   assert.equal(h.history()[0].page_count, 3);
+});
+
+test("photo: rectangle and circle scrolling turn pages after two exact edge hits", async (t) => {
+  for (const { shape, screenSize } of [
+    { shape: "rect", screenSize: { width: 336, height: 480 } },
+    { shape: "rect", screenSize: { width: 480, height: 480 } },
+    { shape: "circle", screenSize: { width: 480, height: 480 } },
+  ]) {
+    for (const local of [true, false]) {
+      await t.test(JSON.stringify({ shape, screenSize, local }), async () => {
+        const h = await harness({ shape, screenSize, local });
+        const p = h.page;
+        const viewportHeight = screenSize.height - (shape === "circle" ? 12 : 0);
+        const bottom = screenSize.height * 2 - viewportHeight;
+        const scroll = (y) => p.onScroll({ scrollX: 0, scrollY: y });
+        await scroll(bottom - 10);
+        await scroll(bottom);
+        assert.equal(p.page, 1, "the first bottom hit only arms navigation");
+        await scroll(bottom);
+        assert.equal(p.page, 1, "a duplicate coordinate is not another edge hit");
+        await scroll(bottom + 8);
+        assert.equal(p.page, 1, "overscroll alone must not satisfy the second hit");
+        await scroll(bottom);
+        assert.equal(p.page, 2, "returning to the exact bottom performs the second hit");
+        assert.ok(p.images);
+
+        await scroll(20);
+        await scroll(0);
+        assert.equal(p.page, 2, "the first top hit only arms navigation");
+        await scroll(0);
+        await scroll(-8);
+        assert.equal(p.page, 2, "duplicates and top overscroll do not turn a page");
+        await scroll(0);
+        assert.equal(p.page, 1);
+        assert.ok(p.images);
+      });
+    }
+  }
+});
+
+test("photo: rectangle scrolling uses the actual bottom with fractional content height", async () => {
+  const h = await harness({ scrollHeight: 960.5 });
+  await h.page.onScroll({ scrollX: 0, scrollY: 480.5 });
+  assert.equal(h.page.page, 1);
+  await h.page.onScroll({ scrollX: 0, scrollY: 488.5 });
+  assert.equal(h.page.page, 1);
+  await h.page.onScroll({ scrollX: 0, scrollY: 480.5 });
+  assert.equal(h.page.page, 2);
+});
+
+test("photo: rectangle scroll navigation enters the chapter end without reading extra pages", async (t) => {
+  for (const local of [true, false]) {
+    await t.test(`local=${local}`, async () => {
+      const h = await harness({ local });
+      h.page.toPage("+");
+      h.page.toPage("+");
+      const accessCount = h.accesses.length;
+      const requestCount = h.requests.length;
+      h.page.showit = false;
+      for (const y of [470, 480, 488, 480]) {
+        await h.page.onScroll({ scrollX: 0, scrollY: y });
+      }
+      assertEnd(h.page, 3);
+      await h.page.onScroll({ scrollX: 0, scrollY: 488 });
+      await h.page.onScroll({ scrollX: 0, scrollY: 480 });
+      assertEnd(h.page, 3);
+      assert.equal(h.accesses.length, accessCount);
+      assert.equal(h.requests.length, requestCount);
+      h.page.onHide();
+      assert.equal(h.history()[0].page, 3);
+      assert.equal(h.history()[0].page_count, 3);
+      h.page.toPage("-");
+      assert.equal(h.page.page, 3);
+      assert.ok(h.page.images);
+    });
+  }
+});
+
+test("photo: diagonal movement and horizontal overscroll do not trigger edge navigation", async () => {
+  const h = await harness();
+  h.page.toPage("+");
+  for (const [x, y] of [[4, 480], [4, 488], [5, 480], [5, 488], [5, 480]]) {
+    await h.page.onScroll({ scrollX: x, scrollY: y });
+  }
+  assert.equal(h.page.page, 2);
 });
