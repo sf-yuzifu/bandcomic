@@ -72,7 +72,7 @@
             <scroll class="swipe-item" scroll-x="true" id="scroll_{{ $idx }}" @scroll="(event) => onScroll(event.scrollX, $idx)">
               <div class="swipe-content" @click="toPhoto($item)">
                 <div class="cover-mask">
-                  <image class="cover" src="internal://files/{{ $item.id }}/cover" alt="/common/empty.png"></image>
+                  <image class="cover" src="{{ $item.coverUri }}" alt="/common/empty.png"></image>
                   <text class="tri iconfont" if="{{ $item.incomplete }}">&#xeb65;</text>
                   <image static class="corner-mask" src="/common/coverMask.png"></image>
                 </div>
@@ -193,6 +193,9 @@ const {
   readHistory,
   updateJsonFile,
   HISTORY_URI,
+  comicCoverUri,
+  scanComicStorage,
+  comicContentIdentity,
 } = global.$storage;
 const { deleteComicById } = global.$delete;
 const { getSearchPageSize } = global.$set;
@@ -574,6 +577,7 @@ export default {
     // 页面已销毁（IO 期间退出）则不再写回模块级全量数据与 viewModel
     if (this.destroyed) return;
     comics.forEach((comic) => {
+      comic.coverUri = comicCoverUri(comic);
       comic.incomplete = this.isComicIncomplete(comic);
     });
     allComics = await this.sortComicsByRecent(comics);
@@ -664,6 +668,20 @@ export default {
             const length = cached.length;
             comic.size = formatFileSize(length);
             resolve({ index, length });
+            return;
+          }
+          if (comic.storageId) {
+            const identity = comicContentIdentity(comic);
+            scanComicStorage(comic).then((stats) => {
+              comic.chapters = stats.chapters;
+              this.applyComicMeta(comic);
+              comic.size = formatFileSize(stats.size);
+              updateComicMeta(comic.id, (record) => {
+                if (comicContentIdentity(record) !== identity) return record;
+                return { ...record, chapters: stats.chapters, size: stats.size };
+              }, { requireExisting: true }).catch(() => {});
+              resolve({ index, length: stats.size });
+            }, () => resolve({ index, length: 0 }));
             return;
           }
           file.get({
@@ -788,7 +806,7 @@ export default {
       comic.totalChapter = comic.chapters
         .slice()
         .sort((a, b) => a.num - b.num)
-        .map((c) => [c.name, c.page_count || c.downloaded || 0, c.num]);
+        .map((c) => [c.name, c.page_count || c.downloaded || 0, c.num, c.storageId || comic.storageId || comic.id]);
     }
   },
 
@@ -829,6 +847,9 @@ export default {
         is_serial: val.is_serial ? 1 : "",
         downloadChapter: val.totalChapter,
         local: true,
+        storageId: val.storageId || val.id,
+        cover: val.coverUri,
+        title: val.name,
       }),
     });
   },

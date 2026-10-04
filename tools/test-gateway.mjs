@@ -36,6 +36,7 @@ const imageUrlCode = fs.readFileSync(
   "utf8"
 );
 const apiCode = fs.readFileSync(new URL("../src/components/api.js", import.meta.url), "utf8");
+const comicImportCode = fs.readFileSync(new URL("../src/components/comicImport.js", import.meta.url), "utf8");
 
 function createGatewaySandbox(options = {}) {
   const {
@@ -184,6 +185,7 @@ function createGatewaySandbox(options = {}) {
     gatewaySessionCode.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""),
     context
   );
+  vm.runInContext(comicImportCode.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
 
   return { context, sandbox, deletedFiles, movedFiles, createdDirs, toasts, files };
 }

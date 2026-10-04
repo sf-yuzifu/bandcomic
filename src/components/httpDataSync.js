@@ -115,7 +115,7 @@ export async function sendHttpData(request, comics, sources, covers, options) {
     check();
     const comic = comics[index];
     const cover = byId["$" + comic.id];
-    const uri = cover && "internal://files/" + cover.id + "/cover";
+    const uri = cover && (cover.coverMissing ? "" : "internal://files/" + (cover.storageId || cover.id) + "/cover");
     const info = uri && await options.readFile("get", { uri });
     check();
     const length = info && info.length;

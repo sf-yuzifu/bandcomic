@@ -419,6 +419,65 @@ export function readComics(strict) {
   return readJsonFile(COMICS_URI, [], strict);
 }
 
+// Logical book IDs stay stable; imported versions may live in separate roots.
+export function validStorageId(id) {
+  return typeof id === "string" && /^[\w-]{1,160}$/.test(id);
+}
+
+export function comicStorageId(comic, chapter) {
+  const id = (chapter && chapter.storageId) || comic.storageId || comic.id;
+  if (typeof id !== "string" || !id || id.length > 512 || id === "." || id === ".." || /[\\/]/.test(id) ||
+      Array.from(id).some((c) => c.charCodeAt(0) < 32)) throw new Error("漫画存储引用无效");
+  return id;
+}
+
+export function comicCoverUri(comic) {
+  return comic.coverMissing ? "" : "internal://files/" + comicStorageId(comic) + "/cover";
+}
+
+export function comicChapterUri(comic, chapter) {
+  const root = "internal://files/" + comicStorageId(comic, chapter);
+  return comic.is_serial ? root + "/" + chapter.num + "　" + sanitizeFolderName(chapter.name) : root;
+}
+
+export function comicStorageIds(comic) {
+  const ids = new Set([comicStorageId(comic)]);
+  (comic.chapters || []).forEach((chapter) => ids.add(comicStorageId(comic, chapter)));
+  return Array.from(ids);
+}
+
+export function comicContentIdentity(comic) {
+  return JSON.stringify([comic.id, comic.bookId, comic.storageId, comic.name, comic.is_serial,
+    comic.coverMissing, (comic.chapters || []).map((c) => [c.num, c.name, c.page_count, c.storageId])]);
+}
+
+// Scan only referenced chapter versions, never stale chapters in the same root.
+export async function scanComicStorage(comic) {
+  let size = 0;
+  const chapters = [];
+  for (const chapter of comic.chapters || []) {
+    let entries = [];
+    try {
+      const info = await new Promise((resolve, reject) => file.get({ uri: comicChapterUri(comic, chapter), recursive: false,
+        success: resolve, fail: (data, code) => reject({ data, code }) }));
+      entries = info.subFiles || [];
+    } catch (error) { if (error.code !== FILE_ERROR.NOT_FOUND) throw error; }
+    const pages = entries.filter((entry) => entry.type !== "dir" && /^\d+(\.bin)?$/.test(entry.uri.split("/").pop()));
+    const chapterSize = pages.reduce((sum, entry) => sum + (entry.length || 0), 0);
+    size += chapterSize;
+    chapters.push({ ...chapter, downloaded: pages.length, size: chapterSize });
+  }
+  const cover = comicCoverUri(comic);
+  if (cover) {
+    try {
+      const info = await new Promise((resolve, reject) => file.get({ uri: cover,
+        success: resolve, fail: (data, code) => reject({ data, code }) }));
+      size += info.length || 0;
+    } catch (error) { if (error.code !== FILE_ERROR.NOT_FOUND) throw error; }
+  }
+  return { size, chapters };
+}
+
 // 更新单个漫画的元数据：updater 接收现有记录（不存在则为 { id }），返回新记录。
 // 基于 updateJsonFile：文件不存在时新建列表；串行队列内完成读-改-写，原子落盘。
 export function updateComicMeta(id, updater, options = {}) {
@@ -549,9 +608,7 @@ export function cleanTempFiles() {
       .then(function (comicsList) {
         const validIds = new Set(
           (Array.isArray(comicsList) ? comicsList : [])
-            .map(function (c) {
-              return c && c.id != null ? String(c.id) : "";
-            })
+            .reduce((ids, comic) => comic ? ids.concat(comic.id, comicStorageIds(comic)) : ids, [])
             .filter(Boolean)
         );
 
@@ -623,10 +680,17 @@ export function cleanTempFiles() {
 
             // 清理孤儿漫画目录
             dirsToDelete.forEach(function (item) {
-              removeOrphanDir(item.uri, function (ok) {
-                if (ok) deletedCount++;
-                checkDone();
-              });
+              // The original snapshot may predate a completed import. Recheck
+              // references immediately before deletion, while active stages are protected.
+              readComics(true).then((current) => {
+                const name = item.uri.split("/").pop();
+                const used = current.some((c) => c && (c.id === name || comicStorageIds(c).includes(name)));
+                if (used || isDirProtected(name)) { checkDone(); return; }
+                removeOrphanDir(item.uri, function (ok) {
+                  if (ok) deletedCount++;
+                  checkDone();
+                });
+              }, checkDone);
             });
           },
           fail: function (errData, code) {

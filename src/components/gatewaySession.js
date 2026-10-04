@@ -2,6 +2,7 @@ import { gatewayFetch, isNativeFetchSupported } from "./gatewayFetch";
 import { safeJsonParse } from "./jsonUtils";
 import { updateJsonFile } from "./storage";
 import { buildDetailUrl, isComicDetailResponse } from "./api";
+import { beginComicImport, commitComicImport, abortComicImport } from "./comicImport";
 
 let bound = null;
 let generation = 0;
@@ -105,6 +106,12 @@ export async function handleImportHttpTask(message) {
       throw new Error("本地漫画详情无效");
     }
     context.detail = { ...detail, total_chapters: totalChapters };
+    if (task.importChapterProtocol != null) {
+      context.transaction = await beginComicImport({ ...task, name: detail.name,
+        totalChapters, isSerial: task.isSerial });
+      context.localId = context.transaction.stageId;
+      if (task.operation === "upsert_chapters" && context.transaction.existing) context.detail.cover = "";
+    }
     if (active !== context || !bound || bound.session !== context.session) throw new Error("绑定已失效");
     const router = system("@system.router");
     if (!router) throw new Error("下载页面不可用");
@@ -149,6 +156,9 @@ export function pageSaved(context, chapter, page) {
 
 export async function commitDownload(context) {
   if (context.ended || context.savedPages !== context.totalPages) throw new Error("下载未完整保存");
+  if (context.transaction) {
+    return commitComicImport(context.transaction, !!context.coverSaved);
+  }
   let replaced = [];
   await updateJsonFile("internal://files/comics.json", [], (list) => {
     if (context.ended) throw new Error("任务已取消");
@@ -173,9 +183,16 @@ export async function commitDownload(context) {
   if (file) replaced.forEach((c) => file.rmdir({ uri: "internal://files/" + c.id, recursive: true, fail() {} }));
 }
 
-export function finishDownload(context, success, error) {
+export async function finishDownload(context, success, error) {
   if (!context || context.ended) return;
   context.ended = true;
+  if (context.transaction) {
+    const tx = context.transaction;
+    abortComicImport(tx);
+    if (tx.commitPromise) { try { await tx.commitPromise; } catch (e) {} }
+    success = tx.committed;
+    if (success) error = "";
+  }
   if (active === context) active = null;
   completed.push(context.taskId);
   if (completed.length > 32) completed.shift();

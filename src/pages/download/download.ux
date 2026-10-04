@@ -183,6 +183,10 @@ function sanitizeFolderName(name) {
   return name.replace(invalidChars, "_");
 }
 
+function stateGatewayTransaction(state) {
+  return !!(state && state.gateway && state.gateway.transaction);
+}
+
 // 章节本地下载状态：完整下载 → "dl-full"；本地有页但不完整 → "dl-partial"；
 // 无记录或 0 页 → ""（无标记）。page_count 缺失的旧数据有页即视为完整
 function getChapterDlState(entry) {
@@ -262,6 +266,7 @@ export default {
       const context = global.$gateway.getDownloadContext(this.gatewayTaskId);
       if (!context) { this.downloadError = "本地导入任务已失效"; return; }
       state.gateway = context;
+      if (context.transaction) state.mutation = context.transaction.lease;
       state.comicId = context.localId;
       state.source = { ...context.source };
       state.sourceKey = context.task.sourceKey || "LocalUpload";
@@ -279,7 +284,7 @@ export default {
       this.chapter = context.task.chapters[0].chapterNum;
       this.page_count = Number(context.detail.page_count);
     }
-    this.showChapterSelect = this.total_chapters > 1;
+    this.showChapterSelect = stateGatewayTransaction(state) ? state.gateway.task.isSerial : this.total_chapters > 1;
     await this.initData();
     if (!this.isDownloadActive(state)) return;
     if (state.gateway && this.is_serial) {
@@ -376,9 +381,15 @@ export default {
   },
 
   async initData() {
-    this.is_serial = this.total_chapters > 1;
+    this.is_serial = this._downloadState.gateway && this._downloadState.gateway.transaction ?
+      this._downloadState.gateway.task.isSerial : this.total_chapters > 1;
     this.displayStart = 0;
     this.displayEnd = Math.min(CHAPTER_WINDOW, this.total_chapters);
+    if (stateGatewayTransaction(this._downloadState)) {
+      this.chapterList = this._downloadState.gateway.task.chapters.map((c) => ({ num: c.chapterNum, selected: true, dlState: "" }));
+      this.displayEnd = Math.min(CHAPTER_WINDOW, this.chapterList.length);
+      return;
+    }
     if (this.is_serial) {
       // 先同步渲染章节网格，已下载标记异步补齐，进页不被 IO 阻塞
       this.chapterList = [];
@@ -389,7 +400,7 @@ export default {
           dlState: "",
         });
       }
-      this.markDownloadedChapters();
+      if (!stateGatewayTransaction(this._downloadState)) this.markDownloadedChapters();
     }
   },
 
@@ -529,7 +540,7 @@ export default {
       });
       return;
     }
-    const lease = global.$storage.acquireComicMutation(state.comicId);
+    const lease = stateGatewayTransaction(state) ? state.mutation : global.$storage.acquireComicMutation(state.comicId);
     if (!lease) { this.downloadError = "该漫画正在删除或下载，请稍后重试"; return; }
     state.mutation = lease;
     this.showChapterSelect = false;
@@ -543,7 +554,7 @@ export default {
       if (this.isDownloadActive(state)) throw e;
     } finally {
       if (state.mutation === lease) state.mutation = null;
-      lease.release();
+      if (!stateGatewayTransaction(state)) lease.release();
     }
   },
 
@@ -718,8 +729,10 @@ export default {
           await this.downloadCover(coverUri, 0, state);
           this.checkDownloadActive(state);
           state.coverDone = true;
+          if (state.gateway) state.gateway.coverSaved = !!this.cover;
         } catch (e) {
           this.checkDownloadActive(state);
+          if (stateGatewayTransaction(state) && this.cover) throw e;
           console.debug(`封面下载失败: ${e}`);
           if (!this.is_serial) {
             prompt.showToast({ message: String(e), duration: 2000 });
@@ -959,6 +972,13 @@ export default {
   // A cancelled page can stop awaiting native I/O before its callback arrives.
   // Retain target ownership until each submitted write actually settles.
   comicUpdate(id, updater, state) {
+    if (stateGatewayTransaction(state)) {
+      try {
+        const tx = state.gateway.transaction;
+        tx.draft = updater(tx.draft) || tx.draft;
+        return Promise.resolve(tx.draft);
+      } catch (error) { return Promise.reject(error); }
+    }
     const release = state.mutation ? state.mutation.retain() : () => {};
     return updateComicMeta(id, updater).then(
       (value) => { release(); return value; },

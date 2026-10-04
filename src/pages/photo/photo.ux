@@ -378,6 +378,7 @@ export default {
     showSlider: false,
     images: "",
     local: false,
+    storageId: "",
     loading: "loading",
     title: "",
     chapter: 1,
@@ -395,6 +396,25 @@ export default {
 
   onShow() {
     this.time = getTime();
+    if (!this.local || !this._localReady) return;
+    const generation = this._photoReadGeneration;
+    global.$storage.readComics(true).then((books) => {
+      if (this.destroyed || generation !== this._photoReadGeneration) return;
+      const comic = Array.isArray(books) && books.find((c) => c.id === this.id);
+      if (!comic || !comic.storageId || comic.revision === this._localRevision) return;
+      const entry = this.is_serial && Array.isArray(this.downloadChapter) && this.downloadChapter[this.chapter - 1];
+      const chapterNum = entry ? entry[2] : 1;
+      this.resetPhotoGeneration();
+      this.storageId = comic.storageId;
+      this.cover = global.$storage.comicCoverUri(comic);
+      this.is_serial = comic.is_serial;
+      this.page_count = comic.page_count;
+      originalName = comic.name;
+      this.downloadChapter = (comic.chapters || []).slice().sort((a, b) => a.num - b.num)
+        .map((c) => [c.name, c.page_count || c.downloaded || 0, c.num, c.storageId || comic.storageId]);
+      this._localRevision = comic.revision;
+      this.initData({ chapterNum });
+    }).catch(() => {});
   },
 
   onBackPress() {
@@ -575,10 +595,14 @@ export default {
       }
 
       this.pickerValues = buildDigitRanges(this.total_chapters, this.chapter);
+      const restored = this.downloadChapter[this.chapter - 1];
+      if (restored) this.page = Math.max(1, Math.min(this.page, restored[1] || 1));
     } else {
       // 本地单本：page_count 来自路由参数，直接生成页码轮盘范围
       this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
+      this.page = Math.max(1, Math.min(this.page, this.page_count || 1));
     }
+    if (this.local) this._localReady = true;
     this.processData();
   },
 
@@ -751,14 +775,15 @@ export default {
         const chapterNum = localChapterEntry[2];
         const chapterName = localChapterEntry[0];
         const sanitized = sanitizeFolderName ? sanitizeFolderName(chapterName) : chapterName;
-        const baseUri = `internal://files/${this.id}/${chapterNum}　${sanitized}/${this.page}`;
+        const storageId = localChapterEntry[3] || this.id;
+        const baseUri = `internal://files/${storageId}/${chapterNum}　${sanitized}/${this.page}`;
         const fallbackBaseUri =
           sanitized !== chapterName
-            ? `internal://files/${this.id}/${chapterNum}　${chapterName}/${this.page}`
+            ? `internal://files/${storageId}/${chapterNum}　${chapterName}/${this.page}`
             : null;
         this.resolveLocalImage(baseUri, request, fallbackBaseUri);
       } else {
-        const baseUri = `internal://files/${this.id}/${this.page}`;
+        const baseUri = `internal://files/${this.storageId || this.id}/${this.page}`;
         this.resolveLocalImage(baseUri, request);
       }
       return;

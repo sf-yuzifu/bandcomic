@@ -1223,7 +1223,7 @@ test("offline: self-healing scan accurately counts valid pages without deducting
   const storageContext = vm.createContext({ file, console: quiet, Promise });
   vm.runInContext(
     storageSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
-      "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics, sanitizeFolderName };",
+      "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics, sanitizeFolderName, comicCoverUri, scanComicStorage, comicContentIdentity };",
     storageContext
   );
 

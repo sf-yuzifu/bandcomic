@@ -9,7 +9,11 @@ import {
   COMICS_URI,
   SOURCES_URI,
   HISTORY_URI,
+  comicCoverUri,
+  scanComicStorage,
+  comicStorageIds,
 } from "./storage";
+import { CHAPTER_IMPORT_PROTOCOL, legacyComicImportPlan, beginComicImport, commitComicImport, abortComicImport } from "./comicImport";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
 import { replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
@@ -90,7 +94,7 @@ export function createDataBridge(interConnect) {
   // 全部发完 ctx.sent() 进入等 cover_ack；任一环失败 ctx.failed() 跳过本张。
   // 切片级失败重试（SLICE_MAX_RETRY）留在本函数内部，与队列的整包重发正交
   function sendCoverItem(c, ctx) {
-    const uri = "internal://files/" + c.id + "/cover";
+    const uri = c.storageId ? comicCoverUri(c) : "internal://files/" + c.id + "/cover";
     file.get({
       uri: uri,
       success: function (info) {
@@ -338,7 +342,7 @@ export function createDataBridge(interConnect) {
             }
             const cover = covers[coverIndex++];
             if (!cover || !cover.name) continue;
-            const uri = "internal://files/" + cover.id + "/cover";
+            const uri = cover.storageId ? comicCoverUri(cover) : "internal://files/" + cover.id + "/cover";
             const name = cover.name;
             const info = await readCoverFile("get", { uri });
             if (stale()) return null;
@@ -528,6 +532,7 @@ export function createDataBridge(interConnect) {
               name: c.name || "",
               page_count: pageCount,
               chapters: chapterCount,
+              bookId: c.bookId || "",
             });
 
             pending--;
@@ -556,6 +561,12 @@ export function createDataBridge(interConnect) {
               }
             });
             pushMeta(pageCount, chapterCount);
+            return;
+          }
+
+          if (c.storageId) {
+            scanComicStorage(c).then((stats) => pushMeta(stats.chapters.reduce((n, ch) => n + ch.downloaded, 0),
+              c.is_serial ? stats.chapters.length : 0), () => pushMeta(0, c.is_serial ? chaptersMeta.length : 0));
             return;
           }
 
@@ -678,6 +689,7 @@ export function createDataBridge(interConnect) {
 
   // 取消或废弃当前的导入状态
   function cancelCurrentImport(reason) {
+    _importSessionSeq++;
     if (!_importState) return;
     const oldState = _importState;
     oldState.cancelled = true;
@@ -687,18 +699,21 @@ export function createDataBridge(interConnect) {
       console.debug("取消导入会话 [" + oldState.sessionId + "]: " + reason);
     }
     // 清理未完成半成品目录
-    cleanupImportDir(oldState.dirUri);
+    if (oldState.transaction) abortComicImport(oldState.transaction);
+    else cleanupImportDir(oldState.dirUri);
   }
 
   // 启动一个文件的异步落盘：回调只认捕获的 state（不碰全局 _importState），
   // 会话已取消则丢弃落盘结果，不推进后续索引
   function startImportWrite(state, uri, data, fileKey) {
     state.inflightWrites++;
+    const release = state.transaction ? state.transaction.lease.retain() : () => {};
     writeBinaryFromBase64(
       uri,
       data,
       function () {
         state.inflightWrites--;
+        release();
         if (state.cancelled) return;
         state.completedFiles++;
         if (fileKey) {
@@ -714,6 +729,7 @@ export function createDataBridge(interConnect) {
       },
       function () {
         state.inflightWrites--;
+        release();
         if (state.cancelled) return;
         state.completedFiles++;
         state.failedFiles++;
@@ -728,17 +744,20 @@ export function createDataBridge(interConnect) {
   // 多章模式可选书级封面的落盘：不计入 totalFiles 文件计数，但受 inflightWrites 保护与落盘记录
   function startImportCoverWrite(state, uri, data) {
     state.inflightWrites++;
+    const release = state.transaction ? state.transaction.lease.retain() : () => {};
     writeBinaryFromBase64(
       uri,
       data,
       function () {
         state.inflightWrites--;
+        release();
         if (state.cancelled) return;
         state.savedFiles["cover"] = true;
         maybeFinalizeImport(state);
       },
       function () {
         state.inflightWrites--;
+        release();
         if (state.cancelled) return;
         state.failedFilesList["cover"] = true;
         maybeFinalizeImport(state);
@@ -789,7 +808,8 @@ export function createDataBridge(interConnect) {
   }
 
   function finalizeImport(state) {
-    if (state.cancelled) return;
+    if (state.cancelled || state.finalizing) return;
+    state.finalizing = true;
 
     // 核对实际落盘成功的正式文件数量（区分已声明文件、成功落盘、缺失残片与写盘失败）
     let totalSaved = 0;
@@ -822,14 +842,17 @@ export function createDataBridge(interConnect) {
       });
     }
 
-    const indexPromise = updateComicsIndex(
+    const indexPromise = state.transaction ? (totalFailed || Object.keys(state.failedFilesList).length ?
+      Promise.reject(new Error("文件未完整保存，旧章节已保留")) :
+      commitComicImport(state.transaction, !!state.savedFiles.cover)) : updateComicsIndex(
       state.comicId,
       state.comicName,
       state.pageCount,
       state.isSerial,
       state.chapters,
       state.savedFiles,
-      state.files
+      state.files,
+      totalFailed === 0 && Object.keys(state.failedFilesList).length === 0
     );
 
     let msg =
@@ -860,9 +883,11 @@ export function createDataBridge(interConnect) {
     if (indexPromise && typeof indexPromise.then === "function") {
       indexPromise.then(
         function () {
+          if (state.transaction) state.comicId = state.transaction.targetId;
           reportImportResult(state, true, downloadedPages, totalFailed, true, null);
         },
         function (e) {
+          if (state.transaction) abortComicImport(state.transaction);
           const errMsg = e && (e.message || e.code) ? "索引更新失败: " + (e.message || e.code) : "索引更新失败";
           reportImportResult(state, false, downloadedPages, totalFailed, false, errMsg);
         }
@@ -888,7 +913,25 @@ export function createDataBridge(interConnect) {
     }
   }
 
-  function handleImportComicHeader(parsed) {
+  function handleImportComicHeader(parsed, transaction) {
+    if (_importState && !transaction && (parsed.sessionId || parsed.session) === _importState.sessionId && !_importState.cancelled) {
+      interConnect.send({ data: { type: "import_header_ack", name: _importState.comicName,
+        sessionId: _importState.sessionId, session: _importState.sessionId }, fail() {} });
+      return;
+    }
+    if (parsed.importChapterProtocol != null && !transaction) {
+      cancelCurrentImport("准备新的章节导入");
+      const preparation = _importSessionSeq;
+      Promise.resolve().then(() => beginComicImport(legacyComicImportPlan(parsed))).then((tx) => {
+        if (preparation !== _importSessionSeq) { abortComicImport(tx); return; }
+        handleImportComicHeader(parsed, tx);
+      }, (error) => {
+        interConnect.send({ data: { type: "import_comic_result", sessionId: parsed.sessionId,
+          name: parsed.name, success: false, savedPages: 0, totalPages: 0, failedFiles: 0,
+          indexSuccess: false, error: error.message || String(error) }, fail() {} });
+      });
+      return;
+    }
     const comicName = parsed.name || "";
     const mode = parsed.mode || "single";
     const files = parsed.files || [];
@@ -899,7 +942,7 @@ export function createDataBridge(interConnect) {
       return;
     }
 
-    const comicId = "local_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
+    const comicId = transaction ? transaction.stageId : "local_" + Date.now() + "_" + Math.floor(Math.random() * 10000);
     const dirUri = "internal://files/" + comicId;
     const sessionId = parsed.sessionId || parsed.session || comicId;
     const sessionGeneration = ++_importSessionSeq;
@@ -913,7 +956,7 @@ export function createDataBridge(interConnect) {
 
     if (mode === "single") {
       // files: ["cover", "1", "2", ...], 减去封面就是页数
-      pageCount = files.length - 1;
+      pageCount = files.filter((f) => f !== "cover").length;
     } else if (chapters) {
       // 所有章节的文件总数（多章模式书级封面独立于 chapters 发送，不参与页数统计）
       let totalFileCount = 0;
@@ -925,6 +968,7 @@ export function createDataBridge(interConnect) {
 
     const state = {
       comicId: comicId,
+      transaction,
       dirUri: dirUri,
       comicName: comicName,
       sessionId: sessionId,
@@ -935,6 +979,7 @@ export function createDataBridge(interConnect) {
       chapters: chapters,
       buffers: {},
       savedFiles: {},
+      writingFiles: {},
       failedFilesList: {},
       totalFiles: 0,
       completedFiles: 0,
@@ -1014,7 +1059,7 @@ export function createDataBridge(interConnect) {
         state.chapters.forEach(function (ch, ci) {
           // 与分片键构造同源归一化，保证 mkdir 落点与写入路径一致
           const chapName = (ch.name || "").trim() || "第" + (ci + 1) + "章";
-          file.mkdir({
+          importFile(state, "mkdir", {
             uri: state.dirUri + "/" + chapName,
             recursive: false,
             success: function () {
@@ -1036,7 +1081,7 @@ export function createDataBridge(interConnect) {
       }
     }
 
-    file.mkdir({
+    importFile(state, "mkdir", {
       uri: dirUri,
       recursive: false,
       success: function () {
@@ -1070,6 +1115,7 @@ export function createDataBridge(interConnect) {
   // 纯数据逻辑不含 ACK 回复，逐片旧协议与滑窗新协议共用
   function consumeImportChunk(fileKey, index, total, data) {
     const state = _importState;
+    if (state.writingFiles[fileKey] || state.savedFiles[fileKey]) return;
     // 严格匹配：fileKey 必须在头部声明的文件清单内，否则视为异常分片
     if (state.files.indexOf(fileKey) === -1) {
       console.debug("未知分片文件: " + fileKey);
@@ -1115,6 +1161,7 @@ export function createDataBridge(interConnect) {
     buf.received++;
 
     if (buf.received === buf.total) {
+      state.writingFiles[fileKey] = true;
       const fullBase64 = buf.chunks.join("");
       const fileUri = state.dirUri + "/" + fileKey;
       delete state.buffers[fileKey];
@@ -1298,7 +1345,8 @@ export function createDataBridge(interConnect) {
     isSerial,
     chapters,
     savedFiles,
-    files
+    files,
+    allowReplace = true
   ) {
     // 章节元数据：导入按真实成功落盘的文件数登记 downloaded；size 缺失，离线页首次进入会扫描回写真实值
     let chaptersMeta;
@@ -1344,12 +1392,13 @@ export function createDataBridge(interConnect) {
     };
 
     let replacedOldId = null;
+    let replacedRoots = [];
 
     // 串行队列内读-改-写 + 原子落盘，避免与下载/阅读路径并发时丢条目
     return updateJsonFile(COMICS_URI, [], function (comicsList) {
       const list = Array.isArray(comicsList) ? comicsList : [];
       // 区分来源（P1-30）：仅替换属于导入来源（以 local_ 开头）的同名条目，绝不误篡改在线下载记录
-      const existing = list.find(function (c) {
+      const candidates = list.filter(function (c) {
         return (
           c &&
           c.name === comicName &&
@@ -1357,8 +1406,10 @@ export function createDataBridge(interConnect) {
           c.id.startsWith("local_")
         );
       });
+      const existing = allowReplace && candidates.length === 1 ? candidates[0] : null;
 
       if (existing) {
+        replacedRoots = existing.storageId ? comicStorageIds(existing) : [existing.id];
         if (existing.id !== comicId) {
           replacedOldId = existing.id;
         }
@@ -1367,6 +1418,12 @@ export function createDataBridge(interConnect) {
         existing.is_serial = entry.is_serial;
         existing.chapters = entry.chapters;
         existing.downloaded_at = entry.downloaded_at;
+        // Old plugins do not send a version reference. Their fresh legacy root
+        // must not inherit the replaced book's imported physical locations.
+        delete existing.storageId;
+        delete existing.bookId;
+        delete existing.revision;
+        delete existing.coverMissing;
         delete existing.size;
       } else {
         list.push(entry);
@@ -1406,7 +1463,10 @@ export function createDataBridge(interConnect) {
           });
 
           // 2. 安全清理旧漫画目录（彻底根除同名重复导入孤儿目录残留）
-          cleanupImportDir("internal://files/" + replacedOldId);
+          readComics(true).then((current) => {
+            const used = new Set(current.reduce((ids, c) => c ? ids.concat(c.storageId ? comicStorageIds(c) : [c.id]) : ids, []));
+            replacedRoots.filter((root) => !used.has(root)).forEach((root) => cleanupImportDir("internal://files/" + root));
+          }).catch(() => {});
         }
         return { success: true };
       },
@@ -1471,6 +1531,14 @@ export function createDataBridge(interConnect) {
     }).catch(() => prompt.showToast({ message: "读取漫画源失败，请重试" }));
   }
 
+  function importFile(state, method, options) {
+    const release = state.transaction ? state.transaction.lease.retain() : () => {};
+    try {
+      file[method]({ ...options, success: (...args) => { release(); options.success(...args); },
+        fail: (...args) => { release(); options.fail(...args); } });
+    } catch (error) { release(); options.fail(error, 300); }
+  }
+
   // 握手应答：新会话建立时清理残缺的导入状态，并回传快应用设置
   // 顺带交换能力：存下插件 caps（syncWindow 决定方向 B 走滑窗还是旧停等），
   // 并在 hs_pong 里声明本端导入接收窗口（importWindow）
@@ -1496,6 +1564,7 @@ export function createDataBridge(interConnect) {
           gatewayProtocol: 1,
           deleteProtocol: DELETE_PROTOCOL,
           importResultProtocol: 1,
+          importChapterProtocol: CHAPTER_IMPORT_PROTOCOL,
         },
       },
       success: function () {},

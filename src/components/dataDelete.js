@@ -1,5 +1,5 @@
 import file from "@system.file";
-import { readComics, updateJsonFile, COMICS_URI, SOURCES_URI, FILE_ERROR, acquireComicMutation } from "./storage";
+import { readComics, updateJsonFile, COMICS_URI, SOURCES_URI, FILE_ERROR, acquireComicMutation, comicStorageIds } from "./storage";
 import { ensureUsingSourceValid } from "./api";
 
 export const DELETE_PROTOCOL = 1;
@@ -74,10 +74,23 @@ export async function deleteComicById(id, options = {}) {
     name = target.name || id;
     const fingerprint = JSON.stringify(target);
     let filesState;
-    try { filesState = await removeDirectory("internal://files/" + target.id + "/", options.fallback); }
+    let removedRoots = 0;
+    try {
+      const roots = target.storageId ? comicStorageIds(target) : [target.id];
+      const shared = new Set(list.filter((c) => c && c.id !== id).reduce((ids, c) =>
+        ids.concat(c.storageId ? comicStorageIds(c) : [c.id]), []));
+      if (roots.some((root) => shared.has(root))) throw { code: "SHARED_STORAGE" };
+      let removed = false;
+      for (const root of roots) {
+        const result = await removeDirectory("internal://files/" + root + "/", options.fallback);
+        if (result === "removed") removedRoots++;
+        removed = removed || result === "removed";
+      }
+      filesState = removed ? "removed" : "missing";
+    }
     catch (e) {
       return failure("FILES_DELETE_FAILED", "删除失败，请重试", {
-        status: e.partial ? "partial" : "failed", name, ioCode: e.code,
+        status: e.partial || removedRoots ? "partial" : "failed", name, ioCode: e.code,
       });
     }
     try {
