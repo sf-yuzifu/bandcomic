@@ -743,7 +743,8 @@ export default {
         return;
       }
       this.title = localChapterEntry[0];
-      this.page_count = Math.max(localChapterEntry[1] || 0, this.page || 0);
+      // 总页数只取章节元数据；N+1 是结束态哨兵，不能反过来把总页数撑大。
+      this.page_count = Math.max(0, localChapterEntry[1] || 0);
       // 页码轮盘范围随章节总页数重建
       this.pagePickerValues = buildDigitRanges(this.page_count, this.page);
     }
