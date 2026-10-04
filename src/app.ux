@@ -149,5 +149,11 @@ global.APP_SETTING = {
   preferBridge: false,
 };
 
-export default {};
+export default {
+  onCreate() {
+    if (typeof this.$t === "function") {
+      global.$t = this.$t.bind(this);
+    }
+  },
+};
 </script>

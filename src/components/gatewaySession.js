@@ -23,6 +23,15 @@ function toast(message) {
   const prompt = system("@system.prompt");
   if (prompt) prompt.showToast({ message });
 }
+function t(key, params, fallback) {
+  if (typeof global !== "undefined" && typeof global.$t === "function") {
+    try {
+      const res = global.$t(key, params);
+      if (res && res !== key) return res;
+    } catch (e) {}
+  }
+  return fallback;
+}
 export function isBound() { return !!bound; }
 export function hasActiveDownload() { return !!active; }
 export function getEndpoint() { return bound && bound.endpoint; }
@@ -67,7 +76,7 @@ export async function handleGatewayBind(message, connection) {
     bound = { endpoint, session, instanceId: health.instanceId, boundAt: Date.now() };
     flushPendingResults(endpoint).catch(() => {});
     reply({ success: true, nativeFetch: true, endpoint, instanceId: health.instanceId, probeLength: length });
-    toast("本地漫画服务已绑定");
+    toast(t("gateway.bound", null, "本地漫画服务已绑定"));
   } catch (e) {
     if (gen === generation) reply({ success: false, nativeFetch: isNativeFetchSupported(), error: String(e.message || e) });
   }
@@ -152,7 +161,7 @@ export async function handleImportHttpTask(message, bridge) {
     router.push({ uri: "/pages/download", params: { gatewayTaskId: taskId } });
   } catch (e) {
     finishDownload(context, false, String(e.message || e));
-    toast("本地导入准备失败：" + (e.message || e));
+    toast(t("gateway.prepFailed", { error: e.message || e }, "本地导入准备失败：" + (e.message || e)));
   }
 }
 

@@ -278,5 +278,9 @@
     }
   },
   "storage": { "fileRecovered": "File corrupted, backed up and reset: {name}" },
-  "boot": { "loading": "Loading", "loadPartial": "Data not fully loaded" }
+  "boot": { "loading": "Loading", "loadPartial": "Data not fully loaded" },
+  "gateway": {
+    "bound": "Local comic service bound",
+    "prepFailed": "Local import preparation failed: {error}"
+  }
 }

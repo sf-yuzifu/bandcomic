@@ -278,5 +278,9 @@
     }
   },
   "storage": { "fileRecovered": "檔案損壞，已備份並重置：{name}" },
-  "boot": { "loading": "載入中", "loadPartial": "資料未完整載入" }
+  "boot": { "loading": "載入中", "loadPartial": "資料未完整載入" },
+  "gateway": {
+    "bound": "本地漫畫服務已綁定",
+    "prepFailed": "本地匯入準備失敗：{error}"
+  }
 }
