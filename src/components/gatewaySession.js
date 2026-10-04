@@ -9,6 +9,17 @@ let generation = 0;
 let active = null;
 const completed = [];
 let pendingResult = null;
+let resumableStage = null;
+
+function isSameProfile(a, b) {
+  if (!a || !b) return a === b;
+  return (
+    Number(a.width || 0) === Number(b.width || 0) &&
+    Number(a.quality || 0) === Number(b.quality || 0) &&
+    !!(a.ifPng || a.ifPNG) === !!(b.ifPng || b.ifPNG) &&
+    !!(a.ifLvgl || a.ifLVGL) === !!(b.ifLvgl || b.ifLVGL)
+  );
+}
 
 // 使用静态模块名，确保 Vela 打包器可以解析可选系统模块。
 function system(name) {
@@ -36,7 +47,17 @@ export function isBound() { return !!bound; }
 export function hasActiveDownload() { return !!active; }
 export function getEndpoint() { return bound && bound.endpoint; }
 export function getSessionInfo() { return bound && { ...bound }; }
-export function unbind() { generation++; bound = null; }
+export function unbind() {
+  generation++;
+  bound = null;
+  if (resumableStage) {
+    const file = system("@system.file");
+    if (file && resumableStage.stageId) {
+      file.rmdir({ uri: "internal://files/" + resumableStage.stageId, recursive: true, fail() {} });
+    }
+    resumableStage = null;
+  }
+}
 
 async function json(url, options = {}) {
   const response = await gatewayFetch({ ...options, url, responseType: "text" });
@@ -150,7 +171,28 @@ export async function handleImportHttpTask(message, bridge) {
     }
     context.detail = { ...detail, total_chapters: totalChapters };
     if (task.importChapterProtocol != null) {
-      context.transaction = await beginComicImport({ ...task, name: detail.name,
+      let stageId = undefined;
+      if (resumableStage) {
+        const matchTask = task.taskId && task.taskId === resumableStage.taskId;
+        const matchComic =
+          (task.bookId && task.bookId === resumableStage.bookId) ||
+          (task.comicId && task.comicId === resumableStage.comicId);
+        const matchRevision = !task.revision || task.revision === resumableStage.revision;
+        const matchProfile = isSameProfile(task.imageProfile, resumableStage.imageProfile);
+
+        if (matchTask || (matchComic && matchRevision && matchProfile)) {
+          stageId = resumableStage.stageId;
+        } else {
+          const oldStage = resumableStage.stageId;
+          const file = system("@system.file");
+          if (file && oldStage) {
+            file.rmdir({ uri: "internal://files/" + oldStage, recursive: true, fail() {} });
+          }
+          resumableStage = null;
+        }
+      }
+
+      context.transaction = await beginComicImport({ ...task, stageId, name: detail.name,
         totalChapters, isSerial: task.isSerial });
       context.localId = context.transaction.stageId;
       if (task.operation === "upsert_chapters" && context.transaction.existing) context.detail.cover = "";
@@ -298,14 +340,30 @@ export async function finishDownload(context, success, error) {
   context.ended = true;
   if (context.transaction) {
     const tx = context.transaction;
+    // 如果下载中断但有已保存页数，保留暂存目录以便断点续传
+    if (!success && context.savedPages > 0) {
+      tx.keepStage = true;
+      resumableStage = {
+        stageId: tx.stageId,
+        taskId: context.taskId,
+        comicId: context.task ? context.task.comicId : "",
+        bookId: context.task ? context.task.bookId : "",
+        revision: context.task ? context.task.revision : "",
+        imageProfile: context.task ? context.task.imageProfile : null,
+      };
+    } else if (success) {
+      resumableStage = null;
+    }
     abortComicImport(tx);
     if (tx.commitPromise) { try { await tx.commitPromise; } catch (e) {} }
     success = tx.committed;
     if (success) error = "";
   }
   if (active === context) active = null;
-  completed.push(context.taskId);
-  if (completed.length > 32) completed.shift();
+  if (success) {
+    completed.push(context.taskId);
+    if (completed.length > 32) completed.shift();
+  }
   const finalSuccess = !!success && context.savedPages === context.totalPages;
   const payload = {
     success: finalSuccess,

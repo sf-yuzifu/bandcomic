@@ -64,13 +64,15 @@ export async function beginComicImport(input) {
   if (list.some((c) => c && c.id === targetId && c !== existing)) throw new Error("作品身份冲突，请选择已有目标");
   const owner = acquireComicMutation(targetId);
   if (!owner) throw new Error("该漫画正在下载、导入或删除，请稍后重试");
-  let stageId;
+  let stageId = plan.stageId || null;
   try {
-    for (let attempt = 0; attempt < 4; attempt++) {
-      const candidate = "local_stage_" + Date.now() + "_" + (++stageSequence) + "_" + Math.random().toString(36).slice(2, 10);
-      const exists = await new Promise((resolve, reject) => file.access({ uri: "internal://files/" + candidate,
-        success: () => resolve(true), fail: (data, code) => code === FILE_ERROR.NOT_FOUND ? resolve(false) : reject({ data, code }) }));
-      if (!exists) { stageId = candidate; break; }
+    if (!stageId) {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const candidate = "local_stage_" + Date.now() + "_" + (++stageSequence) + "_" + Math.random().toString(36).slice(2, 10);
+        const exists = await new Promise((resolve, reject) => file.access({ uri: "internal://files/" + candidate,
+          success: () => resolve(true), fail: (data, code) => code === FILE_ERROR.NOT_FOUND ? resolve(false) : reject({ data, code }) }));
+        if (!exists) { stageId = candidate; break; }
+      }
     }
     if (!stageId) throw new Error("无法创建独立导入版本目录");
   } catch (error) { owner.release(); throw error; }

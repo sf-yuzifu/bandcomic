@@ -754,5 +754,86 @@ test("gatewaySession: HTTP-9-E enforces cold-boot readiness and OOBE/update gate
   assert.equal(settledCalled, true, "ensureAppReady should wait for boot settlement");
 });
 
+test("gatewaySession: HTTP-9-B resumes interrupted task and reuses valid stage", async () => {
+  const endpoint = "http://host:1234";
+  const files = new Map([["internal://cache/probe", VALID_JPEG]]);
+  const resultPosts = [];
+
+  const { context } = createGatewaySandbox({ files, fetchHandler(params) {
+    if (params.url.endsWith("/probe.jpg")) {
+      params.success({ code: 200, data: "internal://cache/probe" });
+      return;
+    } else if (params.url.endsWith("/health")) {
+      params.success({ code: 200, data: JSON.stringify({ service: "bandcomic-local-http" }) });
+      return;
+    } else if (params.url.endsWith("/config")) {
+      params.success({ code: 200, data: JSON.stringify({ LocalUpload: { apiUrl: endpoint, detailPath: "/details/<id>", photoPath: "/pages/<id>/<chapter>" } }) });
+      return;
+    } else if (params.url.endsWith("/details/comic_resume")) {
+      params.success({ code: 200, data: JSON.stringify({ item_id: "comic_resume", name: "断点续传漫", page_count: 3, total_chapters: 1, cover: "" }) });
+      return;
+    } else if (params.url.endsWith("/task_resume_1")) {
+      params.success({ code: 200, data: JSON.stringify({
+        taskId: "task_resume_1", comicId: "comic_resume", bookId: "book_resume", revision: "rev_1",
+        importChapterProtocol: 1, operation: "replace_book", isSerial: true,
+        imageProfile: { width: 480, quality: 50, ifPng: false, ifLvgl: false },
+        chapters: [{ chapterNum: 1, title: "第1章", pageCount: 3 }]
+      }) });
+      return;
+    } else if (params.url.endsWith("/task_resume_2")) {
+      // 同作品、同版本重试任务
+      params.success({ code: 200, data: JSON.stringify({
+        taskId: "task_resume_2", comicId: "comic_resume", bookId: "book_resume", revision: "rev_1",
+        importChapterProtocol: 1, operation: "replace_book", isSerial: true,
+        imageProfile: { width: 480, quality: 50, ifPng: false, ifLvgl: false },
+        chapters: [{ chapterNum: 1, title: "第1章", pageCount: 3 }]
+      }) });
+      return;
+    } else if (params.url.endsWith("/result")) {
+      resultPosts.push(JSON.parse(params.data));
+      params.success({ code: 200, data: JSON.stringify({ code: 200, message: "OK" }) });
+      return;
+    }
+    params.success({ code: 200, data: "{}" });
+  } });
+
+  context.global.bootSettled = true;
+  context.global.APP_SETTING = { oobeDone: true };
+  await context.handleGatewayBind({ endpoint, session: "bind" }, { send() {} });
+
+  // 1. 首次任务：保存了 2 页后中断
+  await context.handleImportHttpTask({ taskId: "task_resume_1" });
+  const task1 = context.getDownloadContext("task_resume_1");
+  assert.ok(task1);
+  const stage1Id = task1.localId;
+  context.pageSaved(task1, 1, 1);
+  context.pageSaved(task1, 1, 2);
+  // 中断
+  await context.finishDownload(task1, false, "网络超时中断");
+  assert.equal(context.hasActiveDownload(), false);
+
+  // 2. 再次重试任务（同一任务或同书新任务）：复用 stage1Id
+  await context.handleImportHttpTask({ taskId: "task_resume_2" });
+  const task2 = context.getDownloadContext("task_resume_2");
+  assert.ok(task2);
+  assert.equal(task2.localId, stage1Id, "should reuse the same stageId from previous attempt");
+
+  // 继续保存（前两页跳过，保存剩余第 3 页）并提交完成
+  const chDir = "internal://files/" + stage1Id + "/1　第1章";
+  files.set(chDir + "/1", VALID_JPEG);
+  files.set(chDir + "/2", VALID_JPEG);
+  files.set(chDir + "/3", VALID_JPEG);
+  context.pageSaved(task2, 1, 1);
+  context.pageSaved(task2, 1, 2);
+  context.pageSaved(task2, 1, 3);
+  await context.commitDownload(task2);
+  await context.finishDownload(task2, true);
+  assert.equal(context.hasActiveDownload(), false);
+  const finalResult = resultPosts.find((p) => p.success === true);
+  assert.ok(finalResult);
+  assert.equal(finalResult.savedPages, 3);
+});
+
+
 
 
