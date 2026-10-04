@@ -57,6 +57,7 @@ function harness() {
     ensureUsingSourceValid: () => {},
     safeJsonParse: (value, fallback) => { try { return JSON.parse(value); } catch { return fallback; } },
     updateJsonFile: (uri, fallback, fn) => {
+      if (h.updateFault) return Promise.reject(new Error("disk error"));
       if (uri === "sources.json") { h.sources = fn(JSON.parse(JSON.stringify(h.sources))); return Promise.resolve(h.sources); }
       if (uri === "history.json" || uri.endsWith("history.json")) {
         h.history = fn(JSON.parse(JSON.stringify(h.history || [])));
@@ -886,6 +887,86 @@ test("import: multi-chapter mode accurately tracks downloaded count per chapter 
   assert.equal(h.files.size, 3);
   // 提示：共3个章节文件，完成2个，1个失败
   assert.ok(h.toasts.some((s) => s.includes("(2/3文件，1个失败)")));
+});
+
+test("P1-46: handshake negotiates importResultProtocol: 1 and import completion reports final result", async () => {
+  const h = harness();
+  h.handshake();
+  await tick();
+  const pong = h.sent.find((f) => f.type === "hs_pong");
+  assert.ok(pong, "must respond with hs_pong");
+  assert.equal(pong.caps.importResultProtocol, 1, "must negotiate importResultProtocol");
+
+  h.message({ type: "import_comic_header", sessionId: "sess_ok", name: "ResultBook", files: ["cover", "1"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "ResultBook", file: "cover", index: 0, total: 1, data: "YWJj" });
+  h.message({ type: "import_comic_chunk", name: "ResultBook", file: "1", index: 0, total: 1, data: "YWJj" });
+  await h.drainIO();
+  h.message({ type: "import_comic_done", sessionId: "sess_ok", name: "ResultBook" });
+  await h.drainIO();
+
+  const result = h.sent.find((f) => f.type === "import_comic_result" && f.sessionId === "sess_ok");
+  assert.ok(result, "must send import_comic_result after completion");
+  assert.equal(result.success, true);
+  assert.equal(result.savedPages, 1);
+  assert.equal(result.totalPages, 1);
+  assert.equal(result.failedFiles, 0);
+  assert.equal(result.indexSuccess, true);
+  assert.equal(result.error, null);
+
+  // Query re-reports the cached result
+  h.sent = [];
+  h.message({ type: "import_comic_query", sessionId: "sess_ok", name: "ResultBook" });
+  await tick();
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].type, "import_comic_result");
+  assert.equal(h.sent[0].sessionId, "sess_ok");
+
+  // Query for unknown session returns status unknown
+  h.sent = [];
+  h.message({ type: "import_comic_query", sessionId: "non_existent", name: "Unknown" });
+  await tick();
+  assert.equal(h.sent.length, 1);
+  assert.equal(h.sent[0].type, "import_comic_result_status");
+  assert.equal(h.sent[0].status, "unknown");
+});
+
+test("P1-46: partial file failure and index failure report accurate error and failed files", async () => {
+  const h = harness();
+  // 1. Partial file failure
+  h.message({ type: "import_comic_header", sessionId: "sess_fail", name: "FailBook", files: ["cover", "1", "2"] });
+  await h.drainIO();
+  h.message({ type: "import_comic_chunk", name: "FailBook", file: "cover", index: 0, total: 1, data: "YWJj" });
+  h.message({ type: "import_comic_chunk", name: "FailBook", file: "1", index: 0, total: 1, data: "YWJj" });
+  // page 2 omitted
+  h.message({ type: "import_comic_done", sessionId: "sess_fail", name: "FailBook" });
+  await h.drainIO();
+
+  const failResult = h.sent.find((f) => f.type === "import_comic_result" && f.sessionId === "sess_fail");
+  assert.ok(failResult);
+  assert.equal(failResult.success, false);
+  assert.equal(failResult.savedPages, 1);
+  assert.equal(failResult.totalPages, 2);
+  assert.equal(failResult.failedFiles, 1);
+  assert.equal(failResult.indexSuccess, true);
+  assert.ok(failResult.error.includes("1 个文件保存失败"));
+
+  // 2. Index failure
+  const h2 = harness();
+  h2.updateFault = true;
+  h2.message({ type: "import_comic_header", sessionId: "sess_idx_fail", name: "IdxBook", files: ["cover", "1"] });
+  await h2.drainIO();
+  h2.message({ type: "import_comic_chunk", name: "IdxBook", file: "cover", index: 0, total: 1, data: "YWJj" });
+  h2.message({ type: "import_comic_chunk", name: "IdxBook", file: "1", index: 0, total: 1, data: "YWJj" });
+  await h2.drainIO();
+  h2.message({ type: "import_comic_done", sessionId: "sess_idx_fail", name: "IdxBook" });
+  await h2.drainIO();
+
+  const idxResult = h2.sent.find((f) => f.type === "import_comic_result" && f.sessionId === "sess_idx_fail");
+  assert.ok(idxResult);
+  assert.equal(idxResult.success, false);
+  assert.equal(idxResult.indexSuccess, false);
+  assert.ok(idxResult.error.includes("索引更新失败"));
 });
 
 test("delete_comic: rmdir failure retains comic in index and reports error toast", async () => {

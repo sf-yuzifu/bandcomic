@@ -653,6 +653,7 @@ export function createDataBridge(interConnect) {
 
   let _importState = null;
   let _importSessionSeq = 0;
+  let _lastImportResult = null;
 
   // 清理导入会话占用的临时目录与残存文件（重入打断、握手取消或失效废弃时调用）
   function cleanupImportDir(targetDirUri) {
@@ -681,6 +682,7 @@ export function createDataBridge(interConnect) {
     const oldState = _importState;
     oldState.cancelled = true;
     _importState = null;
+    _lastImportResult = null;
     if (reason) {
       console.debug("取消导入会话 [" + oldState.sessionId + "]: " + reason);
     }
@@ -753,6 +755,39 @@ export function createDataBridge(interConnect) {
     finalizeImport(state);
   }
 
+  function reportImportResult(state, overallSuccess, downloadedPages, totalFailed, indexSuccess, error) {
+    if (!state || state.cancelled) return;
+    const success = overallSuccess && totalFailed === 0 && indexSuccess;
+    let errMsg = error;
+    if (!errMsg && totalFailed > 0) {
+      errMsg = totalFailed + " 个文件保存失败";
+    }
+    const result = {
+      type: "import_comic_result",
+      sessionId: state.sessionId,
+      comicId: state.comicId,
+      name: state.comicName,
+      success: success,
+      savedPages: downloadedPages,
+      totalPages: state.pageCount,
+      failedFiles: totalFailed,
+      indexSuccess: indexSuccess,
+      error: errMsg || null,
+    };
+    _lastImportResult = result;
+    try {
+      interConnect.send({
+        data: result,
+        success: function () {},
+        fail: function (err) {
+          console.debug("发送 import_comic_result 失败: " + JSON.stringify(err));
+        },
+      });
+    } catch (e) {
+      console.debug("发送 import_comic_result 异常: " + e);
+    }
+  }
+
   function finalizeImport(state) {
     if (state.cancelled) return;
 
@@ -772,7 +807,22 @@ export function createDataBridge(interConnect) {
     }
     const totalFailed = Math.max(0, state.totalFiles - totalSaved);
 
-    updateComicsIndex(
+    let downloadedPages = 0;
+    if (state.mode === "single") {
+      const hasCover = state.files.indexOf("cover") !== -1;
+      downloadedPages = state.files.filter(function (f) {
+        return (hasCover ? f !== "cover" : true) && !!state.savedFiles[f];
+      }).length;
+    } else if (state.chapters) {
+      state.chapters.forEach(function (ch, ci) {
+        const chapName = (ch.name || "").trim() || "第" + (ci + 1) + "章";
+        (ch.files || []).forEach(function (f) {
+          if (state.savedFiles[chapName + "/" + f]) downloadedPages++;
+        });
+      });
+    }
+
+    const indexPromise = updateComicsIndex(
       state.comicId,
       state.comicName,
       state.pageCount,
@@ -805,6 +855,20 @@ export function createDataBridge(interConnect) {
 
     if (_importState === state) {
       _importState = null;
+    }
+
+    if (indexPromise && typeof indexPromise.then === "function") {
+      indexPromise.then(
+        function () {
+          reportImportResult(state, true, downloadedPages, totalFailed, true, null);
+        },
+        function (e) {
+          const errMsg = e && (e.message || e.code) ? "索引更新失败: " + (e.message || e.code) : "索引更新失败";
+          reportImportResult(state, false, downloadedPages, totalFailed, false, errMsg);
+        }
+      );
+    } else {
+      reportImportResult(state, totalFailed === 0, downloadedPages, totalFailed, true, null);
     }
 
     // 整本导入收尾，导入缓冲已释放，主动收一次 GC
@@ -842,6 +906,7 @@ export function createDataBridge(interConnect) {
 
     // 若已有正在进行的导入会话，取消旧会话并清理半成品，确保新导入互斥
     cancelCurrentImport("收到新的导入头部 (" + comicName + ")");
+    _lastImportResult = null;
 
     let pageCount = 0;
     const isSerial = mode === "multi";
@@ -1281,7 +1346,7 @@ export function createDataBridge(interConnect) {
     let replacedOldId = null;
 
     // 串行队列内读-改-写 + 原子落盘，避免与下载/阅读路径并发时丢条目
-    updateJsonFile(COMICS_URI, [], function (comicsList) {
+    return updateJsonFile(COMICS_URI, [], function (comicsList) {
       const list = Array.isArray(comicsList) ? comicsList : [];
       // 区分来源（P1-30）：仅替换属于导入来源（以 local_ 开头）的同名条目，绝不误篡改在线下载记录
       const existing = list.find(function (c) {
@@ -1343,10 +1408,12 @@ export function createDataBridge(interConnect) {
           // 2. 安全清理旧漫画目录（彻底根除同名重复导入孤儿目录残留）
           cleanupImportDir("internal://files/" + replacedOldId);
         }
+        return { success: true };
       },
       function (e) {
         console.debug("更新 comics.json 失败, code=" + (e && e.code));
         prompt.showToast({ message: "索引更新失败，但文件已保存" });
+        return Promise.reject(e);
       }
     );
   }
@@ -1428,11 +1495,43 @@ export function createDataBridge(interConnect) {
           httpDataSync: nativeFetchCap ? 1 : 0,
           gatewayProtocol: 1,
           deleteProtocol: DELETE_PROTOCOL,
+          importResultProtocol: 1,
         },
       },
       success: function () {},
       fail: function () {},
     });
+  }
+
+  function handleImportComicQuery(parsed) {
+    const incomingSession = parsed.sessionId || parsed.session || "";
+    const name = parsed.name || "";
+    if (
+      _lastImportResult &&
+      (!incomingSession || _lastImportResult.sessionId === incomingSession) &&
+      (!name || _lastImportResult.name === name)
+    ) {
+      try {
+        interConnect.send({
+          data: _lastImportResult,
+          success: function () {},
+          fail: function () {},
+        });
+      } catch (e) {}
+    } else {
+      try {
+        interConnect.send({
+          data: {
+            type: "import_comic_result_status",
+            sessionId: incomingSession,
+            name: name,
+            status: "unknown",
+          },
+          success: function () {},
+          fail: function () {},
+        });
+      } catch (e) {}
+    }
   }
 
   function handleMessage(data) {
@@ -1498,6 +1597,8 @@ export function createDataBridge(interConnect) {
       msgType === "import_comic_done"
     ) {
       handleImportComic(parsed);
+    } else if (msgType === "import_comic_query") {
+      handleImportComicQuery(parsed);
     } else {
       // 未知 type 不再兜底进 Cookie，丢弃并记日志
       console.debug("丢弃未知type消息: " + msgType);
