@@ -591,3 +591,69 @@ for (const scenario of ["empty-cover", "bad-config", "detail-error", "wrong-id",
     }
   });
 }
+
+test("gatewaySession: HTTP-9-C retries /result on network failure and flushes pending result on rebind or query", async () => {
+  const endpoint = "http://host:1234";
+  const files = new Map([["internal://cache/probe", VALID_JPEG]]);
+  let attempts = 0;
+  const resultPosts = [];
+
+  const { context } = createGatewaySandbox({ files, fetchHandler(params) {
+    if (params.url.endsWith("/probe.jpg")) {
+      params.success({ code: 200, data: "internal://cache/probe" });
+      return;
+    } else if (params.url.endsWith("/health")) {
+      params.success({ code: 200, data: JSON.stringify({ service: "bandcomic-local-http" }) });
+      return;
+    } else if (params.url.endsWith("/result")) {
+      attempts++;
+      resultPosts.push(JSON.parse(params.data));
+      if (attempts === 1) {
+        // 第一次报错
+        params.fail({ message: "Network timeout" }, 500);
+        return;
+      }
+      params.success({ code: 200, data: JSON.stringify({ code: 200, message: "OK" }) });
+      return;
+    }
+    params.success({ code: 200, data: "{}" });
+  } });
+
+  const fakeContext = {
+    endpoint,
+    taskId: "task_retry",
+    savedPages: 3,
+    totalPages: 3,
+    ended: false,
+    report: Promise.resolve(),
+  };
+
+  await context.finishDownload(fakeContext, true);
+  assert.equal(attempts, 2, "sendResultWithRetry should retry after first failure and succeed on second");
+  assert.equal(resultPosts.length, 2);
+  assert.equal(resultPosts[1].success, true);
+  assert.equal(resultPosts[1].savedPages, 3);
+  const pending = context.getPendingResult();
+  assert.ok(pending);
+  assert.equal(pending.reported, true);
+
+  // 测试 handleImportHttpQuery 响应查询
+  let sentData = null;
+  const mockConn = {
+    send(msg) { sentData = msg.data; },
+  };
+  context.handleImportHttpQuery({ taskId: "task_retry" }, mockConn);
+  assert.ok(sentData);
+  assert.equal(sentData.type, "import_http_result");
+  assert.equal(sentData.taskId, "task_retry");
+  assert.equal(sentData.success, true);
+  assert.equal(sentData.savedPages, 3);
+
+  // 测试未知 taskId 的查询
+  let unknownData = null;
+  context.handleImportHttpQuery({ taskId: "task_unknown" }, { send(msg) { unknownData = msg.data; } });
+  assert.ok(unknownData);
+  assert.equal(unknownData.type, "import_http_result_status");
+  assert.equal(unknownData.status, "unknown");
+});
+

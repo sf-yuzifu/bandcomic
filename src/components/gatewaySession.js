@@ -8,6 +8,7 @@ let bound = null;
 let generation = 0;
 let active = null;
 const completed = [];
+let pendingResult = null;
 
 // 使用静态模块名，确保 Vela 打包器可以解析可选系统模块。
 function system(name) {
@@ -63,6 +64,7 @@ export async function handleGatewayBind(message, connection) {
     }
     if (gen !== generation) return;
     bound = { endpoint, session, instanceId: health.instanceId, boundAt: Date.now() };
+    flushPendingResults(endpoint).catch(() => {});
     reply({ success: true, nativeFetch: true, endpoint, instanceId: health.instanceId, probeLength: length });
     toast("本地漫画服务已绑定");
   } catch (e) {
@@ -183,6 +185,73 @@ export async function commitDownload(context) {
   if (file) replaced.forEach((c) => file.rmdir({ uri: "internal://files/" + c.id, recursive: true, fail() {} }));
 }
 
+export async function sendResultWithRetry(endpoint, taskId, payload, maxAttempts = 3, initialDelay = 100) {
+  let delay = initialDelay;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await json(endpoint + "/control/tasks/" + taskId + "/result", {
+        method: "POST",
+        data: JSON.stringify(payload),
+      });
+      if (pendingResult && pendingResult.taskId === taskId) {
+        pendingResult.reported = true;
+      }
+      return true;
+    } catch (e) {
+      console.warn(`导入结果回报失败 (尝试 ${attempt}/${maxAttempts})：` + (e.message || e));
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        delay *= 2;
+      }
+    }
+  }
+  return false;
+}
+
+export function getPendingResult() {
+  return pendingResult ? { ...pendingResult } : null;
+}
+
+export async function flushPendingResults(endpoint) {
+  const target = endpoint || (bound && bound.endpoint);
+  if (!target || !pendingResult || pendingResult.reported) return false;
+  if (pendingResult.endpoint === target) {
+    return sendResultWithRetry(pendingResult.endpoint, pendingResult.taskId, pendingResult.payload, 2, 50);
+  }
+  return false;
+}
+
+export function handleImportHttpQuery(message, connection) {
+  const taskId = message && message.taskId;
+  const conn = connection || (global.$hub && global.$hub.getConnection());
+  if (pendingResult && (!taskId || pendingResult.taskId === taskId)) {
+    flushPendingResults(pendingResult.endpoint).catch(() => {});
+    if (conn) {
+      conn.send({
+        data: {
+          type: "import_http_result",
+          taskId: pendingResult.taskId,
+          success: pendingResult.payload.success,
+          savedPages: pendingResult.payload.savedPages,
+          totalPages: pendingResult.payload.totalPages,
+          error: pendingResult.payload.error,
+          reported: pendingResult.reported,
+        },
+        fail() {},
+      });
+    }
+  } else if (conn && taskId) {
+    conn.send({
+      data: {
+        type: "import_http_result_status",
+        taskId,
+        status: "unknown",
+      },
+      fail() {},
+    });
+  }
+}
+
 export async function finishDownload(context, success, error) {
   if (!context || context.ended) return;
   context.ended = true;
@@ -196,9 +265,22 @@ export async function finishDownload(context, success, error) {
   if (active === context) active = null;
   completed.push(context.taskId);
   if (completed.length > 32) completed.shift();
-  context.report = context.report.then(() => json(context.endpoint + "/control/tasks/" + context.taskId + "/result", {
-    method: "POST", data: JSON.stringify({ success: !!success && context.savedPages === context.totalPages,
-      savedPages: context.savedPages, totalPages: context.totalPages || 0, error: error || "" }),
-  })).catch((e) => console.warn("导入结果回报失败：" + e.message));
+  const finalSuccess = !!success && context.savedPages === context.totalPages;
+  const payload = {
+    success: finalSuccess,
+    savedPages: context.savedPages,
+    totalPages: context.totalPages || 0,
+    error: error || "",
+  };
+  pendingResult = {
+    taskId: context.taskId,
+    endpoint: context.endpoint,
+    payload,
+    reported: false,
+    createdAt: Date.now(),
+  };
+  context.report = context.report
+    .then(() => sendResultWithRetry(context.endpoint, context.taskId, payload))
+    .catch((e) => console.warn("导入结果回报最终失败：" + (e.message || e)));
   return context.report;
 }

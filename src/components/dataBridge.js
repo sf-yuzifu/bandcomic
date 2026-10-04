@@ -19,7 +19,7 @@ import { base64Encode, base64ToBytes } from "./base64";
 import { replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
 import { createStopWaitQueue } from "./stopWaitQueue";
 import { createWindowedSender } from "./windowedSender";
-import { handleGatewayBind, handleImportHttpTask } from "./gatewaySession";
+import { handleGatewayBind, handleImportHttpTask, handleImportHttpQuery } from "./gatewaySession";
 import { isNativeFetchSupported } from "./gatewayFetch";
 import { sendHttpData } from "./httpDataSync";
 import { deviceDeletes, DELETE_PROTOCOL, deleteComicById, deleteSourceByKey } from "./dataDelete";
@@ -1668,6 +1668,8 @@ export function createDataBridge(interConnect) {
       handleImportComic(parsed);
     } else if (msgType === "import_comic_query") {
       handleImportComicQuery(parsed);
+    } else if (msgType === "import_http_query") {
+      handleImportHttpQuery(parsed, interConnect);
     } else {
       // 未知 type 不再兜底进 Cookie，丢弃并记日志
       console.debug("丢弃未知type消息: " + msgType);
