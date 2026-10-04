@@ -24,6 +24,7 @@ function toast(message) {
   if (prompt) prompt.showToast({ message });
 }
 export function isBound() { return !!bound; }
+export function hasActiveDownload() { return !!active; }
 export function getEndpoint() { return bound && bound.endpoint; }
 export function getSessionInfo() { return bound && { ...bound }; }
 export function unbind() { generation++; bound = null; }
@@ -73,11 +74,17 @@ export async function handleGatewayBind(message, connection) {
 }
 
 // 互联只负责控制；内容与下载 UI 均交给现有下载页面。
-export async function handleImportHttpTask(message) {
+export async function handleImportHttpTask(message, bridge) {
   const taskId = message.taskId;
   if (!bound || !/^[\w-]+$/.test(taskId || "") ||
       (message.endpoint && message.endpoint !== bound.endpoint)) return;
-  if (completed.indexOf(taskId) !== -1 || active) return;
+  if (completed.indexOf(taskId) !== -1 || (active && active.taskId === taskId)) return;
+  if (active || (bridge && typeof bridge.isImporting === "function" && bridge.isImporting())) {
+    const error = active ? "已有 HTTP 下载任务正在进行" : "已有互联导入正在进行";
+    const fakeContext = { ...bound, taskId, savedPages: 0, totalPages: 0, ended: false, report: Promise.resolve() };
+    finishDownload(fakeContext, false, error);
+    return;
+  }
   const context = { ...bound, taskId, savedPages: 0, seen: {}, ended: false, report: Promise.resolve() };
   active = context;
   try {

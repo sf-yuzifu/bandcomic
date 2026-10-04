@@ -19,7 +19,7 @@ import { base64Encode, base64ToBytes } from "./base64";
 import { replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
 import { createStopWaitQueue } from "./stopWaitQueue";
 import { createWindowedSender } from "./windowedSender";
-import { handleGatewayBind, handleImportHttpTask, handleImportHttpQuery } from "./gatewaySession";
+import { handleGatewayBind, handleImportHttpTask, handleImportHttpQuery, hasActiveDownload } from "./gatewaySession";
 import { isNativeFetchSupported } from "./gatewayFetch";
 import { sendHttpData } from "./httpDataSync";
 import { deviceDeletes, DELETE_PROTOCOL, deleteComicById, deleteSourceByKey } from "./dataDelete";
@@ -914,6 +914,24 @@ export function createDataBridge(interConnect) {
   }
 
   function handleImportComicHeader(parsed, transaction) {
+    if (typeof hasActiveDownload === "function" && hasActiveDownload()) {
+      interConnect.send({
+        data: {
+          type: "import_comic_result",
+          sessionId: parsed.sessionId || parsed.session,
+          name: parsed.name,
+          success: false,
+          savedPages: 0,
+          totalPages: 0,
+          failedFiles: 0,
+          indexSuccess: false,
+          error: "设备正在进行 HTTP 下载，互联导入已拒绝",
+        },
+        fail() {},
+      });
+      prompt.showToast({ message: "HTTP 下载进行中，已拒绝互联导入" });
+      return;
+    }
     if (_importState && !transaction && (parsed.sessionId || parsed.session) === _importState.sessionId && !_importState.cancelled) {
       interConnect.send({ data: { type: "import_header_ack", name: _importState.comicName,
         sessionId: _importState.sessionId, session: _importState.sessionId }, fail() {} });
@@ -1683,6 +1701,10 @@ export function createDataBridge(interConnect) {
     if (_coverFlow) {
       _coverFlow.notifyAck(name);
     }
+  };
+
+  bridge.isImporting = function () {
+    return !!(_importState && !_importState.cancelled);
   };
 
   bridge.updateComicsIndex = updateComicsIndex;

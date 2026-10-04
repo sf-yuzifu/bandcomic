@@ -657,3 +657,46 @@ test("gatewaySession: HTTP-9-C retries /result on network failure and flushes pe
   assert.equal(unknownData.status, "unknown");
 });
 
+test("gatewaySession: HTTP-9-D rejects concurrent tasks and reports rejection without disturbing active download", async () => {
+  const endpoint = "http://host:1234";
+  const files = new Map([["internal://cache/probe", VALID_JPEG]]);
+  const resultPosts = [];
+
+  const { context } = createGatewaySandbox({ files, fetchHandler(params) {
+    if (params.url.endsWith("/probe.jpg")) {
+      params.success({ code: 200, data: "internal://cache/probe" });
+      return;
+    } else if (params.url.endsWith("/health")) {
+      params.success({ code: 200, data: JSON.stringify({ service: "bandcomic-local-http" }) });
+      return;
+    } else if (params.url.endsWith("/config")) {
+      params.success({ code: 200, data: JSON.stringify({ LocalUpload: { apiUrl: endpoint, detailPath: "/details/<id>", photoPath: "/pages/<id>/<chapter>" } }) });
+      return;
+    } else if (params.url.endsWith("/details/comic1")) {
+      params.success({ code: 200, data: JSON.stringify({ item_id: "comic1", name: "Comic 1", page_count: 1, total_chapters: 1, cover: "" }) });
+      return;
+    } else if (params.url.endsWith("/task_1")) {
+      params.success({ code: 200, data: JSON.stringify({ comicId: "comic1", sourceKey: "LocalUpload", chapters: [{ chapterNum: 1, pageCount: 1 }] }) });
+      return;
+    } else if (params.url.endsWith("/result")) {
+      resultPosts.push(JSON.parse(params.data));
+      params.success({ code: 200, data: JSON.stringify({ code: 200, message: "OK" }) });
+      return;
+    }
+    params.success({ code: 200, data: "{}" });
+  } });
+
+  await context.handleGatewayBind({ endpoint, session: "bind" }, { send() {} });
+  await context.handleImportHttpTask({ taskId: "task_1" });
+  assert.equal(context.hasActiveDownload(), true);
+
+  // 尝试并发传入新任务 task_2
+  await context.handleImportHttpTask({ taskId: "task_2" });
+  // task_1 仍然活跃，且收到 task_2 的拒绝结果上报
+  assert.equal(context.hasActiveDownload(), true);
+  const task2Result = resultPosts.find((p) => p.error && p.error.includes("已有 HTTP 下载任务正在进行"));
+  assert.ok(task2Result, "task_2 should be rejected and report error to plugin");
+  assert.equal(task2Result.success, false);
+});
+
+
