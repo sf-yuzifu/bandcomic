@@ -699,4 +699,60 @@ test("gatewaySession: HTTP-9-D rejects concurrent tasks and reports rejection wi
   assert.equal(task2Result.success, false);
 });
 
+test("gatewaySession: HTTP-9-E enforces cold-boot readiness and OOBE/update gates", async () => {
+  const endpoint = "http://host:1234";
+  const files = new Map([["internal://cache/probe", VALID_JPEG]]);
+  const resultPosts = [];
+
+  const { context } = createGatewaySandbox({ files, fetchHandler(params) {
+    if (params.url.endsWith("/probe.jpg")) {
+      params.success({ code: 200, data: "internal://cache/probe" });
+      return;
+    } else if (params.url.endsWith("/health")) {
+      params.success({ code: 200, data: JSON.stringify({ service: "bandcomic-local-http" }) });
+      return;
+    } else if (params.url.endsWith("/result")) {
+      resultPosts.push(JSON.parse(params.data));
+      params.success({ code: 200, data: JSON.stringify({ code: 200, message: "OK" }) });
+      return;
+    }
+    params.success({ code: 200, data: "{}" });
+  } });
+
+  await context.handleGatewayBind({ endpoint, session: "bind" }, { send() {} });
+
+  // 1. OOBE 门禁：oobeDone 为 false 时应拒绝
+  context.global.APP_SETTING = { oobeDone: false };
+  context.global.bootSettled = true;
+  await context.handleImportHttpTask({ taskId: "task_oobe" });
+  assert.equal(context.hasActiveDownload(), false);
+  const oobeResult = resultPosts.find((p) => p.error && p.error.includes("首次设置引导"));
+  assert.ok(oobeResult, "should report oobe rejection");
+  assert.equal(oobeResult.success, false);
+
+  // 2. 更新门禁：updatePageShowing 为 true 时应拒绝
+  context.global.APP_SETTING = { oobeDone: true };
+  context.global.updatePageShowing = true;
+  await context.handleImportHttpTask({ taskId: "task_update" });
+  assert.equal(context.hasActiveDownload(), false);
+  const updateResult = resultPosts.find((p) => p.error && p.error.includes("更新引导"));
+  assert.ok(updateResult, "should report update rejection");
+  assert.equal(updateResult.success, false);
+
+  // 3. 冷启动等待：bootSettled 为 false 时等待并放行
+  context.global.updatePageShowing = false;
+  context.global.bootSettled = false;
+  let settledCalled = false;
+  setTimeout(() => {
+    settledCalled = true;
+    context.global.bootSettled = true;
+    if (context.global.onBootSettled) context.global.onBootSettled();
+  }, 50);
+
+  const readyPromise = context.ensureAppReady();
+  await readyPromise;
+  assert.equal(settledCalled, true, "ensureAppReady should wait for boot settlement");
+});
+
+
 

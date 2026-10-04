@@ -73,6 +73,29 @@ export async function handleGatewayBind(message, connection) {
   }
 }
 
+export async function ensureAppReady() {
+  if (typeof global === "undefined") return;
+  if (global.bootSettled === false) {
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, 3000);
+      const prev = global.onBootSettled;
+      global.onBootSettled = () => {
+        clearTimeout(timer);
+        if (typeof prev === "function") {
+          try { prev(); } catch (e) {}
+        }
+        resolve();
+      };
+    });
+  }
+  if (global.APP_SETTING && global.APP_SETTING.oobeDone === false) {
+    throw new Error("设备处于首次设置引导中，请完成后重试");
+  }
+  if (global.updatePageShowing || (global.pendingUpdateInfo && global.pendingUpdateInfo.forceUpdate)) {
+    throw new Error("设备处于更新引导中，请完成后重试");
+  }
+}
+
 // 互联只负责控制；内容与下载 UI 均交给现有下载页面。
 export async function handleImportHttpTask(message, bridge) {
   const taskId = message.taskId;
@@ -88,6 +111,8 @@ export async function handleImportHttpTask(message, bridge) {
   const context = { ...bound, taskId, savedPages: 0, seen: {}, ended: false, report: Promise.resolve() };
   active = context;
   try {
+    await ensureAppReady();
+    if (active !== context || !bound || bound.session !== context.session) throw new Error("绑定已失效");
     const task = await json(context.endpoint + "/control/tasks/" + taskId);
     if (active !== context || !bound || bound.session !== context.session) throw new Error("绑定已失效");
     if (!/^[\w-]+$/.test(task.comicId || "") || !Array.isArray(task.chapters) || !task.chapters.length ||

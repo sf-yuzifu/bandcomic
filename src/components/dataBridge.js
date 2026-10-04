@@ -932,6 +932,44 @@ export function createDataBridge(interConnect) {
       prompt.showToast({ message: "HTTP 下载进行中，已拒绝互联导入" });
       return;
     }
+    if (typeof global !== "undefined") {
+      if (global.APP_SETTING && global.APP_SETTING.oobeDone === false) {
+        interConnect.send({
+          data: {
+            type: "import_comic_result",
+            sessionId: parsed.sessionId || parsed.session,
+            name: parsed.name,
+            success: false,
+            savedPages: 0,
+            totalPages: 0,
+            failedFiles: 0,
+            indexSuccess: false,
+            error: "设备处于首次设置引导中，互联导入已拒绝",
+          },
+          fail() {},
+        });
+        prompt.showToast({ message: "首次设置引导中，已拒绝导入" });
+        return;
+      }
+      if (global.updatePageShowing || (global.pendingUpdateInfo && global.pendingUpdateInfo.forceUpdate)) {
+        interConnect.send({
+          data: {
+            type: "import_comic_result",
+            sessionId: parsed.sessionId || parsed.session,
+            name: parsed.name,
+            success: false,
+            savedPages: 0,
+            totalPages: 0,
+            failedFiles: 0,
+            indexSuccess: false,
+            error: "设备处于更新引导中，互联导入已拒绝",
+          },
+          fail() {},
+        });
+        prompt.showToast({ message: "应用更新中，已拒绝导入" });
+        return;
+      }
+    }
     if (_importState && !transaction && (parsed.sessionId || parsed.session) === _importState.sessionId && !_importState.cancelled) {
       interConnect.send({ data: { type: "import_header_ack", name: _importState.comicName,
         sessionId: _importState.sessionId, session: _importState.sessionId }, fail() {} });

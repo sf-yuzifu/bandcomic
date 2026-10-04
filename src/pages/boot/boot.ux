@@ -32,6 +32,9 @@ export default {
   onInit() {
     this.destroyed = false;
     bootSettled = false;
+    if (typeof global !== "undefined") {
+      global.bootSettled = false;
+    }
     // 损坏 JSON 自愈通知器（P0-15）：页面注入 $t 译文（confirmGuard 同款），
     // 先于 bootstrap 注册——启动期 settings/sources/cookie 损坏即提示
     this._unregisterRecoveryNotifier = setRecoveryNotifier((name) => {
@@ -66,6 +69,12 @@ export default {
   // 路由收口（P0-12）：partial=数据未完整加载需提示；skipOobe=进首页，否则进引导
   finishBoot(partial, skipOobe) {
     bootSettled = true;
+    if (typeof global !== "undefined") {
+      global.bootSettled = true;
+      if (typeof global.onBootSettled === "function") {
+        try { global.onBootSettled(); } catch (e) {}
+      }
+    }
     if (bootTimer) {
       clearTimeout(bootTimer);
       bootTimer = 0;
