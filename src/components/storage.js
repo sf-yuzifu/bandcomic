@@ -376,7 +376,7 @@ export function writeJsonFile(uri, value, space) {
 // 文件不存在时用 defaultValue 新建；解析失败时坏文件已由 readJsonFile 备份为 .bad、
 // 按默认重建解锁写路径（P0-15，不再永久失败）；其余异常 reject 不写回。
 // updater 返回新数据（返回 undefined 则沿用读到的数据）。
-export function updateJsonFile(uri, defaultValue, updater) {
+export function updateJsonFile(uri, defaultValue, updater, options = {}) {
   return enqueueFileOp(uri, async () => {
     let data;
     try {
@@ -384,7 +384,7 @@ export function updateJsonFile(uri, defaultValue, updater) {
     } catch (e) {
       if (e && e.code === FILE_ERROR.NOT_FOUND) {
         data = defaultValue;
-      } else if (e && e.parseError) {
+      } else if (e && e.parseError && !options.requireValid) {
         // 坏文件已备份为 .bad（现场不丢）；按默认重建，后续写入生成新文件
         data = defaultValue;
       } else {
@@ -398,17 +398,36 @@ export function updateJsonFile(uri, defaultValue, updater) {
   });
 }
 
+// 删除与下载共用目标占用；retain 保护退出后仍未回调的原生写入。
+const comicMutations = new Map();
+export function acquireComicMutation(id) {
+  if (comicMutations.has(id)) return null;
+  let references = 1;
+  const releaseOne = () => {
+    if (--references === 0) comicMutations.delete(id);
+  };
+  const once = () => {
+    let released = false;
+    return () => { if (!released) { released = true; releaseOne(); } };
+  };
+  const lease = { release: once(), retain: () => { references++; return once(); } };
+  comicMutations.set(id, lease);
+  return lease;
+}
+
 export function readComics(strict) {
   return readJsonFile(COMICS_URI, [], strict);
 }
 
 // 更新单个漫画的元数据：updater 接收现有记录（不存在则为 { id }），返回新记录。
 // 基于 updateJsonFile：文件不存在时新建列表；串行队列内完成读-改-写，原子落盘。
-export function updateComicMeta(id, updater) {
+export function updateComicMeta(id, updater, options = {}) {
   let updatedRecord;
   return updateJsonFile(COMICS_URI, [], (comics) => {
     const list = Array.isArray(comics) ? comics : [];
     const index = list.findIndex((c) => c.id === id);
+    // A delayed bookshelf scan must not recreate a record removed by deletion.
+    if (index < 0 && options.requireExisting) return list;
     const base = index >= 0 ? list[index] : { id: id };
     const updated = updater(base) || base;
     updatedRecord = updated;

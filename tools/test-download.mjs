@@ -111,7 +111,7 @@ function harness({ cancellable = false, bin = false } = {}) {
   const quiet = { debug: noop, info: noop, error: noop };
   const storageContext = vm.createContext({ file, console: quiet, Promise });
   vm.runInContext(storageSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
-    "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics, sanitizeFolderName };", storageContext);
+    "\nglobalThis.storage = { updateComicMeta, isAlreadyExistsError, readComics, sanitizeFolderName, acquireComicMutation };", storageContext);
   const appGlobal = {
     API_SETTING: { using: "source", source: { apiUrl: "https://source.test", photoPath: "/photo/<id>/<chapter>" } },
     APP_SETTING: { imageSize: "480", imageQuality: "50", imagePreTranscode: bin, imageUsePng: bin },
@@ -213,6 +213,20 @@ async function loadList(h, page, id = "A", count = 2) {
   h.list(h.requests.at(-1), id, count);
   await task;
 }
+
+test("P1-43 target ownership blocks deletion until an exited download's native move settles", async () => {
+  const h = harness();
+  const page = await h.mount({ total_chapters: 1 });
+  h.list(h.requests[0], "A", 1); await tick();
+  h.hold("move", (options) => options.dstUri.endsWith("/source_A/1"));
+  h.image(h.requests[1], "page"); await tick();
+  page.cancelDownload(); await tick();
+  assert.equal(h.global.$storage.acquireComicMutation("source_A"), null);
+  await h.finish("move");
+  const lease = h.global.$storage.acquireComicMutation("source_A");
+  assert.ok(lease, "ownership releases only after the native write really finishes");
+  lease.release();
+});
 
 test("HTTP task uses download page and preserves sparse chapter metadata before reporting completion", async () => {
   const h = harness();
@@ -1215,6 +1229,7 @@ test("offline: self-healing scan accurately counts valid pages without deducting
 
   const appGlobal = {
     $storage: storageContext.storage,
+    $delete: { deleteComicById: noop },
     $route: { serializeParams: (p) => p },
     $img: { addCoverParams: (url) => url },
     $set: { getSearchPageSize: () => 10 },

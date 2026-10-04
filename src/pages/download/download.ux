@@ -529,6 +529,9 @@ export default {
       });
       return;
     }
+    const lease = global.$storage.acquireComicMutation(state.comicId);
+    if (!lease) { this.downloadError = "该漫画正在删除或下载，请稍后重试"; return; }
+    state.mutation = lease;
     this.showChapterSelect = false;
     state.failedChapters = [];
     state.coverDone = false;
@@ -538,6 +541,9 @@ export default {
       await this.downloadNextChapter(state);
     } catch (e) {
       if (this.isDownloadActive(state)) throw e;
+    } finally {
+      if (state.mutation === lease) state.mutation = null;
+      lease.release();
     }
   },
 
@@ -619,8 +625,14 @@ export default {
   },
 
   async startDownloadProcess(state = this._downloadState) {
+    let owned;
     try {
       this.checkDownloadActive(state);
+      if (!state.mutation) {
+        owned = global.$storage.acquireComicMutation(state.comicId);
+        if (!owned) throw "该漫画正在删除或下载，请稍后重试";
+        state.mutation = owned;
+      }
       await this.ensureComicRegistered(state);
       this.checkDownloadActive(state);
       await this.createFolderAndDownload(state);
@@ -631,6 +643,11 @@ export default {
       this.processing = false;
       if (state.gateway && !this.is_serial) global.$gateway.finishDownload(state.gateway, false, String(error));
       throw error;
+    } finally {
+      if (owned) {
+        if (state.mutation === owned) state.mutation = null;
+        owned.release();
+      }
     }
   },
 
@@ -644,7 +661,7 @@ export default {
       id: state.comicId,
       is_serial: this.is_serial,
     };
-    return updateComicMeta(newComic.id, (comic) => {
+    return this.comicUpdate(newComic.id, (comic) => {
       // updater 在存储队列中延后执行；退出后不得再写索引。
       this.checkDownloadActive(state);
       return {
@@ -653,7 +670,7 @@ export default {
         // 连载每章登记时页数重置为 0，真实页数由 syncChapterMeta 登记。
         page_count: newComic.page_count || comic.page_count || 0,
       };
-    }).catch((e) => {
+    }, state).catch((e) => {
       this.checkDownloadActive(state);
       if (e && e.parseError) {
         throw this.$t("download.parseIndexFailed");
@@ -801,7 +818,7 @@ export default {
       ? sanitizeFolderName(this.chapterName || this.name)
       : "";
     const pageCount = this.page_count;
-    return updateComicMeta(comicId, (comic) => {
+    return this.comicUpdate(comicId, (comic) => {
       this.checkDownloadActive(state);
       comic.name = this.is_serial ? state.originalName : this.name;
       comic.is_serial = this.is_serial;
@@ -829,7 +846,7 @@ export default {
         comic.chapters.push(entry);
       }
       return comic;
-    }).catch((e) => {
+    }, state).catch((e) => {
       this.checkDownloadActive(state);
       console.debug(`章节元数据登记失败: ${e && e.code}`);
       if (state.gateway) throw e;
@@ -851,7 +868,7 @@ export default {
             return;
           }
           const subFiles = data.subFiles || [];
-          updateComicMeta(comicId, (comic) => {
+          this.comicUpdate(comicId, (comic) => {
             this.checkDownloadActive(state);
             let size = 0;
             const scanned = [];
@@ -910,7 +927,7 @@ export default {
             comic.size = size;
             comic.downloaded_at = Date.now();
             return comic;
-          }).then(
+          }, state).then(
             () => {
               if (this.isDownloadActive(state)) state.storageDirty = false;
               resolve();
@@ -939,9 +956,29 @@ export default {
     }, state);
   },
 
+  // A cancelled page can stop awaiting native I/O before its callback arrives.
+  // Retain target ownership until each submitted write actually settles.
+  comicUpdate(id, updater, state) {
+    const release = state.mutation ? state.mutation.retain() : () => {};
+    return updateComicMeta(id, updater).then(
+      (value) => { release(); return value; },
+      (error) => { release(); throw error; }
+    );
+  },
+
+  comicFile(method, options, state) {
+    const release = state.mutation ? state.mutation.retain() : () => {};
+    try {
+      file[method]({ ...options,
+        success: (...args) => { release(); options.success(...args); },
+        fail: (...args) => { release(); options.fail(...args); },
+      });
+    } catch (e) { release(); throw e; }
+  },
+
   createFolder(folderUri, state = this._downloadState) {
     return this.downloadOperation((resolve, reject) => {
-      file.mkdir({
+      this.comicFile("mkdir", {
         uri: folderUri,
         success: () => {
           resolve();
@@ -958,7 +995,7 @@ export default {
             reject(this.$t("download.createFolderFailed", { code: code }));
           }
         },
-      });
+      }, state);
     }, state);
   },
 
@@ -1090,11 +1127,11 @@ export default {
     if (valid) return true;
     // 仅删除已确认头部无效的目标文件；读取失败会 reject，不误删可读旧图。
     await this.downloadOperation((resolve, reject) => {
-      file.delete({
+      this.comicFile("delete", {
         uri: fileUri,
         success: () => resolve(),
         fail: (data, code) => code === 301 ? resolve() : reject({ data: data, code: code }),
-      });
+      }, state);
     }, state).catch((e) => {
       this.checkDownloadActive(state);
       throw this.$t("download.downloadFailed") + (e.code || 0);
@@ -1135,7 +1172,7 @@ export default {
       await this.downloadOperation((resolve, reject) => {
         moving = true;
         try {
-          file.move({
+          this.comicFile("move", {
             srcUri: tempUri,
             dstUri: fileUri,
             success: () => { moving = false; release(); resolve(); },
@@ -1146,7 +1183,7 @@ export default {
               reject(this.isDownloadActive(state)
                 ? this.$t("download.moveImageFailed", { code: code }) : DOWNLOAD_ABORTED);
             },
-          });
+          }, state);
         } catch (e) { moving = false; throw e; }
       }, state);
     } catch (e) {

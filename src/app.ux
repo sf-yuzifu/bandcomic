@@ -17,6 +17,7 @@ import { createConfirmGuard } from "./components/confirmGuard";
 import * as $boot from "./components/bootstrap";
 import * as $gateway from "./components/gatewaySession";
 import * as $downloader from "./components/downloadExecutor";
+import * as $delete from "./components/dataDelete";
 
 // 官方"减少打包体积#2 全局方法"：共享模块统一挂 global，页面不再 import——
 // 无公共 chunk 抽取时这些模块会在每个引用页的 bundle 里各复制一份
@@ -38,6 +39,7 @@ global.createConfirmGuard = createConfirmGuard;
 global.$boot = $boot;
 global.$gateway = $gateway;
 global.$downloader = $downloader;
+global.$delete = $delete;
 
 const appInfo = app.getInfo();
 let deviceInfo = {};

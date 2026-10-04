@@ -4,7 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { test } from "node:test";
 
-const modules = ["base64.js", "stopWaitQueue.js", "windowedSender.js", "httpDataSync.js", "dataBridge.js"].map(
+const modules = ["base64.js", "stopWaitQueue.js", "windowedSender.js", "httpDataSync.js", "api.js", "dataDelete.js", "dataBridge.js"].map(
   (name) => fs.readFileSync(new URL("../src/components/" + name, import.meta.url), "utf8")
 );
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -13,7 +13,7 @@ const CHUNK = 6144;
 function harness() {
   const h = {
     books: [], files: new Map(), sources: [], io: [], sent: [], toasts: [],
-    readCalls: 0, getCalls: 0, peakFrames: 0, peakChars: 0,
+    readCalls: 0, getCalls: 0, peakFrames: 0, peakChars: 0, cookieWrites: [],
     maps: [], afterSend: null, readFault: null, readComics: null, readSources: null,
     onLegacy: null, native: false, httpFetch: null,
   };
@@ -44,8 +44,20 @@ function harness() {
     prompt: { showToast: (options) => h.toasts.push(options.message) }, file,
     readComics: () => h.readComics ? h.readComics() : Promise.resolve(h.books),
     readSources: () => h.readSources ? h.readSources() : Promise.resolve(h.sources),
+    readJsonFile: () => Promise.resolve(h.sources),
+    writeCookie: (cookies) => { h.cookieWrites.push(JSON.parse(JSON.stringify(cookies))); return Promise.resolve(); },
+    acquireComicMutation: (() => {
+      const busy = new Set();
+      return (id) => {
+        if (busy.has(id)) return null;
+        busy.add(id);
+        return { release: () => busy.delete(id) };
+      };
+    })(),
+    ensureUsingSourceValid: () => {},
     safeJsonParse: (value, fallback) => { try { return JSON.parse(value); } catch { return fallback; } },
     updateJsonFile: (uri, fallback, fn) => {
+      if (uri === "sources.json") { h.sources = fn(JSON.parse(JSON.stringify(h.sources))); return Promise.resolve(h.sources); }
       if (uri === "history.json" || uri.endsWith("history.json")) {
         h.history = fn(JSON.parse(JSON.stringify(h.history || [])));
         return Promise.resolve(h.history);
@@ -54,19 +66,23 @@ function harness() {
       return Promise.resolve(h.books);
     },
     COMICS_URI: "comics.json",
+    SOURCES_URI: "sources.json",
+    FILE_ERROR: { NOT_FOUND: 301 },
     HISTORY_URI: "history.json",
     isAlreadyExistsError: (code) => code === 202,
     isNativeFetchSupported: () => h.native,
     gatewayFetch: (params) => h.httpFetch(params),
-    global: { APP_SETTING: {} }, Uint8Array, Int8Array, ArrayBuffer, Promise, Map: FrameMap,
+    global: { APP_SETTING: {}, API_SETTING: {} }, Uint8Array, Int8Array, ArrayBuffer, Promise, Map: FrameMap,
     console: { debug: () => {} },
     setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; },
     clearTimeout: (id) => timers.delete(id),
   };
   const context = vm.createContext(sandbox);
   for (const source of modules) {
-    vm.runInContext(source.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""), context);
+    vm.runInContext(source.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export \{[^\n]*;\r?\n/gm, "").replace(/^export /gm, ""), context);
   }
+  h.global = sandbox.global;
+  h.headers = vm.runInContext("buildHeaders", context);
   h.bridge = context.createDataBridge({
     send(options) {
       // Serialize as QAIC does; do not rely on sender object lifetime for the receiver.
@@ -198,6 +214,7 @@ test("dataBridge negotiates HTTP and sends metadata IDs plus binary covers witho
   h.native = true;
   h.load(2, 20000);
   h.books.forEach((book) => { book.name = "同名漫画"; });
+  h.sources = [{ keyA: { name: "同名源", apiUrl: "https://a" } }, { keyB: { name: "同名源", apiUrl: "https://b" } }];
   const requests = [];
   h.httpFetch = async (params) => {
     requests.push(params);
@@ -209,12 +226,65 @@ test("dataBridge negotiates HTTP and sends metadata IDs plus binary covers witho
   h.request("current", httpConfig);
   await h.drainIO();
   assert.ok(requests.at(-1).url.endsWith("/complete"));
+  const sourceBatch = requests.find((p) => typeof p.data === "string" && JSON.parse(p.data).kind === "sources");
+  assert.deepEqual(JSON.parse(sourceBatch.data).items.map((s) => s.key), ["keyA", "keyB"]);
   assert.ok(!h.sent.some((f) => f.type === "cover_data_chunk" || f.type === "app_data_comic"));
   for (let index = 0; index < 2; index++) {
     const chunks = requests.filter((p) => p.url.includes("/covers/" + index + "?"));
     assert.deepEqual(Buffer.concat(chunks.map((p) => Buffer.from(p.data))), h.files.get("internal://files/Book" + index + "/cover"));
   }
 });
+
+test("P1-43 bridge negotiates deletion and returns final result by ID even after a new handshake", async () => {
+  const h = harness(); h.load(2); h.books.forEach((book) => { book.name = "Same"; });
+  h.handshake(); assert.equal(h.sent[0].caps.deleteProtocol, 1);
+  h.message({ type:"delete_item", protocol:1, session:"handshake", requestId:"del_one", kind:"comic", comicId:"Book1", name:"Same" });
+  await tick();
+  h.message({ type:"hs_ping", session:"refresh", caps:{} });
+  await h.drainIO();
+  assert.deepEqual(h.books.map((b) => b.id), ["Book0"]);
+  const result = h.sent.find((m) => m.type === "delete_result");
+  assert.equal(result.status, "success"); assert.equal(result.session, "handshake");
+  h.message({ type:"delete_status", protocol:1, session:"refresh", requestSession:"handshake", requestId:"del_one", kind:"comic", comicId:"Book1" });
+  assert.equal(h.sent.at(-1).status, "success");
+});
+
+test("P1-43 legacy names reject duplicate comics and key/display-name source collisions", async () => {
+  const h = harness(); h.load(2); h.books.forEach((b) => { b.name = "Same"; });
+  h.sources = [{ Same: { name:"Other", apiUrl:"a" } }, { keyB: { name:"Same", apiUrl:"b" } }];
+  h.message({ type:"delete_comic", name:"Same" });
+  h.message({ type:"delete_source", name:"Same" }); await h.drainIO();
+  assert.equal(h.books.length, 2); assert.equal(h.sources.length, 2);
+  assert.ok(h.toasts.some((s) => s.includes("唯一漫画")));
+  assert.ok(h.toasts.some((s) => s.includes("唯一漫画源")));
+});
+
+for (const order of ["config-first", "cookie-first"]) {
+  test("P1-44 legacy receiver preserves selected key configs and per-key cookie keep/update/clear (" + order + ")", async () => {
+    const h = harness();
+    h.global.userAgent = () => "test-UA";
+    h.global.cookie = { A:"old-a", B:"keep-b", C:"clear-c" };
+    h.sources = [{ B:{ name:"Same", apiUrl:"https://b" } }];
+    h.global.API_SETTING = { using:"B", B:{ name:"Same", apiUrl:"https://b" } };
+    const config = { type:"source_config", configs:[
+      { A:{ name:"Same", apiUrl:"https://a", detailPath:"/album/<id>", photoPath:"/photo/<id>", searchPath:"/search/<text>/<page>", future:{ enabled:true } } },
+      { C:{ name:"Same", apiUrl:"https://c", detailPath:"/album/<id>", photoPath:"/photo/<id>", searchPath:"/search/<text>/<page>" } },
+    ] };
+    const cookie = { type:"cookie", A:"updated-a", C:"" };
+    h.message(order === "config-first" ? config : cookie);
+    h.message(order === "config-first" ? cookie : config);
+    await tick();
+    assert.deepEqual(h.sources.map((s) => Object.keys(s)[0]), ["B","A","C"]);
+    assert.equal(h.global.API_SETTING.A.future.enabled,true);
+    assert.equal(h.global.API_SETTING.B.apiUrl,"https://b", "unselected source stays intact");
+    assert.equal(h.global.API_SETTING.using,"B");
+    assert.deepEqual(h.cookieWrites.at(-1),{ A:"updated-a", B:"keep-b", C:"" });
+    assert.equal(h.headers({},"A").Cookie,"updated-a");
+    assert.equal(h.headers({},"B").Cookie,"keep-b");
+    assert.equal(h.headers({},"C").Cookie,undefined);
+    assert.ok(!h.global.cookie.type);
+  });
+}
 
 test("dataBridge falls back before data when the native binary preflight fails", async () => {
   const h = harness();
@@ -1303,5 +1373,3 @@ test("import: failed/cancelled duplicate import does not corrupt old comic (P1-3
   assert.equal(h.books[0].id, oldId);
   assert.ok(h.files.has("internal://files/" + oldId + "/1"), "未成功的导入绝不能损坏旧漫画文件");
 });
-
-

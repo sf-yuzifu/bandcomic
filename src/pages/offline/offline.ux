@@ -193,9 +193,8 @@ const {
   readHistory,
   updateJsonFile,
   HISTORY_URI,
-  COMICS_URI,
-  FILE_ERROR,
 } = global.$storage;
+const { deleteComicById } = global.$delete;
 const { getSearchPageSize } = global.$set;
 const { loadCoverProxies } = global.$cover;
 const { createConfirmGuard } = global;
@@ -816,7 +815,7 @@ export default {
       record.chapters.sort((a, b) => a.num - b.num);
       record.size = length;
       return record;
-    }).catch((e) => {
+    }, { requireExisting: true }).catch((e) => {
       console.debug(`元数据回写失败: ${e && e.code}`);
     });
   },
@@ -834,7 +833,7 @@ export default {
     });
   },
 
-  del(id) {
+  async del(id) {
     if (!confirmDelComic(id, this.$t("offline.del"), { duration: 2000 })) return;
     // 第二次点击，执行删除
     prompt.showToast({
@@ -842,154 +841,10 @@ export default {
       duration: 1000,
     });
 
-    const folderUri = "internal://files/" + id + "/";
-
-    file.access({
-      uri: folderUri,
-      success: () => {
-        file.rmdir({
-          uri: folderUri,
-          recursive: true,
-          success: () => {
-            this.updateComicsIndex(id);
-          },
-          fail: (data, code) => {
-            console.debug(`递归删除失败(code=${code})，尝试逐文件删除`);
-            this.deleteFilesOneByOne(id, folderUri);
-          },
-        });
-      },
-      fail: (data, code) => {
-        if (
-          code === 301 ||
-          (typeof FILE_ERROR !== "undefined" && code === FILE_ERROR.NOT_FOUND)
-        ) {
-          console.debug(`文件夹不存在，直接删除索引`);
-          this.updateComicsIndex(id);
-        } else {
-          console.debug(`检查文件夹失败, code=${code}`);
-          prompt.showToast({ message: "访问文件失败，请重试" });
-          this.loadingComic();
-        }
-      },
-    });
-  },
-
-  deleteFilesOneByOne(id, folderUri) {
-    file.get({
-      uri: folderUri,
-      recursive: true,
-      success: (data) => {
-        const allFiles = [];
-        const flatten = (entries) => {
-          for (const entry of entries) {
-            if (entry.type === "dir" && entry.subFiles && entry.subFiles.length) {
-              flatten(entry.subFiles);
-            } else if (entry.type !== "dir") {
-              allFiles.push(entry.uri);
-            }
-          }
-        };
-        flatten(data.subFiles || []);
-
-        let failCount = 0;
-        const deleteNext = (index) => {
-          if (index >= allFiles.length) {
-            if (failCount > 0) {
-              console.debug(`部分文件删除失败: ${failCount} 个，保留索引`);
-              prompt.showToast({ message: "部分文件删除失败，请重试" });
-              this.loadingComic();
-              return;
-            }
-
-            file.rmdir({
-              uri: folderUri,
-              recursive: true,
-              success: () => {
-                this.updateComicsIndex(id);
-              },
-              fail: () => {
-                file.access({
-                  uri: folderUri,
-                  success: () => {
-                    console.debug(`清理空目录失败，且目录仍在，保留索引`);
-                    prompt.showToast({ message: "清理目录失败，请重试" });
-                    this.loadingComic();
-                  },
-                  fail: () => {
-                    console.debug(`目录已不存在，直接更新索引`);
-                    this.updateComicsIndex(id);
-                  },
-                });
-              },
-            });
-            return;
-          }
-
-          file.delete({
-            uri: allFiles[index],
-            success: () => {
-              deleteNext(index + 1);
-            },
-            fail: (data, code) => {
-              console.debug(`删除文件失败: ${allFiles[index]}, code=${code}`);
-              failCount++;
-              deleteNext(index + 1);
-            },
-          });
-        };
-
-        deleteNext(0);
-      },
-      fail: (data, code) => {
-        if (
-          code === 301 ||
-          (typeof FILE_ERROR !== "undefined" && code === FILE_ERROR.NOT_FOUND)
-        ) {
-          console.debug(`列出文件失败(文件夹不存在)，直接更新索引`);
-          this.updateComicsIndex(id);
-        } else {
-          console.debug(`列出文件失败, code=${code}，不删除索引`);
-          prompt.showToast({ message: "读取文件失败，请重试" });
-          this.loadingComic();
-        }
-      },
-    });
-  },
-
-  updateComicsIndex(id) {
-    // 串行队列内读-改-写 + 原子落盘
-    updateJsonFile(COMICS_URI, [], (comicsData) => {
-      const list = Array.isArray(comicsData) ? comicsData : [];
-      return list.filter((comic) => comic.id !== id);
-    }).then(
-      () => {
-        console.debug("comics.json更新成功");
-        // 整本漫画文件已删除，主动收一次 GC（官方内存优化建议，勿高频调用）
-        if (typeof global !== "undefined" && global.runGC) global.runGC();
-        prompt.showToast({
-          message: this.$t("offline.delComplete"),
-          duration: 1000,
-        });
-        this.loadingComic();
-      },
-      (err) => {
-        if (err && err.parseError) {
-          console.debug(`解析comics.json失败: ${err.parseError}`);
-          prompt.showToast({
-            message: this.$t("offline.indexReadFailed"),
-            duration: 2000,
-          });
-        } else {
-          console.debug(`写入comics.json失败, code = ${err && err.code}`);
-          prompt.showToast({
-            message: this.$t("offline.indexUpdateFailed"),
-            duration: 2000,
-          });
-        }
-        this.loadingComic();
-      }
-    );
+    const result = await deleteComicById(id, { fallback: true });
+    if (result.status === "success" && global.runGC) global.runGC();
+    prompt.showToast({ message: result.status === "success" ? this.$t("offline.delComplete") : result.message });
+    if (!this.destroyed) this.loadingComic();
   },
 
   toggleStorageList() {

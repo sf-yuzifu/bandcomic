@@ -60,6 +60,8 @@
 }
 ```
 
+新版同步器支持一个 `/config` 返回多个源，按各自 key 展示与勾选，只发送所选的有效配置。`type` 为可选字段，单篇图片接口可不含 `<chapter>`；已有扩展字段会保留。源 key 不使用设备/消息保留键（如 `using/type`）或路径分隔符。完整操作、校验和消息语义见 [漫画源多选与逐源 Cookie 同步](SOURCE_SYNC.md)。
+
 ## 3. 腕上漫画实际请求流程
 
 ### 3.1 ID 直达详情
@@ -480,8 +482,9 @@ GET /image/proxy?url=<image_url>&width=600&quality=50&ifPNG=1
 https://your-api.example.com
 ```
 
-7. 插件会请求 `/config` 获取漫画源名称。
-8. 粘贴 Cookie，点击同步到手表。
+7. 插件一次请求 `/config` 获取完整目录，分别显示名称、key 和 API 地址；单源默认选中，多源明确勾选，非法条目显示字段原因且不可勾选。
+8. 在对应 key 的卡片选择「更新 Cookie」并粘贴；保留不发送该项，清空需要明确选择「清空 Cookie」。不同 key 的 Cookie 独立编辑，仅发送勾选源的修改。
+9. 点击「同步所选源到设备」。同步复用本次已校验快照，状态区分配置和 Cookie 的命令发送结果；当前协议无设备保存回报，显示「命令已发送，待设备核实」。详见 [同步说明](SOURCE_SYNC.md)。
 
 ### 11.2 后端接收
 
@@ -648,10 +651,10 @@ AstroBox 同步器插件（API Level 4 起）内置了本地 HTTP 漫画源能�
 
 1. 插件通过 `request_data` 下发唯一 `session` 和 `http` 配置：`protocol: 1`、候选 `endpoints`、`instanceId`、`chunkBytes: 16384`、`maxCoverBytes: 2097152`。
 2. 手环核对 `/control/health` 的实例身份与 `httpDataSync`，向 `/control/sync/<session>/probe` POST 原始字节 `[0,1,127,128,255,0,42,13,10]`。探针失败时，在列表提交前通知插件切回互联。
-3. `POST /control/sync/<session>/metadata` 依次发送 `kind: header`（`comicCount/sourceCount`）、`kind: comics/sources`（`offset/items`）、`kind: done`。单批最多 16 条，UTF-8 请求体上限 64KiB；漫画条目携带 `id/name/page_count/chapters`，源条目携带 `name/apiUrl`。
+3. `POST /control/sync/<session>/metadata` 依次发送 `kind: header`（`comicCount/sourceCount`）、`kind: comics/sources`（`offset/items`）、`kind: done`。单批最多 16 条，UTF-8 请求体上限 64KiB；漫画条目携带 `id/name/page_count/chapters`，新版源条目携带 `key/name/apiUrl`（旧端可缺少 key）。
 4. 按漫画 ID 找到本地封面，以列表序号定位 `PUT /control/sync/<session>/covers/<index>?offset=<位置>&total=<总长度>`。`Content-Type: application/octet-stream`，正文直接为 `ArrayBuffer`，每块最多 16KiB，始终串行；`Uint8Array` 必须按实际视图范围截取 backing buffer。
 5. 无封面、短读、超过 2MiB 或解码拒绝时，`POST .../skip` 携带 `id/reason`。插件只保留一张在途封面，缩略图边界 100×200，解码内存和累计缩略图也有预算；不把全部原图保存在 UI。
 6. `POST .../complete` 由插件核对完整列表与每本封面的成功/跳过结果。批次、分块、完成请求重复提交幂等；修改过的重复数据、非法偏移、未完成就声明完成、过期 session 都会拒绝。
 
-开始提交列表后固定 HTTP 通道，失败时明确报错；不会同时启动互联回传。10 Pro、旧快应用、新快应用配旧插件均保留旧互联路径。删除操作继续使用已有控制消息。二进制 POST 与真实封面上传仍需按设备/固件真机验证，自动化通过不代替真机结果。
+开始提交列表后固定 HTTP 通道，失败时明确报错；不会同时启动互联回传。10 Pro、旧快应用、新快应用配旧插件均保留旧互联路径。删除控制独立协商 `deleteProtocol: 1`，按完整漫画 ID/源 key 定位并等待设备实际结果，旧端仍走名称命令并通过刷新核实；详情见 [设备书架单条删除协议](DATA_DELETE_PROTOCOL.md)。二进制 POST 与真实封面上传仍需按设备/固件真机验证，自动化通过不代替真机结果。
 

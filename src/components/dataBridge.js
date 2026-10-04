@@ -9,16 +9,16 @@ import {
   COMICS_URI,
   SOURCES_URI,
   HISTORY_URI,
-  FILE_ERROR,
 } from "./storage";
 import { safeJsonParse } from "./jsonUtils";
 import { base64Encode, base64ToBytes } from "./base64";
-import { ensureUsingSourceValid, replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
+import { replaceIfDuplicate, mergeSourcesToGlobal } from "./api";
 import { createStopWaitQueue } from "./stopWaitQueue";
 import { createWindowedSender } from "./windowedSender";
 import { handleGatewayBind, handleImportHttpTask } from "./gatewaySession";
 import { isNativeFetchSupported } from "./gatewayFetch";
 import { sendHttpData } from "./httpDataSync";
+import { deviceDeletes, DELETE_PROTOCOL, deleteComicById, deleteSourceByKey } from "./dataDelete";
 
 // 封面推送读盘切片（手表→手机）：保持 6144 小切片求稳；
 // 反方向（插件→设备 fetch 分片）才用 24K，见 interconnfetch.js MAX_CHUNK_SIZE
@@ -57,21 +57,6 @@ function detectImageFormat(bytes) {
     return "image/webp";
   if (bytes[0] === 0x42 && bytes[1] === 0x4d) return "image/bmp";
   return "image/jpeg";
-}
-
-function updateComicsIndexAfterDelete(deletedId, comicName) {
-  updateJsonFile(COMICS_URI, [], function (comicsList) {
-    const list = Array.isArray(comicsList) ? comicsList : [];
-    return list.filter((c) => c.id !== deletedId);
-  }).then(
-    () => {
-      prompt.showToast({ message: "已删除: " + comicName });
-    },
-    (e) => {
-      console.debug("更新索引失败, code=" + (e && e.code));
-      prompt.showToast({ message: "文件已删除，但索引更新失败" });
-    }
-  );
 }
 
 export function createDataBridge(interConnect) {
@@ -492,6 +477,7 @@ export function createDataBridge(interConnect) {
             const key = Object.keys(s)[0];
             const info = s[key];
             return {
+              key: key,
               name: (info && info.name) || key,
               apiUrl: (info && info.apiUrl) || "",
             };
@@ -1374,51 +1360,20 @@ export function createDataBridge(interConnect) {
 
     prompt.showToast({ message: "正在删除: " + comicName });
 
-    readComics().then(
+    readComics(true).then(
       function (comicsList) {
         if (!Array.isArray(comicsList)) {
           comicsList = [];
         }
 
-        const target = comicsList.find(function (c) {
-          return c.name === comicName;
+        const targets = comicsList.filter(function (c) {
+          return c && c.name === comicName;
         });
-        if (!target) {
-          prompt.showToast({ message: "未找到漫画: " + comicName });
+        if (targets.length !== 1) {
+          prompt.showToast({ message: "未找到唯一漫画，请在设备端按条目删除" });
           return;
         }
-
-        const folderUri = "internal://files/" + target.id + "/";
-
-        file.access({
-          uri: folderUri,
-          success: function () {
-            file.rmdir({
-              uri: folderUri,
-              recursive: true,
-              success: function () {
-                updateComicsIndexAfterDelete(target.id, comicName);
-              },
-              fail: function (data, code) {
-                console.debug("递归删除失败, code=" + code);
-                prompt.showToast({ message: "删除失败，请重试" });
-              },
-            });
-          },
-          fail: function (data, code) {
-            // 明确目录不存在（如 301 / NOT_FOUND）时才直接更新索引；其余 I/O 故障保留索引
-            if (
-              code === 301 ||
-              (typeof FILE_ERROR !== "undefined" && code === FILE_ERROR.NOT_FOUND)
-            ) {
-              console.debug("文件夹不存在，直接更新索引");
-              updateComicsIndexAfterDelete(target.id, comicName);
-            } else {
-              console.debug("检查文件夹失败, code=" + code);
-              prompt.showToast({ message: "删除失败，请重试" });
-            }
-          },
-        });
+        deleteComicById(targets[0].id).then((result) => prompt.showToast({ message: result.message }));
       },
       function () {
         prompt.showToast({ message: "读取漫画索引失败" });
@@ -1435,38 +1390,18 @@ export function createDataBridge(interConnect) {
 
     prompt.showToast({ message: "正在删除漫画源: " + sourceName });
 
-    updateJsonFile(SOURCES_URI, [], function (sourceList) {
-      const list = Array.isArray(sourceList) ? sourceList : [];
-      return list.filter(function (s) {
+    readSources().then(async (list) => {
+      const keys = new Set();
+      (Array.isArray(list) ? list : []).forEach((s) => {
+        if (!s || typeof s !== "object") return;
         const key = Object.keys(s)[0];
-        const info = s[key] || {};
-        return key !== sourceName && info.name !== sourceName;
+        if (key !== "using" && (key === sourceName || (s[key] && s[key].name === sourceName))) keys.add(key);
       });
-    }).then(
-      function () {
-        // 内存清理按 key 与显示名双向查找（P1-18②）：手机端可按显示名删除，
-        // 原直查 key 会漏删使内存与文件不一致直到重启；"using" 是指针槽位排除
-        const victims = Object.keys(global.API_SETTING).filter(function (k) {
-          if (k === "using") return false;
-          if (k === sourceName) return true;
-          const info = global.API_SETTING[k];
-          return !!(info && info.name === sourceName);
-        });
-        if (victims.length > 0) {
-          victims.forEach(function (k) {
-            delete global.API_SETTING[k];
-          });
-          ensureUsingSourceValid();
-          bridge.onSourceConfigSaved();
-        }
-
-        prompt.showToast({ message: "已删除漫画源: " + sourceName });
-      },
-      function (e) {
-        console.debug("更新sources.json失败, code=" + (e && e.code));
-        prompt.showToast({ message: "删除失败，请重试" });
-      }
-    );
+      if (keys.size !== 1) { prompt.showToast({ message: "未找到唯一漫画源，请在设备端按条目删除" }); return; }
+      const result = await deleteSourceByKey(Array.from(keys)[0]);
+      if (result.status === "success") bridge.onSourceConfigSaved();
+      prompt.showToast({ message: result.message });
+    }).catch(() => prompt.showToast({ message: "读取漫画源失败，请重试" }));
   }
 
   // 握手应答：新会话建立时清理残缺的导入状态，并回传快应用设置
@@ -1477,6 +1412,7 @@ export function createDataBridge(interConnect) {
     // 新会话打断可能在途的滑窗同步：旧会话帧序号对新 frontier 无意义
     stopSync();
     _pluginCaps = parsed && parsed.caps && typeof parsed.caps === "object" ? parsed.caps : null;
+    deviceDeletes.beginSession(parsed.session);
     const nativeFetchCap =
       typeof isNativeFetchSupported === "function" ? isNativeFetchSupported() : false;
     interConnect.send({
@@ -1491,6 +1427,7 @@ export function createDataBridge(interConnect) {
           httpImport: nativeFetchCap,
           httpDataSync: nativeFetchCap ? 1 : 0,
           gatewayProtocol: 1,
+          deleteProtocol: DELETE_PROTOCOL,
         },
       },
       success: function () {},
@@ -1545,6 +1482,12 @@ export function createDataBridge(interConnect) {
       handleDeleteComic(parsed);
     } else if (msgType === "delete_source") {
       handleDeleteSource(parsed);
+    } else if (msgType === "delete_item" || msgType === "delete_status") {
+      deviceDeletes.handle(parsed, (result) => {
+        interConnect.send({ data: result, success() {}, fail() {} });
+        if (result.status === "success" && result.kind === "source") bridge.onSourceConfigSaved();
+        if (result.status !== "processing" && result.status !== "unknown") prompt.showToast({ message: result.message });
+      });
     } else if (msgType === "gateway_bind") {
       handleGatewayBind(parsed, interConnect);
     } else if (msgType === "import_http_task") {
