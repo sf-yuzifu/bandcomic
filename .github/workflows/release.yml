@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag to release (e.g. v2.3)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Setup signing certificates
+        env:
+          SIGN_CERTIFICATE: ${{ secrets.SIGN_CERTIFICATE }}
+          SIGN_PRIVATE_KEY: ${{ secrets.SIGN_PRIVATE_KEY }}
+        run: |
+          mkdir -p sign
+          if [ -n "$SIGN_CERTIFICATE" ] && [ -n "$SIGN_PRIVATE_KEY" ]; then
+            printf "%s\n" "$SIGN_CERTIFICATE" > sign/certificate.pem
+            printf "%s\n" "$SIGN_PRIVATE_KEY" > sign/private.pem
+            chmod 600 sign/private.pem
+            echo "Signing certificates configured successfully from secrets."
+          else
+            echo "::error::SIGN_CERTIFICATE or SIGN_PRIVATE_KEY secret is not set!"
+            exit 1
+          fi
+
+      - name: Build release package
+        run: yarn run release
+
+      - name: List build artifacts
+        run: ls -la dist/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.rpk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
