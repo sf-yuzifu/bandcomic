@@ -1,341 +1,132 @@
 <div align="center">
-   <img src="docs/preview.png" alt="腕上漫画" >
-   <br />
-   <a href='https://gitee.com/sf-yuzifu/bandcomic/stargazers'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/star.svg?theme=white' alt='Gitee stars' /></a>
-   <a href='https://gitee.com/sf-yuzifu/bandcomic/members'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/fork.svg?theme=white' alt='Gitee forks' /></a>
-   <a href='https://github.com/sf-yuzifu/bandcomic/stargazers'><img alt="GitHub stars" src="https://img.shields.io/github/stars/sf-yuzifu/bandcomic?style=social"></a>
-   <a href='https://github.com/sf-yuzifu/bandcomic/forks'><img alt="GitHub forks" src="https://img.shields.io/github/forks/sf-yuzifu/bandcomic?style=social"></a>
+  <img src="docs/preview.png" alt="腕上漫画" >
+  <br />
+  <a href='https://gitee.com/sf-yuzifu/bandcomic/stargazers'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/star.svg?theme=white' alt='Gitee stars' /></a>
+  <a href='https://gitee.com/sf-yuzifu/bandcomic/members'><img src='https://gitee.com/sf-yuzifu/bandcomic/badge/fork.svg?theme=white' alt='Gitee forks' /></a>
+  <a href='https://github.com/sf-yuzifu/bandcomic/stargazers'><img alt="GitHub stars" src="https://img.shields.io/github/stars/sf-yuzifu/bandcomic?style=social"></a>
+  <a href='https://github.com/sf-yuzifu/bandcomic/forks'><img alt="GitHub forks" src="https://img.shields.io/github/forks/sf-yuzifu/bandcomic?style=social"></a>
+
+  <h3>面向小米 Vela OS 智能手环 / 手表的轻量级漫画阅读工具</h3>
 </div>
-
-## 项目简介
-
-腕上漫画是一个面向小米 Vela OS 手环/手表的漫画阅读工具，提供在线搜索、在线阅读、离线下载、自定义漫画源和 AstroBox 插件联动能力。
-
-本项目本身不提供任何漫画内容，所有内容均来自用户自行配置的 API 漫画源。
-
-## 主要特性
-
-- **基于 Vela OS 开发**：适配小米手环 9/10 Pro、小米 Watch S3/S4/S5、Redmi Watch 5/6 等设备。
-- **在线阅读**：支持通过自定义漫画源搜索漫画、查看详情并在线阅读。
-- **离线下载**：支持将漫画下载到设备本地，在无网络环境下阅读；下载按顺序逐页获取图片（手环性能有限，并发只会更卡），并自动容错与实时展示进度。
-- **离线书架管理**：书架自动按最近阅读/下载时间排序，未下载完成的漫画显示角标提示，删除操作带二次确认防误删。
-- **自定义漫画源**：通过 `/config` 配置接口接入第三方或自建 API 漫画源。
-- **图片参数调节**：支持设置图片宽度、质量、搜索封面显示、相邻页预加载等选项。
-- **多语言支持**：支持简体中文、繁体中文（台湾/香港）和英文，跟随系统语言自动切换。
-- **PNG 图片解析**：针对部分不支持 JPG 解析的新设备，可请求 API 返回 PNG 图片；小米手环 10 Pro 会自动启用该设置。
-- **图片预解码**：支持请求 API 返回 LVGL 预解码 `.bin` 图片，提升部分低配置设备浏览流畅度。
-- **AstroBox 插件联动**：支持通过 AstroBox 进行网络桥接、漫画源同步、Cookie 上传和本地漫画管理。
-- **网桥连接优先**：部分设备直连能通国内 CDN，但因固件裁减了 ECDHE 加密套件，无法握手仅提供 ECDHE 套件的现代托管站点（curl 35）。开启后所有网络请求优先通过 AstroBox 网桥完成；小米手环 10 Pro 强制启用且不可关闭。
-- **多端 UI 适配**：适配方屏、圆屏、小屏手环和不同分辨率手表。
-
-## 使用说明
-
-### 1. 普通设备
-
-如果设备支持快应用 `fetch` 能力，可以直接在腕上漫画中：
-
-1. 输入漫画 ID 或关键词。
-2. 搜索并进入漫画详情。
-3. 在线阅读或下载到本地。
-
-### 2. 不支持 `fetch` 的设备
-
-部分新设备缺少快应用 `fetch` 能力，需要通过 AstroBox 插件进行网络桥接。
-
-典型设备：
-
-- 小米手环 10 Pro
-
-使用方式：
-
-1. 在 AstroBox 中安装 `网桥 FetchBridge` 插件。
-2. 在 FetchBridge 中监听应用包名：
-
-```text
-moe.yzf.comic
-```
-
-3. 保持 AstroBox 与设备连接。
-4. 打开腕上漫画使用在线搜索、阅读、下载等功能。
-
-### 3. 小米手环 10 Pro 说明
-
-小米手环 10 Pro 存在三类兼容问题：
-
-1. 设备不支持快应用原生 `fetch`，在线功能需要通过 AstroBox 的 `网桥 FetchBridge` 插件完成，应用会强制开启"网桥连接优先"且不可关闭。
-2. 部分固件环境下 JPG 图片解析存在兼容问题，因此腕上漫画会在检测到设备为 `Xiaomi Smart Band 10 Pro` 时自动开启“PNG图片解析”。
-3. 设备无法直接加载网络图片，腕上漫画会先将图片下载为本地文件再显示，加载速度受网络和图片体积影响。
-
-如果你使用的是小米手环 10 Pro，建议保持“PNG图片解析”开启。
-
-## AstroBox 插件能力
-
-本项目与 AstroBox 配合可以获得更多扩展能力。
-
-### 网桥 FetchBridge
-
-用于给不支持快应用 `fetch` 的设备提供网络请求能力。
-
-- 插件名称：`网桥 FetchBridge`
-- 监听包名：`moe.yzf.comic`
-- 适用场景：小米手环 10 Pro 等缺少 `fetch` 能力的设备
-
-### 腕上漫画同步器
-
-用于管理腕上漫画的数据同步与本地漫画导入。
-
-支持能力：
-
-- 同步漫画源配置
-- 新版同步器一次读取完整源目录，按 key 勾选并逐源保留/更新/清空 Cookie，详见 [源同步说明](docs/SOURCE_SYNC.md)
-- 上传漫画源 Cookie
-- 管理本地漫画
-- 数据浏览回传支持双通道：新版客户端可通过原生 HTTP 分批发送列表和封面二进制，旧客户端及无原生 fetch 的设备继续使用互联回传
-- 删除本地漫画
-- 删除漫画源
-- 新版单条删除按完整漫画 ID/源 key 定位，等待设备文件及索引结果；超时或断连可查询原结果或刷新核实，旧端显示命令已发送、待核实（见 [删除协议说明](docs/DATA_DELETE_PROTOCOL.md)）
-- 将本地漫画文件导入设备（支持 AstroBox V4 原生 HTTP 下载通道与传统互联双通道）
-  - **本地章节追加/更新（HTTP-9-A）**：新版协商 `importChapterProtocol: 1` 后，整本发送与单章追加分离；按稳定作品身份/设备 ID 与真实章号定位，新章追加、已有章更新，其余章节和阅读历史保留。更新内容完整保存后才切换索引，失败保留旧有效内容；设备书架可选择已有导入目标。详见 [本地章节导入说明](docs/LOCAL_CHAPTER_IMPORT.md)。
-  - **支持原生 fetch 的设备（如小米手环 9 Pro）**：插件上传时优先自动绑定宿主回环地址 `127.0.0.1:<动态端口>`，通过原生 fetch 逐页下载，免除 Base64 拼接开销；正常使用无需手填 IP，备用 IPv4 可在插件「连接设置」中配置；
-  - **不支持原生 fetch 的设备（如小米手环 10 Pro）**：自动回退使用传统分片互联导入。
-  - 双通道统一结果闭环确认（P1-46）：旧互联通道协商 `importResultProtocol: 1`，在文件落盘及索引提交完成后回传实际保存页数和索引状态，与原生 HTTP 通道具备同等完成口径。
-  - 两条导入通道共用图片成品处理器：正文 LVGL > PNG > JPEG，封面宽度上限 80，透明、尺寸预算和缓存规则一致；失败显示具体阶段，长图缩小显示实际尺寸。详见 [同步器图片处理说明](docs/PLUGIN_IMAGE_PROCESSING.md)。
-
-## 自定义漫画源
-
-本项目支持配置自定义漫画源。漫画源需要提供：
-
-- `/config` 配置接口
-- 漫画详情接口
-- 搜索接口
-- 图片列表接口
-- 可直接请求或可代理处理的图片 URL
-
-图片接口建议支持以下参数：
-
-| 参数 | 说明 |
-|------|------|
-| `width` | 图片目标宽度 |
-| `quality` | 图片质量 |
-| `ifPNG=1` | 请求返回 PNG 图片 |
-| `ifLVGL=1` | 请求返回 LVGL 预解码二进制 |
-
-封面图片会固定请求 `width=80`，质量跟随应用设置，不会携带 `ifLVGL`。
-
-详细接入方式见：[自定义漫画源配置指南](docs/CUSTOM_SOURCE.md)。
-
-## 图片处理说明
-
-腕上漫画会根据用户设置自动给图片 URL 添加参数。
-
-### 正文图片
-
-正文图片会追加：
-
-```text
-width=<图片尺寸>&quality=<图片质量>
-```
-
-开启 PNG 图片解析后追加：
-
-```text
-ifPNG=1
-```
-
-开启图片预解码后追加：
-
-```text
-ifLVGL=1
-```
-
-并在本地使用 `.bin` 文件保存预解码图片。
-
-### 封面图片
-
-封面图片会追加：
-
-```text
-width=80&quality=<图片质量>
-```
-
-开启 PNG 图片解析后追加：
-
-```text
-ifPNG=1
-```
-
-封面不会追加 `ifLVGL`，也不会保存为 `.bin`。
-
-## 社区支持
-
-本项目由 [`米坛社区开源项目支持计划`](https://www.bandbbs.cn/resources/4859/) 提供支持。
-
-<a href="https://www.bandbbs.cn/resources/4859/"><img src="docs/badge.png" height="46"></a>
-
-本项目由 [`AstroBox`](https://astrobox.online/open?source=resv2&id=moe.yzf.comic&provider=OfficialV2) 提供技术支持。
-
-<a href="https://astrobox.online/open?source=resv2&id=moe.yzf.comic&provider=OfficialV2"><img height="46" src="https://astrobox.online/goab/zhcn/rounded/white.svg"></a>
-
-## 数据说明
-
-### 设备信息收集
-
-本应用会读取以下设备信息用于生成 User-Agent，以便 API 服务器根据设备能力调整返回内容：
-
-- 设备型号
-- 设备品牌
-- 操作系统类型和版本
-- 语言和地区
-
-User-Agent 格式：
-
-```text
-packageName(versionName(versionCode))/product/brand/osType/osVersionName/osVersionCode/language/region
-```
-
-重要说明：
-
-- 这些信息仅用于 API 请求的 User-Agent 生成。
-- 不会上传到任何非用户配置的第三方服务器。
-- 不收集任何个人身份信息。
-
-### 本地存储
-
-本应用会在设备本地存储以下文件：
-
-- `cookie.json`：用户输入的 API 认证 Cookie
-- `settings.json`：用户的应用设置
-- `history.json`：阅读历史记录
-- `comics.json`：下载的漫画索引
-- 下载的漫画文件：存储在 `internal://files/` 目录下
-- `.bin` 文件：开启图片预解码后生成的本地预解码图片
-- 临时图片文件：网络请求过程中生成，会在应用启动时自动清理
-
-重要说明：
-
-- 所有数据均存储在本地设备。
-- 不会上传到任何服务器。
-- 开发者无法访问用户设备上的数据。
-
-## 已适配设备
-
-### ✅ 完全适配
-
-以下设备已完全适配，可连接 `小米运动健康` 正常使用绝大部分功能，并可以与 `AstroBox` 连接使用更多插件扩展功能：
-
-| 设备 | 版本说明 |
-|------|----------|
-| **小米手环 9 Pro** | - |
-| **小米 Watch S3** | 蓝牙版 / eSIM版 |
-| **小米 Watch S4** | 蓝牙版 / eSIM版 |
-| **小米 Watch S4 Sport** | - |
-| **小米 Watch S4 41mm** | - |
-| **小米 Watch S4 eSIM** | 15周年纪念版 |
-| **小米 Watch S5 46mm** | 蓝牙版 / eSIM版 |
-| **Redmi Watch 5** | 蓝牙版 / eSIM版 |
-| **Redmi Watch 6** | - |
-
-### ⚠️ 部分支持
-
-| 设备 | 说明 |
-|------|------|
-| **小米手环 10 Pro** | 设备不支持快应用原生 `fetch`，在线功能需要通过 AstroBox 的 `网桥 FetchBridge` 插件连接使用；同时推荐保持“PNG图片解析”开启。 |
-
-小米手环 10 Pro 使用在线功能时，需要安装 AstroBox 中的 `网桥 FetchBridge` 插件，并监听：
-
-```text
-moe.yzf.comic
-```
-
-### ❌ 不支持
-
-以下设备不支持且暂无适配计划，主要原因是屏幕分辨率过小、设备能力不足或 AstroBox 不支持连接：
-
-- 小米手环 9 / 小米手环 10
-- 小米手环 8 Pro
-- Redmi Watch 4
-- 任何非 Vela OS 设备
-
-> 注意：其他未列出的设备可能因缺失 `fetch` 功能而无法使用。如确认设备支持 `fetch`，可尝试安装，但后果自负。
-
-## 快速上手
-
-### 1. 开发环境搭建
-
-```bash
-# 安装依赖
-yarn install
-
-# 启动开发服务器
-yarn run start
-```
-
-### 2. 项目构建
-
-```bash
-# 构建项目
-yarn run build
-
-# 发布版本
-yarn run release
-```
-
-### 3. 调试模式
-
-```bash
-# 监听文件变化并自动重新构建
-yarn run watch
-```
-
-## 技术栈
-
-本应用基于以下技术栈开发：
-
-- **操作系统**：小米 Vela OS
-- **开发框架**：小米快应用框架
-- **插件联动**：AstroBox
-
-重要说明：
-
-- 本应用不包含任何第三方内容。
-- 所有内容由用户自行配置的 API 提供。
-- 本应用仅作为阅读工具使用。
-
-## License
-
-本项目基于 [AGPL-3.0 License](https://www.gnu.org/licenses/agpl-3.0.html) 开源，请遵守相关协议规定。
-
-### 开源协议说明
-
-AGPL-3.0 协议意味着：
-
-- 您可以自由使用、修改和分发本应用。
-- 如果您修改了本应用并在网络服务器上运行，需要开源您的修改。
-- 请保留原始版权声明和许可证信息。
-
-## 免责声明
-
-1. **项目性质**：本应用仅为开源技术工具，不提供任何漫画内容。
-
-2. **用户责任**：
-   - 用户需自行输入 API 地址，并对其合法性负责。
-   - 用户应遵守当地法律法规，尊重内容创作者的知识产权。
-   - 建议用户仅使用合法授权的 API 服务。
-
-3. **数据安全**：
-   - 所有数据存储在用户设备，开发者无法访问。
-   - 不进行任何数据上传或收集。
-
-4. **技术支持**：
-   - 本应用不提供任何内容，仅作为阅读工具使用。
-   - 不对 API 提供的内容负责。
-
-一旦使用本项目，即视为您已完全理解并同意以上声明内容。
-
-## 了解更多
-
-你可以通过小米快应用的[官方文档](https://iot.mi.com/vela/quickapp)熟悉和了解快应用开发。
 
 ---
 
-**注意**：请遵守相关法律法规，合理使用本项目。如有版权问题，请及时联系处理。
+## 📖 项目简介
+
+**腕上漫画** 是一款运行在小米 Vela OS 穿戴设备上的快应用阅读工具，专为小屏与低功耗设备深度优化。支持在线搜索、在线追番、离线下载、本地传书与多语言界面。
+
+> ⚠️ **声明**：本项目仅为纯客户端工具，**不内置、不提供、不抓取任何漫画内容**。所有数据均来自用户自行配置的第三方/自建 API 漫画源或本地导入。
+
+---
+
+## ✨ 核心特性
+
+- **穿戴端定制阅读**：针对手环与手表屏幕（方屏/圆屏）专门布局，操作轻快流畅。
+- **离线下载 & 书架**：支持单页容错逐页下载，无网环境离线阅读；按最近阅读智能排序。
+- **性能与格式优化**：
+  - **LVGL 预解码**：支持直接加载 `.bin` 格式预解码位图，大幅降低穿戴设备 CPU 渲染负担。
+  - **动态尺寸与质量**：可自定义正文宽度、图片压缩质量及封面尺寸，兼顾画质与设备内存。
+  - **PNG 兼容模式**：针对部分无法直接解析 JPG 的固件（如手环 10 Pro）自动/手动回退为 PNG。
+- **自定义漫画源**：开放的标准 API 规范，通过 `/config` 接入任意自建或第三方漫画源。
+- **AstroBox 强力联动**：配合 AstroBox 手机/电脑端，支持网桥代理、源与 Cookie 同步、双通道本地漫画极速导入。
+- **国际化多语言**：支持简体中文、繁体中文（台/港）及英文，跟随设备系统语言自适应。
+
+---
+
+## ⌚ 设备适配状态
+
+| 适配等级 | 设备型号 | 说明 |
+| :--- | :--- | :--- |
+| **✅ 完全适配** | **小米手环 9 Pro**<br>**小米 Watch S3 / S4 / S4 Sport / S4 41mm / S5**<br>**Redmi Watch 5 / 6** | 支持设备原生 `fetch` 直连，功能完整，可配合 AstroBox 插件使用高级拓展。 |
+| **⚠️ 兼容运行** | **小米手环 10 Pro** | 固件缺少快应用原生 `fetch` 且部分固件不支持 JPG。需配合 AstroBox **FetchBridge 网桥** 使用，应用会自动启用“PNG解析”与“网桥优先”。 |
+| **❌ 暂不支持** | 小米手环 9 / 10、小米手环 8 Pro、Redmi Watch 4 及非 Vela 系统设备 | 屏幕分辨率过低、系统能力受限或无快应用环境。 |
+
+---
+
+## 🚀 快速使用
+
+### 1. 正常设备（支持原生网络）
+1. 打开腕上漫画，在设置中配置漫画源（或通过 AstroBox 插件一键同步）。
+2. 在搜索页输入漫画 ID 或关键词，点击即可在线阅读或下载至离线书架。
+
+### 2. 小米手环 10 Pro（需网桥配合）
+手环 10 Pro 固件未开放原生网络请求，需借助网桥插件中继：
+1. 手机端打开 **AstroBox**，安装并启用插件 **`网桥 FetchBridge`**。
+2. 在 FetchBridge 插件中监听应用包名：`moe.yzf.comic`。
+3. 保持手环与 AstroBox 连接，打开腕上漫画即可正常联网。
+
+---
+
+## 🔌 配套生态与拓展能力
+
+本项目与 [AstroBox 腕上漫画同步器插件](https://astrobox.online/open?source=resv2&id=moe.yzf.comic&provider=OfficialV2) 深度集成，提供桌面/手机端管理能力：
+
+- **漫画源 & Cookie 同步**：批量拉取源配置，逐源配置/清空 Cookie，解决穿戴端输入繁琐的痛点。
+- **本地漫画双通道导入**：
+  - 支持将电脑/手机本地图片（单话/多章节/整本）导入手环。
+  - 支持章节增量追加与覆盖，自动完成图片压缩与 LVGL 二进制转换。
+  - 原生 HTTP 快速直传 + 互联分片双通道自适应回退。
+- **设备书架远程管理**：在电脑端查看手环内已下载的漫画列表与封面，支持一键远程清理空间。
+
+---
+
+## 📚 开发与进阶文档
+
+如需深入了解 API 对接规范、通信协议或二次开发，请参阅以下详细文档：
+
+- 🌐 [自定义漫画源接入指南](docs/CUSTOM_SOURCE.md)：API 接口规范、参数要求与示例
+- 🔄 [漫画源与 Cookie 同步说明](docs/SOURCE_SYNC.md)：同步器与快应用的配置同步机制
+- 📥 [本地漫画与章节导入协议](docs/LOCAL_CHAPTER_IMPORT.md)：整书/单章增量导入及状态闭环规范
+- 🖼️ [图片成品处理与预解码说明](docs/PLUGIN_IMAGE_PROCESSING.md)：LVGL I8、PNG、JPEG 压缩与缓存策略
+- 🗑️ [设备书架删除协议](docs/DATA_DELETE_PROTOCOL.md)：双向确认与索引清理机制
+- ⚙️ [多源运行时规则](docs/SOURCE_RUNTIME.md)：后端多源部署与鉴权规则
+
+---
+
+## 🛠️ 本地开发与构建
+
+本项目使用小米 Vela 快应用工具链进行构建：
+
+```bash
+# 1. 安装项目依赖
+yarn install
+
+# 2. 启动开发服务器（支持热重载监听）
+yarn run start
+
+# 3. 生产环境构建
+yarn run build
+
+# 4. 发布打包（包含 JSC 优化）
+yarn run release
+
+# 5. 代码质量检查与格式化
+yarn run lint
+yarn run format
+```
+
+---
+
+## 🔒 隐私与数据安全
+
+- **纯本地存储**：漫画索引、历史记录、Cookie 及设置均保存在设备 `internal://files/` 本地沙盒中，不设云端同步，开发者无法获取任何数据。
+- **User-Agent 说明**：仅向用户配置的 API 发送包含基础设备型号与系统的 UA 头，以便源服务器自适应下发适合该机型的图片尺寸。
+
+---
+
+## 📜 开源协议与免责声明
+
+- 本项目采用 [AGPL-3.0 License](https://www.gnu.org/licenses/agpl-3.0.html) 协议开源。
+- **免责声明**：本项目为开源工具，不提供任何版权内容。用户在使用自定义源时需自行确保源地址的合法性，并承担相关版权风险与法律责任。
+
+---
+
+## 🤝 致谢与支持
+
+- 本项目由 [`米坛社区开源项目支持计划`](https://www.bandbbs.cn/resources/4859/) 提供支持。
+
+<a href="https://www.bandbbs.cn/resources/4859/"><img src="docs/badge.png" height="46"></a>
+
+- 本项目由 [`AstroBox`](https://astrobox.online/open?source=resv2&id=moe.yzf.comic&provider=OfficialV2) 提供技术支持。
+
+<a href="https://astrobox.online/open?source=resv2&id=moe.yzf.comic&provider=OfficialV2"><img height="46" src="https://astrobox.online/goab/zhcn/rounded/white.svg"></a>

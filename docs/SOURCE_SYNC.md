@@ -1,4 +1,6 @@
-# 漫画源多选与逐源 Cookie 同步（P1-44）
+# 漫画源多选与逐源 Cookie 同步指南
+
+> 配套插件规范：AstroBox 同步器源同步模块（研发代号：P1-44）
 
 AstroBox V4 同步器在「漫画源配置」页一次读取 `/config`，显示完整源目录，再将所选源及对应 Cookie 操作发送到腕上漫画。配套快应用最低 `versionCode` 仍为 **318**，继续使用已有 Interconnect 消息，不要求原生 fetch。
 

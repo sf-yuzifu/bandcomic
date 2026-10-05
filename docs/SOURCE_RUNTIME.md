@@ -1,22 +1,60 @@
-# 八源运行规则更新
+# 多源后端运行时规则与规范
 
-八个后端仓库继续独立部署，从各自 `/config` 导入。Venera 可返回多个源，因此
-仓库数量不等于目录条目数量。现有 key、逐源 Cookie、历史和离线目录身份沿用。
+本文档说明腕上漫画官方/自建多个漫画源后端的运行规则、路由安全、鉴权上下文隔离及容错策略。
 
-配置必须含有效 `name/apiUrl/detailPath/photoPath/searchPath`，路径为单斜杠开头，
-保留键/非法占位符/目录穿越被拒绝；可选 `idType` 为 numeric、uuid、gid_token、
-slug 或 string。默认按源类型识别 MangaDex UUID、E-Hentai gid_token、拷贝 slug，
-其余数字 ID。其他输入进入关键词搜索。
+---
 
-配置导入及健康检测为匿名请求，健康检测必须存在对应 key 的有效条目。
-搜索→详情→封面→阅读/下载固定一份源配置和 Cookie 快照，路由只携带内存上下文
-token，不把 Cookie 写入历史/路由/离线文件。同步新配置不改变正在处理的漫画身份。
-上下文过期时需要重新打开漫画。
+## 1. 架构与部署
 
-429/503 按 Retry-After 冷却该源，认证/不存在/参数错误不逐页连续重试。
-正文仍串行下载，文件头校验、临时文件 move、JPEG/PNG 无扩展名与 LVGL `.bin`
-命名保持原规则。公开稳定图片可以走 CDN，鉴权内容需要后端和 CDN 同时隔离。
+- **独立部署**：各个后端漫画源仓库支持独立部署，快应用与同步器通过各自的 `/config` 接口导入。
+- **一对多源映射**：单个后端服务（如 Venera 等多源聚合服务）允许在 `/config` 中返回多个源，因此源目录条目数量可以大于物理服务仓库数量。
+- **持久化身份**：源配置以 `key` 作为唯一标识，逐源 Cookie、阅读历史与离线下载目录均以该 key 作为身份关联。
 
-自动化：`node --test tools/test-sources.mjs tools/test-download.mjs tools/test-photo.mjs
-tools/test-download-executor.mjs tools/test-gateway.mjs tools/test-comic-import.mjs`。
-真实 Vela 直连与 AstroBox 网桥的身份/图片验证仍需在设备上执行。
+---
+
+## 2. 配置与字段校验
+
+源配置必须包含有效的 `name`、`apiUrl`、`detailPath`、`photoPath` 和 `searchPath`：
+- **路径约束**：所有接口路径必须以单个斜杠 `/` 开头；禁止包含目录穿越字符（如 `..`）、系统保留键（如 `using`、`__proto__`）或非法占位符。
+- **ID 识别机制 (`idType`)**：可选字段，支持 `numeric`（纯数字）、`uuid`、`gid_token`、`slug` 或 `string`。
+  - 默认识别：MangaDex 匹配 UUID，E-Hentai 匹配 `gid_token`，拷贝漫画匹配 `slug`，其余默认采用数字 ID。
+  - 非对应格式的输入会自动转为关键词搜索。
+
+---
+
+## 3. 鉴权与上下文隔离
+
+- **配置导入与健康检测**：
+  - `/config` 导入与健康探针请求均为匿名请求。
+  - 健康检测请求中必须包含对应 key 的有效源条目。
+- **快照生命周期隔离**：
+  - 用户从「搜索 → 详情 → 封面 → 阅读 / 离线下载」这一完整流程中，会锁定一份独立的源配置与 Cookie 快照。
+  - 内部路由跳转仅传递内存上下文 Token，**严禁将 Cookie 明文写入历史记录、路由参数或离线文件**。
+  - 在前台同步新源配置时，不影响正在进行的下载或阅读任务身份；若内存上下文过期，需重新打开漫画。
+
+---
+
+## 4. 容错、重试与网络策略
+
+- **限流冷却**：遇到 `429 Too Many Requests` 或 `503 Service Unavailable` 时，解析响应的 `Retry-After` 头，对对应源实施冷却退避。
+- **非连续重试**：遇到 401/403 认证错误、404 不存在或参数错误时，立即终止并提示，严禁逐页进行无意义的重试。
+- **正文串行流控**：手环端下载正文保持严格串行拉取，包含文件头魔数校验、临时文件原子 rename、JPEG/PNG 无扩展名写入及 LVGL `.bin` 格式支持。
+- **CDN 隔离**：公开静态资源（如通用图标、样式）可走 CDN 加速；涉及鉴权、防盗链的图片内容，后端与 CDN 必须做好隔离保护。
+
+---
+
+## 5. 自动化测试与验证
+
+本项目提供了配套的自动化验证脚本，可在根目录下执行：
+
+```bash
+node --test \
+  tools/test-sources.mjs \
+  tools/test-download.mjs \
+  tools/test-photo.mjs \
+  tools/test-download-executor.mjs \
+  tools/test-gateway.mjs \
+  tools/test-comic-import.mjs
+```
+
+> ⚠️ **注意**：上述脚本为逻辑测试；真实 Vela OS 直连环境以及 AstroBox 网桥代理的图片渲染效果，仍需在真机设备上实测确认。
