@@ -110,16 +110,18 @@
 
 <script>
 import router from "@system.router";
+import prompt from "@system.prompt";
 
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addCoverParams } = global.$img;
 const { parseParams } = global.$route;
-const { proxyImage } = global.$api;
+const { proxyImage, getSourceContext, saveSourceContext } = global.$api;
 
 const { screenSize, getTime } = global;
 
 export default {
   private: {
+    sourceToken: "",
     name: "",
     item_id: "",
     gid: "",
@@ -146,6 +148,8 @@ export default {
   },
 
   onInit() {
+    try { this._sourceContext = getSourceContext(this.sourceToken); }
+    catch (error) { this._sourceError = true; this.loading = false; prompt.showToast({ message: this.$t("error.sourceDeleted") }); return; }
     this.cleanSeq = (typeof global !== "undefined" && global.__tempFilesCleanSeq) || 0;
     const parsed = parseParams({
       name: this.name,
@@ -163,6 +167,7 @@ export default {
   },
 
   loadCoverDisplay() {
+    if (this._sourceError) return;
     this.size.width = (screenSize.width * 3) / 4;
     this.size.height = this.size.width * (4 / 3);
     if (this.cover) {
@@ -173,12 +178,13 @@ export default {
       if (coverUrl.indexOf("http") === 0) {
         proxyImage(
           coverUrl,
-          `${global.API_SETTING.using}_${this.item_id}_cover`,
+          `${this._sourceContext.key}_${this.item_id}_cover`,
           (uri) => {
             if (uri) this.coverDisplayUri = uri;
           },
           1,
-          global.API_SETTING.using
+          this._sourceContext.key,
+          this._sourceContext
         );
       }
     }
@@ -193,10 +199,12 @@ export default {
   },
 
   toPhoto() {
+    if (this._sourceError) return;
     router.push({
       uri: "/pages/photo",
       params: {
         id: this.item_id,
+        sourceToken: saveSourceContext(this._sourceContext),
         total_chapters: this.total_chapters <= 1 ? 0 : this.total_chapters,
         page_count: this.page_count,
         title: this.name,
@@ -206,10 +214,12 @@ export default {
   },
 
   download() {
+    if (this._sourceError) return;
     router.push({
       uri: "/pages/download",
       params: {
         id: this.item_id,
+        sourceToken: saveSourceContext(this._sourceContext),
         page_count: this.page_count,
         chapter: this.total_chapters || 1,
         name: this.name,

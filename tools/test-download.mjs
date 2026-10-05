@@ -2,7 +2,9 @@
 // All network, files and timers stay in memory; delayed callbacks can arrive after exit.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import vm from "node:vm";
+import nativeVm from "node:vm";
+import { createSourceFixtureContext, sourceFixture } from "./source-test-fixture.mjs";
+const vm = { ...nativeVm, createContext: createSourceFixtureContext };
 import { test } from "node:test";
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");
@@ -134,7 +136,7 @@ function harness({ cancellable = false, bin = false } = {}) {
   vm.runInContext(httpSource.replace(/^export /gm, "") +
     "\nglobal.$api.getHttpStatus = getHttpStatus; global.$api.isHttpSuccess = isHttpSuccess;", imageContext);
   vm.runInContext(apiSource.replace(/^import .*;\r?\n/gm, "").replace(/^export \{[^\n]*\n/gm, "")
-    .replace(/^export /gm, "") + "\nglobal.$api.buildPhotoUrl = buildPhotoUrl;", imageContext);
+    .replace(/^export /gm, "") + "\nglobal.$api.buildPhotoUrl = buildPhotoUrl; global.$api.getSourceContext = getSourceContext;", imageContext);
   vm.runInContext(imageSource.replace(/^export /gm, "") +
     "\nglobal.$img = { addUrlParam, addImageParams, addCoverParams, appendCoverSuffix, appendLvglSuffix };", imageContext);
   vm.runInContext(imageFileSource.replace(/^import .*;\r?\n/gm, "").replace(/^export /gm, "") +
@@ -1630,8 +1632,8 @@ test("api: cross-source health check and history cover proxy use correct source 
   assert.equal(healthCall.url, "https://b.com/config");
   assert.equal(
     healthCall.header.Cookie,
-    "auth_cookie_B=secretB",
-    "健康检测源 B 必须带源 B 的 Cookie，不得带源 A 的 Cookie"
+    undefined,
+    "配置健康检测使用匿名请求，不携带任何源 Cookie"
   );
 
   fetchCalls.length = 0;
@@ -1879,7 +1881,7 @@ test("source: global state synchronizes on disk write completion even if page wa
         if (options.url.includes("/config")) {
           options.success({
             data: JSON.stringify({
-              newSource: { name: "New Source", apiUrl: "https://new.com" },
+              newSource: sourceFixture({ name: "New Source", apiUrl: "https://new.com" }),
             }),
           });
         }
@@ -1897,7 +1899,7 @@ test("source: global state synchronizes on disk write completion even if page wa
       .replace(/^import .*?(;\r?\n|\r?\n)/gm, "")
       .replace(/^export \{.*?\} from .*?(;\r?\n|\r?\n)/gm, "")
       .replace(/^export /gm, "") +
-      "\nglobalThis.api = { mergeSourcesToGlobal, ensureUsingSourceValid, replaceIfDuplicate, getFetchErrorType, apiFetch };",
+      "\nglobalThis.api = { mergeSourcesToGlobal, ensureUsingSourceValid, replaceIfDuplicate, getFetchErrorType, apiFetch, validSourceDirectory, isHttpSuccess };",
     apiContext
   );
 

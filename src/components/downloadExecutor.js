@@ -1,4 +1,4 @@
-import { isHttpSuccess } from "./httpResponse";
+import { isHttpSuccess, createHttpError } from "./httpResponse";
 import { isValidImageFile, deleteImageTemp } from "./imageFile";
 import { protectTempFile } from "./storage";
 
@@ -101,7 +101,7 @@ export async function saveDownloadedFile(response, fileUri, allowLvgl, state) {
 
   try {
     if (!isHttpSuccess(response)) {
-      throw new Error("Invalid HTTP response: " + (response.statusCode || response.code));
+      throw createHttpError(response);
     }
 
     const valid = await isValidImageFile(tempUri, allowLvgl, () => isDownloadActive(state));
@@ -187,6 +187,8 @@ export async function downloadSingleImage(options) {
             );
       lastError = normalizedErr;
       if (
+        normalizedErr.noRetry ||
+        [400, 401, 403, 404, 409, 413, 429, 503].indexOf(Number(err && (err.httpStatus || err.code))) !== -1 ||
         normalizedErr.message === DOWNLOAD_ABORTED ||
         normalizedErr.message.includes("Corrupted")
       ) {

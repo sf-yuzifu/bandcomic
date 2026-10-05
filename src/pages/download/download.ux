@@ -159,7 +159,7 @@ import prompt from "@system.prompt";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addImageParams, addCoverParams, appendCoverSuffix, appendLvglSuffix } = global.$img;
 const { updateComicMeta, isAlreadyExistsError, readComics } = global.$storage;
-const { apiFetch, buildPhotoUrl, getCurrentSource, FETCH_ERROR, getHttpStatus, isHttpSuccess } = global.$api;
+const { apiFetch, buildPhotoUrl, FETCH_ERROR, getHttpStatus, isHttpSuccess, getSourceContext, formatApiError } = global.$api;
 const { isValidImageFile, deleteImageTemp } = global.$imageFile;
 
 const { getTime } = global;
@@ -197,6 +197,7 @@ function getChapterDlState(entry) {
 
 export default {
   private: {
+    sourceToken: "",
     time: "",
     id: 0,
     page_count: 0,
@@ -243,10 +244,18 @@ export default {
   async onInit() {
     this.cancelDownload();
     this.destroyed = false;
+    let sourceContext;
+    try { sourceContext = this.gatewayTaskId ? { key: "LocalUpload", source: {}, header: {} } : getSourceContext(this.sourceToken); }
+    catch (error) {
+      this.destroyed = true;
+      this._downloadState = null;
+      this.downloadError = this.$t("error.sourceDeleted");
+      return;
+    }
     // 不放 private，避免图片列表的响应式开销；每个实例拥有独立的运行状态。
     // 异步链捕获 state 身份，实例重新初始化后旧链也不能继续。
     const state = (this._downloadState = {
-      comicId: global.API_SETTING.using + "_" + this.id,
+      comicId: sourceContext.key + "_" + this.id,
       originalName: this.name,
       imageCache: [],
       failedChapters: [],
@@ -258,8 +267,9 @@ export default {
       scrollBottomTriggered: false,
       pending: [],
       storageDirty: false,
-      source: { ...getCurrentSource() },
-      sourceKey: global.API_SETTING.using,
+      source: { ...sourceContext.source },
+      sourceKey: sourceContext.key,
+      sourceContext: sourceContext,
       imageSettings: { ...global.APP_SETTING },
     });
     if (this.gatewayTaskId) {
@@ -362,6 +372,7 @@ export default {
       const task = fetcher({
         ...options,
         sourceKey: state.sourceKey,
+        sourceContext: state.sourceContext,
         success: (response) => {
           if (!this.isDownloadActive(state) && options.responseType === "file") {
             deleteImageTemp(response && response.data);
@@ -1022,7 +1033,7 @@ export default {
   retryOnFail(code, retryCount, options, state = this._downloadState) {
     if (!this.isDownloadActive(state)) return Promise.reject(DOWNLOAD_ABORTED);
     // 不存在/认证失败等确定性 HTTP 错误无需连续重试；超时/限流仍保留原配额。
-    if (code >= 400 && code < 500 && code !== 408 && code !== 429) {
+    if (code === 429 || code === 503 || (code >= 400 && code < 500 && code !== 408)) {
       return Promise.reject(options.failMessage(code));
     }
     console.debug(`${options.label}, code = ${code}, retryCount = ${retryCount}`);
@@ -1067,14 +1078,19 @@ export default {
       );
     } catch (e) {
       this.checkDownloadActive(state);
+      const errorInfo = formatApiError(e && e.data, e && e.code, {
+        sourceKey: state.sourceKey,
+        action: this.$t("download.title"),
+        t: (k, p) => this.$t(k, p),
+      });
       return this.retryOnFail(
         e.code,
         retryCount,
         {
-          label: "获取图片列表失败",
+          label: errorInfo.formatted,
           retry: (count) => this.fetchImageList(count, state),
           timeoutMessage: this.$t("download.fetchListTimeoutFailed"),
-          failMessage: (errCode) => this.$t("download.fetchListFailed", { code: errCode }),
+          failMessage: (errCode) => this.$t("download.fetchListFailed", { code: errCode }) + (errorInfo.formatted ? ` (${errorInfo.formatted})` : ""),
         },
         state
       );
@@ -1250,14 +1266,19 @@ export default {
       );
     } catch (e) {
       this.checkDownloadActive(state);
+      const errorInfo = formatApiError(e && e.data, e && e.code, {
+        sourceKey: state.sourceKey,
+        action: this.$t("download.page", { page, total_page: this.page_count || "" }),
+        t: (k, p) => this.$t(k, p),
+      });
       return this.retryOnFail(
         e.code,
         retryCount,
         {
-          label: "下载图片失败",
+          label: errorInfo.formatted,
           retry: (count) => this.downloadPage(page, folderUri, count, state),
           timeoutMessage: this.$t("download.downloadTimeoutFailed"),
-          failMessage: (errCode) => this.$t("download.downloadFailed") + errCode,
+          failMessage: (errCode) => this.$t("download.downloadFailed") + errCode + (errorInfo.formatted ? ` (${errorInfo.formatted})` : ""),
         },
         state
       );
@@ -1287,14 +1308,19 @@ export default {
       );
     } catch (e) {
       this.checkDownloadActive(state);
+      const errorInfo = formatApiError(e && e.data, e && e.code, {
+        sourceKey: state.sourceKey,
+        action: this.$t("detail.detail"),
+        t: (k, p) => this.$t(k, p),
+      });
       return this.retryOnFail(
         e.code,
         retryCount,
         {
-          label: "下载封面失败",
+          label: errorInfo.formatted,
           retry: (count) => this.downloadCover(folderUri, count, state),
           timeoutMessage: this.$t("download.coverTimeoutFailed"),
-          failMessage: (errCode) => this.$t("download.coverFailed", { code: errCode }),
+          failMessage: (errCode) => this.$t("download.coverFailed", { code: errCode }) + (errorInfo.formatted ? ` (${errorInfo.formatted})` : ""),
         },
         state
       );

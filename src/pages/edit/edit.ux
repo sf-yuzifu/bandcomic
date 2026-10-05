@@ -61,7 +61,7 @@ import prompt from "@system.prompt";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { updateJsonFile, FILE_ERROR, SOURCES_URI } = global.$storage;
 const { safeJsonParse } = global.$json;
-const { apiFetch, getFetchErrorType, ensureUsingSourceValid, replaceIfDuplicate, mergeSourcesToGlobal } = global.$api;
+const { apiFetch, getFetchErrorType, ensureUsingSourceValid, replaceIfDuplicate, mergeSourcesToGlobal, validSourceDirectory, isHttpSuccess, formatApiError } = global.$api;
 const { createConfirmGuard } = global;
 
 const { getTime } = global;
@@ -84,7 +84,8 @@ function validateApiUrl(url) {
 
   const domainRegex = /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d{1,5})?$/;
   const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}(:\d{1,5})?$/;
-  if (!domainRegex.test(normalized) && !ipv4Regex.test(normalized)) {
+  const authority = normalized.split("/")[0];
+  if (!domainRegex.test(authority) && !ipv4Regex.test(authority)) {
     return "invalidDomain";
   }
 
@@ -150,11 +151,12 @@ export default {
   fetchSourceConfig(protocol) {
     apiFetch({
       url: protocol + "://" + this.context + "/config",
+      anonymous: true,
       responseType: "text",
       success: (response) => {
         if (this.destroyed) return;
-        const data = safeJsonParse(response.data, null);
-        if (data == null) {
+        const data = validSourceDirectory(safeJsonParse(response.data, null));
+        if (!isHttpSuccess(response) || !Object.keys(data).length) {
           prompt.showToast({
             message: this.$t("edit.unknownReadError") + response.data,
           });
@@ -198,19 +200,14 @@ export default {
           this.fetchSourceConfig("http");
           return;
         }
-        if (errorType === "domain") {
-          prompt.showToast({ message: this.$t("edit.domainError") });
-        } else if (errorType === "timeout") {
-          prompt.showToast({ message: this.$t("edit.timeoutError") });
-        } else if (errorType === "ssl") {
-          prompt.showToast({ message: this.$t("edit.sslError") });
-        } else if (errorType === "connection") {
-          prompt.showToast({ message: this.$t("edit.connectionError") });
-        } else {
-          prompt.showToast({
-            message: this.$t("edit.unknownRequestError") + data,
-          });
-        }
+        const errorInfo = formatApiError(data, code, {
+          action: this.$t("edit.title"),
+          t: (k, p) => this.$t(k, p),
+        });
+        prompt.showToast({
+          message: errorInfo.formatted,
+          duration: 4000,
+        });
       },
     });
   },

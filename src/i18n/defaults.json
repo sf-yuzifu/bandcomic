@@ -46,7 +46,30 @@
     "networkError": "Network error",
     "unknownError": "Error: ",
     "invalidResponse": "Invalid response from comic source",
-    "sourceDeleted": "Source deleted"
+    "sourceDeleted": "Source deleted",
+    "retryAfter": " (wait {seconds}s)",
+    "http": {
+      "400": "Invalid parameters",
+      "401": "Authentication required (missing cookie)",
+      "403": "Access denied (cookie/purchase/region)",
+      "404": "Comic or chapter not found",
+      "408": "Request timeout",
+      "409": "State conflict (cursor expired)",
+      "413": "Payload too large",
+      "429": "Rate limited by source",
+      "500": "Internal server error",
+      "502": "Upstream station error or parse failure",
+      "503": "Service busy (queue full)",
+      "504": "Gateway timeout"
+    },
+    "curl": {
+      "6": "DNS resolution failed",
+      "7": "Connection refused",
+      "28": "Network request timeout (curl 28)",
+      "35": "SSL handshake failed (try bridge)",
+      "52": "Server returned empty reply (curl 52)",
+      "60": "SSL certificate verification failed (curl 60)"
+    }
   },
   "search": {
     "search": "Search: ",
@@ -78,7 +101,8 @@
     "photoSizeChange": "Resize",
     "brightness": "Brightness",
     "brightnessAuto": "Auto brightness on; dragging will temporarily switch to manual",
-    "chapter": "Ch"
+    "chapter": "Ch",
+    "tapRetry": "Tap screen to retry"
   },
   "offline": {
     "offline": "Local",

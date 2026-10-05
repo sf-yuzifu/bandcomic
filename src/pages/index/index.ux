@@ -108,8 +108,7 @@ const {
   setRecoveryNotifier,
   FILE_ERROR,
 } = global.$storage;
-const { safeJsonParse } = global.$json;
-const { apiFetch, buildDetailUrl, getFetchErrorType, mergeSourcesToGlobal, getCurrentSourceName, isComicDetailResponse } = global.$api;
+const { apiFetch, buildDetailUrl, mergeSourcesToGlobal, getCurrentSourceName, isComicDetailResponse, isComicId, captureSource, saveSourceContext, formatApiError } = global.$api;
 
 const { getTime, createConfirmGuard } = global;
 
@@ -316,13 +315,15 @@ export default {
       message: this.$t("loading"),
       duration: 5000,
     });
-    if (/^\d{1,20}$/.test(this.context)) {
+    const sourceContext = captureSource();
+    if (isComicId(keyword, sourceContext.source, sourceContext.key)) {
       this.getAlbum();
     } else {
       router.push({
         uri: "/pages/search",
         params: {
           keyword: this.context.trim(),
+          sourceToken: saveSourceContext(sourceContext),
         },
       });
     }
@@ -364,8 +365,10 @@ export default {
   },
 
   getAlbum() {
+    const sourceContext = captureSource();
     apiFetch({
-      url: buildDetailUrl(this.context),
+      url: buildDetailUrl(this.context.trim(), sourceContext.source),
+      sourceContext: sourceContext,
       responseType: "json",
       success: (response) => {
         if (!isComicDetailResponse(response)) {
@@ -375,29 +378,18 @@ export default {
           });
           return;
         }
-        this.toAlbum(response.data);
+        this.toAlbum({ ...response.data, sourceToken: saveSourceContext(sourceContext) });
       },
       fail: (data, code) => {
-        console.debug(`handling fail, errMsg = ${data}`);
-        const parsed = safeJsonParse(data, null);
-        if (parsed && parsed.message && parsed.message.indexOf("请求的本子不存在") != -1) {
-          prompt.showToast({
-            message: this.$t("error.noComicFound"),
-            duration: 3000,
-          });
-          return;
-        }
-        if (getFetchErrorType(code) === "timeout") {
-          prompt.showToast({
-            message: this.$t("error.networkError"),
-            duration: 3000,
-          });
-        } else {
-          prompt.showToast({
-            message: this.$t("error.networkError") + data,
-            duration: 3000,
-          });
-        }
+        console.debug(`handling fail, errMsg = ${data}, code = ${code}`);
+        const errorInfo = formatApiError(data, code, {
+          sourceKey: sourceContext.key,
+          t: (k, p) => this.$t(k, p),
+        });
+        prompt.showToast({
+          message: errorInfo.formatted,
+          duration: 4000,
+        });
       },
     });
   },

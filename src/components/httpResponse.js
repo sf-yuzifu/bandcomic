@@ -18,6 +18,14 @@ export function createHttpError(response) {
   const status = getHttpStatus(response);
   const error = new Error(status ? "HTTP " + status : "invalid HTTP response");
   error.httpStatus = status || 0;
+  error.code = error.httpStatus;
+  const headers = response && (response.headers || response.header) || {};
+  const key = Object.keys(headers).find((name) => name.toLowerCase() === "retry-after");
+  const value = key && headers[key];
+  const seconds = /^\d+$/.test(String(value)) ? Number(value) : Math.ceil((Date.parse(value) - Date.now()) / 1000);
+  error.retryAfter = Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, 3600) : 0;
+  error.noRetry = [400, 401, 403, 404, 409, 413, 429, 503].indexOf(error.httpStatus) !== -1;
+  if (error.retryAfter) error.message += " (Retry-After " + error.retryAfter + "s)";
   return error;
 }
 

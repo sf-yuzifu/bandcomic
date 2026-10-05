@@ -91,7 +91,7 @@ function harness() {
     if (options.success) options.success(response);
     return response;
   }, (error) => { if (options.fail) options.fail(error, error.code || 300); throw error; });
-  for (const name of ["httpResponse", "jsonUtils", "imageUrl", "imageFile", "storage", "api", "comicImport", "gatewaySession",
+  for (const name of ["httpResponse", "jsonUtils", "imageUrl", "imageFile", "storage", "sourceConfig", "api", "comicImport", "gatewaySession",
     "base64", "stopWaitQueue", "windowedSender", "httpDataSync", "dataDelete", "dataBridge"]) {
     vm.runInContext(strip(read("components/" + name + ".js")), context);
   }

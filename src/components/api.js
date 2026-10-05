@@ -1,7 +1,10 @@
 import fetch from "./interconnfetch";
 import { appendCoverSuffix } from "./imageUrl";
 import { safeJsonParse } from "./jsonUtils";
-import { getHttpStatus, isHttpSuccess } from "./httpResponse";
+import { getHttpStatus, isHttpSuccess, createHttpError } from "./httpResponse";
+import { validateSourceConfig, validSourceDirectory } from "./sourceConfig";
+import { deleteImageTemp } from "./imageFile";
+export { validateSourceConfig, validSourceDirectory, isComicId } from "./sourceConfig";
 
 export { getHttpStatus, isHttpSuccess } from "./httpResponse";
 
@@ -91,6 +94,149 @@ export function classifyFetchError(data, code) {
   return { status: type, code: effectiveCode, message: msg };
 }
 
+export const DEFAULT_HTTP_STATUS_DESC = {
+  400: "Invalid parameters",
+  401: "Authentication required",
+  403: "Access denied (cookie/purchase/region)",
+  404: "Comic or chapter not found",
+  408: "Request timeout",
+  409: "State conflict (cursor expired)",
+  413: "Payload too large",
+  429: "Rate limited by source",
+  500: "Internal server error",
+  502: "Upstream station error or parse failure",
+  503: "Service busy (queue full)",
+  504: "Gateway timeout",
+};
+
+export const DEFAULT_CURL_ERROR_DESC = {
+  6: "DNS resolution failed",
+  7: "Connection refused",
+  28: "Network request timeout (curl 28)",
+  35: "SSL handshake failed (try bridge)",
+  52: "Server returned empty reply (curl 52)",
+  60: "SSL certificate verification failed (curl 60)",
+};
+
+function resolveHttpDesc(statusCode, t) {
+  if (typeof t === "function") {
+    const key = `error.http.${statusCode}`;
+    const localized = t(key);
+    if (localized && localized !== key) return localized;
+  }
+  return DEFAULT_HTTP_STATUS_DESC[statusCode] || `HTTP ${statusCode}`;
+}
+
+function resolveCurlDesc(curlCode, errorType, t) {
+  if (typeof t === "function") {
+    if (curlCode) {
+      const key = `error.curl.${curlCode}`;
+      const localized = t(key);
+      if (localized && localized !== key) return localized;
+    }
+    if (errorType && errorType !== "unknown") {
+      const key = `error.${errorType}`;
+      const localized = t(key);
+      if (localized && localized !== key) return localized;
+    }
+  }
+  return DEFAULT_CURL_ERROR_DESC[curlCode] || (typeof t === "function" ? t("error.networkError") : "Network error");
+}
+
+export function formatApiError(data, code, options = {}) {
+  const t = typeof options.t === "function" ? options.t : null;
+  const sourceKey = options.sourceKey || (global.API_SETTING && global.API_SETTING.using) || "";
+  const sourceConfig = (sourceKey && global.API_SETTING && global.API_SETTING[sourceKey]) || null;
+  const sourceName = (sourceConfig && sourceConfig.name) || sourceKey || "";
+  const sourceTag = sourceName ? `[${sourceName}] ` : "";
+  const actionPrefix = options.action ? `${options.action} ` : "";
+
+  let rawMsg = "";
+  let statusCode = null;
+  let retryAfter = null;
+
+  let parsed = null;
+  if (data && typeof data === "object") {
+    parsed = data;
+  } else if (typeof data === "string") {
+    rawMsg = data.trim();
+    if (rawMsg.startsWith("{") && rawMsg.endsWith("}")) {
+      try {
+        parsed = JSON.parse(rawMsg);
+      } catch (_) {}
+    }
+  }
+
+  if (parsed && typeof parsed === "object") {
+    if (parsed.message) rawMsg = String(parsed.message);
+    else if (parsed.msg) rawMsg = String(parsed.msg);
+    else if (parsed.error) rawMsg = String(parsed.error);
+    if (parsed.code && Number.isInteger(Number(parsed.code))) {
+      statusCode = Number(parsed.code);
+    }
+    if (parsed.retryAfter || parsed.retry_after) {
+      retryAfter = Number(parsed.retryAfter || parsed.retry_after);
+    }
+  }
+
+  const numericCode = Number(code);
+  if (Number.isInteger(numericCode) && numericCode >= 100 && numericCode <= 599) {
+    statusCode = numericCode;
+  }
+
+  if (!statusCode && rawMsg) {
+    const httpMatch = rawMsg.match(/HTTP\s*(\d{3})/i);
+    if (httpMatch) {
+      statusCode = Number(httpMatch[1]);
+    }
+  }
+  if (!retryAfter && rawMsg) {
+    const retryMatch = rawMsg.match(/Retry-After\s*(\d+)s?/i);
+    if (retryMatch) {
+      retryAfter = Number(retryMatch[1]);
+    }
+  }
+
+  const classified = classifyFetchError(data, code);
+  const curlCode = (classified && classified.code) || code;
+  const errorType = (classified && classified.status) || "unknown";
+
+  if (statusCode) {
+    const statusText = resolveHttpDesc(statusCode, t);
+    const isGenericHttp = /^HTTP\s*\d{3}(?:\s*\(.*\))?$/i.test(rawMsg);
+    let detailDesc = (rawMsg && !isGenericHttp && rawMsg !== "Upstream failed" && rawMsg !== "请求失败")
+      ? rawMsg
+      : statusText;
+    if (retryAfter && !detailDesc.includes("Retry-After")) {
+      const retrySuffix = t ? t("error.retryAfter", { seconds: retryAfter }) : ` (wait ${retryAfter}s)`;
+      detailDesc += retrySuffix;
+    }
+    return {
+      sourceKey,
+      sourceName,
+      statusCode,
+      curlCode: null,
+      type: "http",
+      message: detailDesc,
+      formatted: `${sourceTag}${actionPrefix}[${statusCode}] ${detailDesc}`,
+    };
+  }
+
+  const desc = resolveCurlDesc(curlCode, errorType, t);
+  const isGenericCurlMsg = /timed?\s*out|resolve\s*host|connection\s*refused|ssl|handshake|empty\s*reply/i.test(rawMsg);
+  const isCustomRaw = rawMsg && rawMsg !== "unknown" && !rawMsg.startsWith("error code:") && !isGenericCurlMsg;
+  const finalDesc = isCustomRaw ? rawMsg : desc;
+  return {
+    sourceKey,
+    sourceName,
+    statusCode: null,
+    curlCode: curlCode || null,
+    type: errorType,
+    message: finalDesc,
+    formatted: `${sourceTag}${actionPrefix}${finalDesc}`,
+  };
+}
+
 export function getCurrentSource() {
   return global.API_SETTING[global.API_SETTING.using];
 }
@@ -123,6 +269,7 @@ export function ensureUsingSourceValid() {
 // 源配置数组按 key 合并去重：同 key 原位替换，新 key 追加（sources.json 落盘结构，
 // 数组元素为单键对象）；支持一次传入多 key 对象（edit 页远端 config 原文）
 export function replaceIfDuplicate(configArray, newConfigObject) {
+  newConfigObject = validSourceDirectory(newConfigObject);
   const keys = Object.keys(newConfigObject);
 
   keys.forEach((newKey) => {
@@ -161,7 +308,7 @@ export function mergeSourcesToGlobal(sourceArray) {
     // 脏条目合并会覆盖指针致悬空（P2-35①）
     if (newKey === "using") return;
     const value = newSourceConfig[newKey];
-    if (!value || typeof value !== "object") return;
+    if (validateSourceConfig(newKey, value)) return;
     global.API_SETTING[newKey] = value;
   });
 }
@@ -188,28 +335,75 @@ export function buildSourceUrl(path, replacements, source = getCurrentSource()) 
   return url;
 }
 
+// Credentials stay in memory; router parameters contain only an opaque token.
+const contexts = {};
+let contextSequence = 0;
+export function captureSource(sourceKey) {
+  const key = sourceKey || global.API_SETTING.using;
+  const source = global.API_SETTING[key];
+  if (!source || validateSourceConfig(key, source)) throw new Error("Invalid source configuration");
+  return { key: key, source: { ...source }, header: buildHeaders({}, key) };
+}
+export function saveSourceContext(context) {
+  const token = "source_" + Date.now() + "_" + (++contextSequence);
+  contexts[token] = { context: context, expires: Date.now() + 3600000 };
+  Object.keys(contexts).forEach((key) => { if (contexts[key].expires < Date.now()) delete contexts[key]; });
+  const keys = Object.keys(contexts);
+  while (keys.length > 24) delete contexts[keys.shift()];
+  return token;
+}
+export function getSourceContext(token, sourceKey) {
+  const saved = token && contexts[token];
+  if (saved && saved.expires > Date.now()) return saved.context;
+  if (token) throw new Error("Source context expired; reopen the comic");
+  return captureSource(sourceKey);
+}
+
 export function buildDetailUrl(id, source = getCurrentSource()) {
-  return buildSourceUrl(source.detailPath, { id: id }, source);
+  return buildSourceUrl(source.detailPath, { id: encodeURIComponent(id) }, source);
 }
 
 export function buildPhotoUrl(id, chapter, source = getCurrentSource()) {
   return buildSourceUrl(source.photoPath, {
-    id: id,
-    chapter: chapter,
+    id: encodeURIComponent(id),
+    chapter: encodeURIComponent(chapter),
   }, source);
 }
 
-export function buildSearchUrl(text, page) {
-  return buildSourceUrl(getCurrentSource().searchPath, {
+export function buildSearchUrl(text, page, source = getCurrentSource()) {
+  return buildSourceUrl(source.searchPath, {
     text: encodeURIComponent(text),
     page: page || "1",
-  });
+  }, source);
 }
 
+const sourceCooldown = {};
 export function apiFetch(options) {
+  const key = options.anonymous ? "" : options.sourceContext ? options.sourceContext.key : options.sourceKey || global.API_SETTING.using;
+  const cooldown = key && sourceCooldown[key];
+  if (cooldown && cooldown.until > Date.now()) {
+    const timer = setTimeout(() => {
+      if (options.fail) options.fail(cooldown.error.message, cooldown.error.code);
+      if (options.complete) options.complete();
+    }, 0);
+    return { cancel: () => clearTimeout(timer) };
+  }
   return fetch.fetch({
     ...options,
-    header: buildHeaders(options.header, options.sourceKey),
+    header: options.anonymous ? { "User-Agent": global.userAgent(), ...(options.header || {}) } :
+      options.sourceContext ? { ...options.sourceContext.header, ...(options.header || {}) } : buildHeaders(options.header, options.sourceKey),
+    success: (response) => {
+      if (!isHttpSuccess(response)) {
+        if (options.responseType === "file") deleteImageTemp(response.data);
+        const error = createHttpError(response);
+        if (key && [429, 503].indexOf(error.code) !== -1) {
+          sourceCooldown[key] = { until: Date.now() + (error.retryAfter || 2) * 1000, error: error };
+        }
+        if (options.fail) options.fail(error.message, error.code);
+        return;
+      }
+      if (options.success) options.success(response);
+    },
   });
 }
 
@@ -227,6 +421,7 @@ export function checkSourceHealth(sourceKey) {
       url: source.apiUrl + "/config",
       responseType: "text",
       sourceKey: sourceKey,
+      anonymous: true,
       success: (response) => {
         const statusCode = getHttpStatus(response);
         if (!isHttpSuccess(response)) {
@@ -234,7 +429,7 @@ export function checkSourceHealth(sourceKey) {
           return;
         }
         const data = safeJsonParse(response.data, null);
-        if (data == null || typeof data !== "object" || Array.isArray(data)) {
+        if (!data || validateSourceConfig(sourceKey, data[sourceKey])) {
           resolve({ status: "invalid", key: sourceKey, name: name, apiUrl: apiUrl });
           return;
         }
@@ -258,9 +453,10 @@ export function checkSourceHealth(sourceKey) {
 // 设备不支持直接加载远程图片时，通过插件把图片拉取为本地文件后回调本地 uri；
 // 支持直连的设备直接回调原 url
 // priority 透传给请求队列：0 = 用户可见（默认），1 = 后台封面
-export function proxyImage(url, name, callback, priority, sourceKey) {
+export function proxyImage(url, name, callback, priority, sourceKey, sourceContext) {
+  const snapshot = sourceContext || captureSource(sourceKey);
   fetch.isDirectAvailable().then((direct) => {
-    if (direct) {
+    if (direct && !snapshot.header.Cookie) {
       callback(url);
       return;
     }
@@ -269,6 +465,7 @@ export function proxyImage(url, name, callback, priority, sourceKey) {
       responseType: "file",
       priority: priority || 0,
       sourceKey: sourceKey,
+      sourceContext: snapshot,
       success: (response) => {
         callback(response.data || "");
       },

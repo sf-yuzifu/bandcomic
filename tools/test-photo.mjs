@@ -1,7 +1,9 @@
 // Run the real reader with in-memory Vela files, requests and reading history.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import vm from "node:vm";
+import nativeVm from "node:vm";
+import { createSourceFixtureContext } from "./source-test-fixture.mjs";
+const vm = { ...nativeVm, createContext: createSourceFixtureContext };
 import { test } from "node:test";
 
 const read = (path) => fs.readFileSync(new URL(path, import.meta.url), "utf8");

@@ -163,6 +163,7 @@ function createGatewaySandbox(options = {}) {
     jsonUtilsCode.replace(/^import[\s\S]*?;\r?\n/gm, "").replace(/^export /gm, ""),
     context
   );
+  vm.runInContext(fs.readFileSync(new URL("../src/components/sourceConfig.js", import.meta.url), "utf8").replace(/^export /gm, ""), context);
   vm.runInContext(apiCode.replace(/^import .*;\r?\n/gm, "").replace(/^export \{[^\n]*\n/gm, "")
     .replace(/^export /gm, ""), context);
   vm.runInContext(
@@ -833,7 +834,6 @@ test("gatewaySession: HTTP-9-B resumes interrupted task and reuses valid stage",
   assert.ok(finalResult);
   assert.equal(finalResult.savedPages, 3);
 });
-
 
 
 

@@ -98,7 +98,7 @@ function pumpQueue() {
         typeof batch.options.getSourceKey === "function"
           ? batch.options.getSourceKey(cover.item)
           : cover.item && cover.item.source;
-      proxyImage(cover.url, batch.options.getName(cover.item), finish, 1, sourceKey);
+      proxyImage(cover.url, batch.options.getName(cover.item), finish, 1, sourceKey, batch.options.sourceContext);
     } catch (e) {
       finish("");
     }

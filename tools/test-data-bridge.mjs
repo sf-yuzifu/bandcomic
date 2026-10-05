@@ -4,7 +4,7 @@ import fs from "node:fs";
 import vm from "node:vm";
 import { test } from "node:test";
 
-const modules = ["base64.js", "stopWaitQueue.js", "windowedSender.js", "httpDataSync.js", "api.js", "comicImport.js", "dataDelete.js", "dataBridge.js"].map(
+const modules = ["base64.js", "stopWaitQueue.js", "windowedSender.js", "httpDataSync.js", "sourceConfig.js", "api.js", "comicImport.js", "dataDelete.js", "dataBridge.js"].map(
   (name) => fs.readFileSync(new URL("../src/components/" + name, import.meta.url), "utf8")
 );
 const tick = () => new Promise((resolve) => setImmediate(resolve));

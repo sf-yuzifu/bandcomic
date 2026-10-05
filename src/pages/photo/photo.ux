@@ -73,6 +73,8 @@
         class="state-img"
         src="{{ loading == 'end' ? '/common/end.png' : loading ? '/common/loading.png' : '/common/error.png' }}"
       ></image>
+      <text if="{{ !loading && errorMessage }}" class="state-error-text">{{ errorMessage }}</text>
+      <text if="{{ !loading && errorMessage }}" class="state-retry-hint">{{ $t("photo.tapRetry") }}</text>
     </div>
 
     <img
@@ -245,7 +247,7 @@ import vibrator from "@system.vibrator";
 const { addImageParams, appendLvglSuffix } = global.$img;
 const { parseParam } = global.$route;
 const { readHistory, updateJsonFile, HISTORY_URI, sanitizeFolderName } = global.$storage;
-const { apiFetch, buildPhotoUrl } = global.$api;
+const { apiFetch, buildPhotoUrl, getSourceContext, isHttpSuccess, formatApiError } = global.$api;
 
 const { screenSize, getTime } = global;
 
@@ -368,6 +370,7 @@ function buildDigitRanges(total, current) {
 
 export default {
   private: {
+    sourceToken: "",
     id: "",
     page_count: 0,
     page: 1,
@@ -392,6 +395,7 @@ export default {
     // 可能与模块冲突，slider value 绑到模块对象会卡死
     brightVal: 50,
     brightAuto: false,
+    errorMessage: "",
   },
 
   onShow() {
@@ -499,6 +503,13 @@ export default {
       }
     }
 
+    if (!this.local) {
+      try { this._sourceContext = getSourceContext(this.sourceToken, this.source); }
+      catch (error) {
+        sourceMissing = true;
+        this._sourceContext = { key: this.source || global.API_SETTING.using, source: {}, header: {} };
+      }
+    }
     // 读取历史记录，恢复上次阅读位置（本地和在线漫画都支持）
     const comicId = this.getComicId();
     let savedHistoryItem = null;
@@ -656,6 +667,7 @@ export default {
       return;
     }
     this.resetPhotoGeneration();
+    this.errorMessage = "";
     this.loading = "loading";
     this.scale = 0;
     const chapter = this.chapter;
@@ -663,21 +675,24 @@ export default {
     listFetching = true;
 
     apiFetch({
-      url: buildPhotoUrl(this.id, Math.floor(this.chapter)),
+      url: buildPhotoUrl(this.id, Math.floor(this.chapter), this._sourceContext.source),
+      sourceContext: this._sourceContext,
       responseType: "json",
       success: (response) => {
         if (!this.isChapterRequestCurrent(generation, chapter)) return;
         listFetching = false;
         const body = response.data;
         const urls =
-          body && Array.isArray(body.images)
-            ? body.images.filter((img) => img && img.url).map((img) => img.url)
+          isHttpSuccess(response) && body && typeof body.title === "string" && Array.isArray(body.images) && body.images.every((img) => img && typeof img.url === "string" && /^https?:\/\//.test(img.url))
+            ? body.images.map((img) => img.url)
             : null;
         if (!urls) {
-          this.enterErrorState();
+          const invalidMsg = this._sourceContext.key ? `[${this._sourceContext.key}] 章节图片数据格式无效` : this.$t("error.invalidResponse");
+          this.enterErrorState(invalidMsg);
           // 清掉 page_count 残留值，防止后续翻页基于脏值越走越远（P0-8）
           this.page_count = 0;
           console.debug("handling fail, invalid response data");
+          prompt.showToast({ message: invalidMsg, duration: 3000 });
           return;
         }
         ImageCache = urls;
@@ -692,11 +707,19 @@ export default {
       fail: (data, code) => {
         if (!this.isChapterRequestCurrent(generation, chapter)) return;
         listFetching = false;
-        this.enterErrorState();
+        const errorInfo = formatApiError(data, code, {
+          sourceKey: this._sourceContext.key,
+          action: `${this.$t("photo.chapter")} ${chapter}`,
+          t: (k, p) => this.$t(k, p),
+        });
+        this.enterErrorState(errorInfo.formatted);
         // 同上：失败后 page_count 归零，翻页判断不再依赖路由残留值（P0-8）
         this.page_count = 0;
         console.debug(`handling fail, errMsg = ${data}`);
         console.debug(`handling fail, errCode = ${code}`);
+        if (typeof prompt !== "undefined" && prompt && typeof prompt.showToast === "function") {
+          prompt.showToast({ message: errorInfo.formatted, duration: 4000 });
+        }
       },
     });
   },
@@ -714,6 +737,7 @@ export default {
       page: this.page,
     };
     this.loading = "loading";
+    this.errorMessage = "";
     // 离开当前页前把已显示的图片放回预加载缓存，回翻时优先使用本地
     if (
       !this.local &&
@@ -823,11 +847,12 @@ export default {
 
     imageUrl = appendLvglSuffix(
       imageUrl,
-      `${global.API_SETTING.using}_${this.id}_ch${this.chapter}_p${page}`
+      `${this._sourceContext.key}_${this.id}_ch${this.chapter}_p${page}`
     );
 
     apiFetch({
       url: imageUrl,
+      sourceContext: this._sourceContext,
       responseType: "file",
       success: (response) => {
         if (!this.isImageRequestCurrent(request)) {
@@ -841,10 +866,18 @@ export default {
         this.onImageDisplayed();
         this.preloadAdjacentPages(request);
       },
-      fail: () => {
+      fail: (data, code) => {
         if (!this.isImageRequestCurrent(request)) return;
-        this.enterErrorState();
+        const errorInfo = formatApiError(data, code, {
+          sourceKey: this._sourceContext.key,
+          action: this.$t("photo.page", { page }),
+          t: (k, p) => this.$t(k, p),
+        });
+        this.enterErrorState(errorInfo.formatted);
         shownPage = 0;
+        if (typeof prompt !== "undefined" && prompt && typeof prompt.showToast === "function") {
+          prompt.showToast({ message: errorInfo.formatted, duration: 4000 });
+        }
       },
     });
   },
@@ -868,11 +901,12 @@ export default {
         parseInt(global.APP_SETTING.imageSize, 10) || 480,
         parseInt(global.APP_SETTING.imageQuality, 10) || 50
       );
-      url = appendLvglSuffix(url, `${global.API_SETTING.using}_${this.id}_ch${chapter}_p${p}`);
+      url = appendLvglSuffix(url, `${this._sourceContext.key}_${this.id}_ch${chapter}_p${p}`);
       const token = {};
       PreloadInflight[p] = token;
       apiFetch({
         url: url,
+        sourceContext: this._sourceContext,
         responseType: "file",
         priority: 1,
         success: (response) => {
@@ -1015,7 +1049,7 @@ export default {
       return "local_" + this.id;
     } else {
       // 在线漫画使用 online_ 前缀
-      return "online_" + global.API_SETTING.using + "_" + this.id;
+      return "online_" + this._sourceContext.key + "_" + this.id;
     }
   },
 
@@ -1047,7 +1081,7 @@ export default {
       page_count: this.page_count,
       is_serial: this.is_serial,
       local: this.local,
-      source: this.local ? null : global.API_SETTING.using,
+      source: this.local ? null : this._sourceContext.key,
       last_read_time: Date.now(),
     };
   },
@@ -1105,9 +1139,10 @@ export default {
 
   // 落失败态（error 图）并自动弹工具栏兜底：error 图点击只做纯重试、不切工具栏（P1-19），
   // 无此兜底则工具栏不可达（系统返回被吞）会困住用户
-  enterErrorState() {
+  enterErrorState(errorText) {
     this.loading = "";
     this.images = "";
+    this.errorMessage = errorText || "";
     this.showit = true;
   },
 
@@ -1118,6 +1153,7 @@ export default {
     try {
       vibrator.vibrate({ mode: "short" });
     } catch (_) {}
+    this.errorMessage = "";
     if (this.local || listReady) {
       this.getImageForPage(global.APP_SETTING.keepDefaultZoom);
     } else {
@@ -1362,6 +1398,23 @@ export default {
 .state-img {
   width: 256px;
   height: 256px;
+}
+
+.state-error-text {
+  font-size: 20px;
+  color: #ff6b6b;
+  text-align: center;
+  width: 80%;
+  margin-top: 10px;
+  lines: 3;
+  text-overflow: ellipsis;
+}
+
+.state-retry-hint {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  margin-top: 6px;
 }
 
 text {

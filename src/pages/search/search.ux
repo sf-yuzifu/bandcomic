@@ -114,7 +114,7 @@ import prompt from "@system.prompt";
 // 共享模块统一挂 global（见 app.ux），页面不再 import 防 bundle 重复打包
 const { addCoverParams } = global.$img;
 const { serializeParams } = global.$route;
-const { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType, isComicDetailResponse } = global.$api;
+const { apiFetch, buildSearchUrl, buildDetailUrl, getFetchErrorType, isComicDetailResponse, getSourceContext, saveSourceContext, isHttpSuccess, formatApiError } = global.$api;
 const { getSearchPageSize } = global.$set;
 const { loadCoverProxies } = global.$cover;
 
@@ -142,6 +142,7 @@ let apiHasNext = true; // API是否还有更多数据
 export default {
   protected: {
     keyword: "",
+    sourceToken: "",
   },
   private: {
     searchResults: [], // 当前显示的10项数据
@@ -159,6 +160,8 @@ export default {
   },
 
   onInit() {
+    try { this._sourceContext = getSourceContext(this.sourceToken); }
+    catch (error) { this.error = true; this.errorMsg = this.$t("error.sourceDeleted"); this.loading = false; return; }
     this.destroyed = false;
     this.time = getTime();
     this.showCoverInSearch = isCoverSearchEnabled();
@@ -225,7 +228,8 @@ export default {
 
     if (apiKey.search) {
       apiFetch({
-        url: buildSearchUrl(apiKey.text, apiKey.page),
+        url: buildSearchUrl(apiKey.text, apiKey.page, this._sourceContext.source),
+        sourceContext: this._sourceContext,
         responseType: "json",
         success: (response) => {
           if (seq !== requestSeq) return;
@@ -234,10 +238,11 @@ export default {
         fail: (data, code) => {
           if (seq !== requestSeq) return;
           this.error = true;
-          this.errorMsg =
-            getFetchErrorType(code) === "timeout"
-              ? this.$t("search.networkError")
-              : this.$t("search.requestError");
+          const errorInfo = formatApiError(data, code, {
+            sourceKey: this._sourceContext.key,
+            t: (k, p) => this.$t(k, p),
+          });
+          this.errorMsg = errorInfo.formatted;
           // 中途失败不再静默（P1-16②）：toast + 回退指示器；初始加载走 error-state
           this.failPageFlip(this.errorMsg);
         },
@@ -258,7 +263,7 @@ export default {
   ComicHandleSearchSuccess(response) {
     const data = response.data;
 
-    if (!data || !Array.isArray(data.results)) {
+    if (!isHttpSuccess(response) || !data || !Array.isArray(data.results) || !Number.isInteger(data.page) || typeof data.has_more !== "boolean") {
       this.error = true;
       this.errorMsg = this.$t("error.invalidResponse");
       this.failPageFlip(this.errorMsg);
@@ -464,8 +469,9 @@ export default {
     this.cancelResultCovers();
     this._cancelResultCovers = loadCoverProxies(this.searchResults, {
       getUrl: (item) => item.thumb,
-      getName: (item) => `${global.API_SETTING.using}_${item.gid}_cover`,
-      getSourceKey: () => global.API_SETTING.using,
+      getName: (item) => `${this._sourceContext.key}_${item.gid}_cover`,
+      getSourceKey: () => this._sourceContext.key,
+      sourceContext: this._sourceContext,
       match: (row, item) => row.gid === item.gid && row.thumb === item.thumb,
       merge: (item, uri) => ({ ...item, thumbDisplay: uri }),
       skipSame: true,
@@ -515,7 +521,8 @@ export default {
       });
     }
     apiFetch({
-      url: buildDetailUrl(result.gid),
+      url: buildDetailUrl(result.gid, this._sourceContext.source),
+      sourceContext: this._sourceContext,
       responseType: "json",
       success: (response) => {
         if (this.destroyed) return;
@@ -532,7 +539,7 @@ export default {
         }
         router.push({
           uri: "/pages/album",
-          params: serializeParams(response.data),
+          params: serializeParams({ ...response.data, sourceToken: saveSourceContext(this._sourceContext) }),
         });
       },
       fail: (data, code) => {
@@ -540,18 +547,15 @@ export default {
         this.loadingDetail = false;
         this.clearOpening();
         console.debug(data, code);
-        // 超时是网络问题不是"未找到"（P1-16①，与 index getAlbum 对齐）
-        if (getFetchErrorType(code) === "timeout") {
-          prompt.showToast({
-            message: this.$t("error.networkError"),
-            duration: 3000,
-          });
-        } else {
-          prompt.showToast({
-            message: this.$t("error.unknownError") + data,
-            duration: 3000,
-          });
-        }
+        const errorInfo = formatApiError(data, code, {
+          sourceKey: this._sourceContext.key,
+          action: this.$t("detail.detail"),
+          t: (k, p) => this.$t(k, p),
+        });
+        prompt.showToast({
+          message: errorInfo.formatted,
+          duration: 4000,
+        });
       },
     });
   },
