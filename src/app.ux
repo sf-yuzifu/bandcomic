@@ -2,6 +2,7 @@
 import device from "@system.device";
 import app from "@system.app";
 import { DEVICE_RESERVED_SPACE, getDeviceSupportLevel } from "./config/deviceConfig";
+import buildConfig from "./config/buildConfig";
 import * as $storage from "./components/storage";
 import * as $api from "./components/api";
 import * as $img from "./components/imageUrl";
@@ -47,29 +48,17 @@ const appInfo = app.getInfo();
 let deviceInfo = {};
 const screenSize = { width: 0, height: 0 };
 
+global.DEFAULT_API_SETTING = JSON.parse(JSON.stringify(buildConfig.sources));
 global.API_SETTING = {
-  MangaDex: {
-    name: "MangaDex",
-    apiUrl: "https://example.invalid",
-    detailPath: "/comic/<id>",
-    photoPath: "/photo/<id>/ch/<chapter>",
-    searchPath: "/search/<text>/<page>",
-    type: "mangadex",
-  },
-  using: "MangaDex",
+  ...JSON.parse(JSON.stringify(buildConfig.sources)),
+  using: buildConfig.defaultSource,
 };
-
-global.buildin = ["MangaDex"];
-// 内置源的出厂快照：所有源被删除时用于恢复兜底（见 api.js ensureUsingSourceValid）
-global.DEFAULT_API_SETTING = {};
-global.buildin.forEach(function (key) {
-  global.DEFAULT_API_SETTING[key] = JSON.parse(JSON.stringify(global.API_SETTING[key]));
-});
+global.buildin = Object.keys(buildConfig.sources);
 // 捐赠仅进程内展示一次（页面回收重建 index 时不再弹出）
 global.display = false;
 global.donateShown = false;
-global.update = true;
-global.UPDATE_CHECK_URL = "https://example.invalid/update.json";
+global.UPDATE_CHECK_URL = buildConfig.updateCheckUrl;
+global.update = !!global.UPDATE_CHECK_URL;
 global.updateChecking = false;
 global.updatePageShowing = false;
 global.pendingUpdateInfo = null;

@@ -123,7 +123,7 @@ export default {
   private: {
     context: "",
     time: "",
-    currentSourceName: getCurrentSourceName(),
+    currentSourceName: "",
     API_SETTING: global.API_SETTING,
     // 冷启动先压住捐赠，确认 oobeDone 后再放行（首次进入快速检查）
     display: false,
@@ -149,7 +149,7 @@ export default {
     // global，文件只在 onInit 冷启动读一次；但 global 变更不会触发本页重渲染，
     // 所以每次回首页仍要把 global 同步进 viewModel（纯赋值，零 IO）
     this.API_SETTING = global.API_SETTING;
-    this.currentSourceName = getCurrentSourceName();
+    this.currentSourceName = getCurrentSourceName() || this.$t("oobe.source.empty");
     if (global.update) {
       this.checkAppUpdate();
     }
@@ -190,7 +190,7 @@ export default {
 
     const syncSourceView = () => {
       this.API_SETTING = global.API_SETTING;
-      this.currentSourceName = getCurrentSourceName();
+      this.currentSourceName = getCurrentSourceName() || this.$t("oobe.source.empty");
     };
     if (dataStatus.sources) {
       syncSourceView();
@@ -248,7 +248,7 @@ export default {
 
       bridge.onSourceConfigSaved = () => {
         this.API_SETTING = global.API_SETTING;
-        this.currentSourceName = getCurrentSourceName();
+        this.currentSourceName = getCurrentSourceName() || this.$t("oobe.source.empty");
       };
 
       // onmessage 由 interconnectHub 统一分发，注册数据桥处理器即可
@@ -300,7 +300,12 @@ export default {
   },
 
   submitSearch() {
-    if (this.context == "") {
+    if (!global.$api.getCurrentSource()) {
+      prompt.showToast({ message: this.$t("oobe.source.emptyHint"), duration: 3000 });
+      this.routeEdit();
+      return;
+    }
+    if (this.context === "") {
       prompt.showToast({
         message: this.$t("tip"),
         duration: 3000,
@@ -395,16 +400,13 @@ export default {
   },
 
   toggleSource() {
-    const sources = Object.keys(global.API_SETTING);
+    const sources = Object.keys(global.API_SETTING).filter((key) => key !== "using");
+    if (!sources.length) return;
     const currentIndex = sources.indexOf(global.API_SETTING.using);
     const nextIndex = (currentIndex + 1) % sources.length;
     const nextSourceKey = sources[nextIndex];
 
     global.API_SETTING.using = nextSourceKey;
-    if (global.API_SETTING.using === "using") {
-      this.toggleSource();
-      return;
-    }
     this.currentSourceName = getCurrentSourceName();
   },
 

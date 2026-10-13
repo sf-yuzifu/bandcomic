@@ -249,7 +249,7 @@ export function getCurrentSourceName() {
 
 // 删除漫画源后校正当前使用的源：
 // using 指向已删除的源时回退到第一个可用源；
-// 若所有源都被删除（手机端可删内置源），恢复内置默认源兜底
+// 所有源被删除时仅恢复本次构建显式加入的默认源；公开版本保持空状态。
 export function ensureUsingSourceValid() {
   const setting = global.API_SETTING;
   // using === "using" 自指时 setting[setting.using] 恒真，必须显式排除（P2-35①）
@@ -261,7 +261,7 @@ export function ensureUsingSourceValid() {
   }
   const defaults = global.DEFAULT_API_SETTING || {};
   Object.keys(defaults).forEach((key) => {
-    setting[key] = defaults[key];
+    setting[key] = JSON.parse(JSON.stringify(defaults[key]));
   });
   setting.using = Object.keys(defaults)[0] || "";
 }
@@ -311,6 +311,8 @@ export function mergeSourcesToGlobal(sourceArray) {
     if (validateSourceConfig(newKey, value)) return;
     global.API_SETTING[newKey] = value;
   });
+  // 手动添加与 AstroBox 同步都经过这里，首个源立即成为可用的当前源。
+  ensureUsingSourceValid();
 }
 
 export function buildHeaders(extra, sourceKey) {

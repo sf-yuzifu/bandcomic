@@ -86,6 +86,7 @@
             <text class="badge {{ sourceBadgeClass }}">{{ sourceBadgeText }}</text>
           </div>
           <text class="card-desc">{{ $t("oobe.source.desc") }}</text>
+          <text class="card-desc" if="{{ sourceList.length == 0 }}">{{ $t("oobe.source.emptyHint") }}</text>
           <div class="source-item" for="{{ item in sourceList }}">
             <div class="source-sep"></div>
             <text class="source-name">{{ item.name }}</text>
@@ -313,6 +314,11 @@ export default {
     this.refreshDevice();
     this.refreshBridge();
     this.refreshDisplay();
+    // 从编辑源页返回或同步首个源后，刷新检测列表。
+    const keys = Object.keys(global.API_SETTING).filter((key) => key !== "using");
+    if (keys.join("\n") !== this.sourceList.map((item) => item.key).join("\n")) {
+      this.startSourceTest();
+    }
   },
 
   onDestroy() {
@@ -493,6 +499,11 @@ export default {
   },
 
   updateSourceBadge() {
+    if (!this.sourceList.length) {
+      this.sourceBadgeClass = "muted";
+      this.sourceBadgeText = this.$t("oobe.source.empty");
+      return;
+    }
     if (this.sourceTesting) {
       this.sourceBadgeClass = "muted";
       this.sourceBadgeText = this.$t("oobe.testing");

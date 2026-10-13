@@ -17,3 +17,7 @@ Thumbs.db
 /logs
 src/config.json
 todo.md
+
+# 本机漫画源、在线更新地址和更新发布数据
+/private.config.json
+/private.update.json

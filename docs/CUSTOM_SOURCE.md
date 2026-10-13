@@ -583,23 +583,11 @@ def photo_list(item_id, chapter):
 
 ### jmcomic API
 
-<a href="https://github.com/sf-yuzifu/vercel-flask-jmcomic-api">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://example.invalid/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api&theme=radical" />
-    <source media="(prefers-color-scheme: light)" srcset="https://example.invalid/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
-    <img alt="Repo Card" src="https://example.invalid/api/pin/?username=sf-yuzifu&repo=vercel-flask-jmcomic-api" />
-  </picture>
-</a>
+[vercel-flask-jmcomic-api](https://github.com/sf-yuzifu/vercel-flask-jmcomic-api)
 
 ### ehentai API
 
-<a href="https://github.com/sf-yuzifu/vela-py-eh-api-server">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://example.invalid/api/pin/?username=sf-yuzifu&repo=vela-py-eh-api-server&theme=radical" />
-    <source media="(prefers-color-scheme: light)" srcset="https://example.invalid/api/pin/?username=sf-yuzifu&repo=vela-py-eh-api-server" />
-    <img alt="Repo Card" src="https://example.invalid/api/pin/?username=sf-yuzifu&repo=vela-py-eh-api-server" />
-  </picture>
-</a>
+[vela-py-eh-api-server](https://github.com/sf-yuzifu/vela-py-eh-api-server)
 
 ## 15. 实验性功能：导入 Venera 漫画源
 
@@ -609,13 +597,7 @@ def photo_list(item_id, chapter):
 
 该方法需要用户拥有服务器和自定义域名，可参考以下仓库：
 
-<a href="https://github.com/sf-yuzifu/venera-source-converter">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://example.invalid/api/pin/?username=sf-yuzifu&repo=venera-source-converter&theme=radical" />
-    <source media="(prefers-color-scheme: light)" srcset="https://example.invalid/api/pin/?username=sf-yuzifu&repo=venera-source-converter" />
-    <img alt="Repo Card" src="https://example.invalid/api/pin/?username=sf-yuzifu&repo=venera-source-converter" />
-  </picture>
-</a>
+[venera-source-converter](https://github.com/sf-yuzifu/venera-source-converter)
 
 ## 16. 本地漫画源与 AstroBox 插件联动 (LocalUpload)
 

@@ -34,9 +34,76 @@ function harness(){
     fetch:{fetch(options){calls.push(options);return {cancel(){}}},isDirectAvailable:()=>Promise.resolve(false)}});
   const code=fs.readFileSync(new URL("../src/components/api.js",import.meta.url),"utf8")
     .replace(/^import .*;\r?\n/gm,"").replace(/^export \{[^\n]*\n/gm,"").replace(/^export /gm,"");
-  vm.runInContext(code+"\nglobalThis.api={captureSource,saveSourceContext,getSourceContext,apiFetch,checkSourceHealth,buildDetailUrl,formatApiError};",context);
+  vm.runInContext(code+"\nglobalThis.api={captureSource,saveSourceContext,getSourceContext,apiFetch,checkSourceHealth,buildDetailUrl,formatApiError,ensureUsingSourceValid,mergeSourcesToGlobal,getCurrentSourceName,getCurrentSource};",context);
   return {global,calls,api:context.api};
 }
+
+test("sources: a public build stays empty after startup and after deleting its last source",()=>{
+  const h=harness();
+  h.global.API_SETTING={using:""};h.global.DEFAULT_API_SETTING={};
+  h.api.ensureUsingSourceValid();
+  assert.equal(h.api.getCurrentSourceName(),"");
+  assert.deepEqual(Object.keys(h.global.API_SETTING),["using"]);
+  h.api.mergeSourcesToGlobal([{A:sourceFixture()}]);
+  assert.equal(h.global.API_SETTING.using,"A");
+  delete h.global.API_SETTING.A;
+  h.api.ensureUsingSourceValid();
+  assert.equal(h.global.API_SETTING.using,"");
+  assert.deepEqual(Object.keys(h.global.API_SETTING),["using"]);
+});
+
+test("sources: first sync selects a source; later sync preserves the existing current source",()=>{
+  const h=harness();h.global.API_SETTING={using:""};h.global.DEFAULT_API_SETTING={};
+  h.api.mergeSourcesToGlobal([{A:sourceFixture()}]);
+  assert.equal(h.global.API_SETTING.using,"A");
+  h.api.mergeSourcesToGlobal([{B:sourceFixture()}]);
+  assert.equal(h.global.API_SETTING.using,"A");
+});
+
+test("sources: explicit built-in fallback restores an independent factory snapshot",()=>{
+  const h=harness();h.global.API_SETTING={using:"deleted"};
+  h.global.DEFAULT_API_SETTING={A:sourceFixture({name:"Factory"})};
+  h.api.ensureUsingSourceValid();
+  assert.equal(h.global.API_SETTING.using,"A");
+  h.global.API_SETTING.A.name="Changed";
+  delete h.global.API_SETTING.A;
+  h.api.ensureUsingSourceValid();
+  assert.equal(h.global.API_SETTING.A.name,"Factory");
+});
+
+test("sources: the actual home page guides empty-source searches and keeps offline navigation available",()=>{
+  const h=harness(),routes=[],toasts=[];
+  h.global.API_SETTING={using:""};h.global.DEFAULT_API_SETTING={};
+  Object.assign(h.global,{
+    $api:h.api,$bridge:{},$hub:{},$route:{},$storage:{},
+    createConfirmGuard:()=>()=>true,getTime:()=>"12:00",
+  });
+  const context=vm.createContext({global:h.global,
+    router:{push:options=>routes.push(options.uri)},prompt:{showToast:options=>toasts.push(options.message)},brightness:{}});
+  const pageSource=fs.readFileSync(new URL("../src/pages/index/index.ux",import.meta.url),"utf8")
+    .match(/<script>([\s\S]*?)<\/script>/)[1]
+    .replace(/^import .*;\r?\n/gm,"").replace("export default","globalThis.page =");
+  vm.runInContext(pageSource,context);
+  const page=context.page;Object.assign(page,page.private);page.$t=key=>key;page.context="test";
+  page.submitSearch();
+  assert.deepEqual(routes,["/pages/edit"]);
+  assert.deepEqual(toasts,["oobe.source.emptyHint"]);
+  page.toggleSource();
+  assert.equal(h.global.API_SETTING.using,"");
+  page.routeOffline();
+  assert.equal(routes.at(-1),"/pages/offline");
+});
+
+test("updates: an absent build-time update URL never issues a network request",async()=>{
+  let requests=0;
+  const context=vm.createContext({global:{UPDATE_CHECK_URL:""},
+    app:{getInfo:()=>({versionCode:1})},fetch:{fetch(){requests++}},Date,Promise});
+  const code=fs.readFileSync(new URL("../src/components/updateChecker.js",import.meta.url),"utf8")
+    .replace(/^import .*;\r?\n/gm,"").replace(/^export /gm,"");
+  vm.runInContext(code+"\nglobalThis.check=checkUpdate;",context);
+  assert.equal(await context.check(true),null);
+  assert.equal(requests,0);
+});
 test("sources: detail/reading/download preserve configuration and cookie after source sync",()=>{
   const h=harness(),snapshot=h.api.captureSource(),token=h.api.saveSourceContext(snapshot);
   h.global.API_SETTING.using="B";h.global.API_SETTING.A.apiUrl="https://changed.test";h.global.cookie.A="changed";

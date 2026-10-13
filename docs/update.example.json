@@ -14,5 +14,5 @@
     "优化阅读器翻页与切章边界，确保阅读历史准确记录在实际有效页码",
     "完善网关与本地导入相关的多语言提示文案"
   ],
-  "downloadUrl": "https://example.invalid"
+  "downloadUrl": ""
 }

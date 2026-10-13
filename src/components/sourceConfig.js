@@ -3,6 +3,8 @@ const ID_TYPES = ["numeric", "uuid", "gid_token", "slug", "string"];
 
 export function isSourceKey(key) {
   return typeof key === "string" && key.trim() === key && key.length > 0 && key.length <= 80 &&
+    // 控制字符会破坏设备文件路径，此范围是有意拒绝而非误输入。
+    // eslint-disable-next-line no-control-regex
     RESERVED.indexOf(key) === -1 && !/[\\/<>\x00-\x1f]/.test(key);
 }
 export function isBaseUrl(value) {

@@ -6,8 +6,8 @@
     "node": ">=8.10"
   },
   "scripts": {
-    "start": "aiot start --watch",
-    "build": "aiot build",
+    "start": "node tools/build.mjs start --watch",
+    "build": "node tools/build.mjs build",
     "release": "node tools/build-release.mjs --enable-jsc",
     "lint": "eslint --format codeframe --fix --ext .ux,.js,.mjs src/ quickapp.config.js tools/",
     "format": "prettier --write \"src/**/*.js\" \"*.js\" && node tools/format-ux.mjs",

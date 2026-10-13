@@ -10,6 +10,14 @@ on:
         description: 'Tag to release (e.g. v2.3)'
         required: false
         type: string
+      with_builtin_sources:
+        description: 'Include sources from BANDCOMIC_PRIVATE_CONFIG secret'
+        default: false
+        type: boolean
+      with_online_update:
+        description: 'Include update URL from BANDCOMIC_PRIVATE_CONFIG secret'
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -48,8 +56,34 @@ jobs:
             exit 1
           fi
 
+      - name: Setup optional private configuration
+        if: ${{ inputs.with_builtin_sources || inputs.with_online_update }}
+        env:
+          BANDCOMIC_PRIVATE_CONFIG: ${{ secrets.BANDCOMIC_PRIVATE_CONFIG }}
+        run: |
+          node --input-type=module -e '
+            import fs from "node:fs";
+            const config = process.env.BANDCOMIC_PRIVATE_CONFIG;
+            if (!config) {
+              console.error("BANDCOMIC_PRIVATE_CONFIG secret is required for enabled private features");
+              process.exit(1);
+            }
+            try { JSON.parse(config); } catch {
+              console.error("BANDCOMIC_PRIVATE_CONFIG must contain valid JSON");
+              process.exit(1);
+            }
+            fs.writeFileSync("private.config.json", config);
+          '
+
       - name: Build release package
-        run: yarn run release
+        env:
+          WITH_BUILTIN_SOURCES: ${{ inputs.with_builtin_sources && 'true' || 'false' }}
+          WITH_ONLINE_UPDATE: ${{ inputs.with_online_update && 'true' || 'false' }}
+        run: |
+          args=()
+          if [ "$WITH_BUILTIN_SOURCES" = "true" ]; then args+=(--with-builtin-sources); fi
+          if [ "$WITH_ONLINE_UPDATE" = "true" ]; then args+=(--with-online-update); fi
+          yarn run release "${args[@]}"
 
       - name: List build artifacts
         run: ls -la dist/

@@ -80,6 +80,7 @@
 - 🖼️ [图片成品处理与预解码说明](docs/PLUGIN_IMAGE_PROCESSING.md)：LVGL I8、PNG、JPEG 压缩与缓存策略
 - 🗑️ [设备书架删除协议](docs/DATA_DELETE_PROTOCOL.md)：双向确认与索引清理机制
 - ⚙️ [多源运行时规则](docs/SOURCE_RUNTIME.md)：后端多源部署与鉴权规则
+- 📦 [私有配置与可选内置构建](docs/BUILD_CONFIG.md)：漫画源、更新地址与独立打包开关
 
 ---
 
@@ -100,10 +101,18 @@ yarn run build
 # 4. 发布打包（包含 JSC 优化）
 yarn run release
 
+# 默认构建不内置漫画源，也不配置在线更新地址。
+# 真实配置保存在 Git 忽略的 private.config.json，两个功能分别开启：
+yarn run release --with-builtin-sources
+yarn run release --with-online-update
+yarn run release --with-builtin-sources --with-online-update
+
 # 5. 代码质量检查与格式化
 yarn run lint
 yarn run format
 ```
+
+`start`、`build` 也支持相同开关。配置模板与更新发布数据说明见 [构建指南](docs/BUILD_CONFIG.md)。
 
 ---
 
